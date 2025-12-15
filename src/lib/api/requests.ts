@@ -9,7 +9,19 @@ export function useRequests() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('requests')
-        .select('*')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            full_name,
+            role
+          ),
+          maker:profiles!assigned_to (
+            id,
+            full_name,
+            role
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -27,7 +39,19 @@ export function useMyRequests(userId: string | undefined) {
 
       const { data, error } = await supabase
         .from('requests')
-        .select('*')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            full_name,
+            role
+          ),
+          maker:profiles!assigned_to (
+            id,
+            full_name,
+            role
+          )
+        `)
         .eq('created_by', userId)
         .order('created_at', { ascending: false });
 
@@ -47,7 +71,19 @@ export function useRequest(id: string | undefined) {
 
       const { data, error } = await supabase
         .from('requests')
-        .select('*')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            full_name,
+            role
+          ),
+          maker:profiles!assigned_to (
+            id,
+            full_name,
+            role
+          )
+        `)
         .eq('id', id)
         .single();
 
@@ -119,22 +155,63 @@ export function useAllRequestsStats() {
   });
 }
 
-// Update request status
+// Get stats for makers (assigned to them)
+export function useMakerStats(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['maker-stats', userId],
+    queryFn: async () => {
+      if (!userId) {
+        return {
+          assigned: 0,
+          in_progress: 0,
+          completed: 0,
+        };
+      }
+
+      // Fetch tasks assigned to this maker
+      const { data, error } = await supabase
+        .from('requests')
+        .select('status')
+        .eq('assigned_to', userId);
+
+      if (error) throw error;
+
+      // Calculate stats
+      const assigned = data.filter((r) => r.status === 'assigned').length;
+      const in_progress = data.filter((r) => r.status === 'in_production').length;
+      const completed = data.filter((r) => ['ready', 'dispatched'].includes(r.status)).length;
+
+      return { assigned, in_progress, completed };
+    },
+    enabled: !!userId,
+  });
+}
+
+// Update request status (enhanced with auto-timestamps)
 export function useUpdateRequestStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
-      id,
+      requestId,
       status,
     }: {
-      id: string;
+      requestId: string;
       status: string;
     }) => {
+      const updates: any = { status };
+
+      // Auto-set timestamps based on status
+      if (status === 'dispatched') {
+        updates.dispatched_at = new Date().toISOString();
+      } else if (status === 'ready') {
+        updates.completed_at = new Date().toISOString();
+      }
+
       const { data, error } = await supabase
         .from('requests')
-        .update({ status })
-        .eq('id', id)
+        .update(updates)
+        .eq('id', requestId)
         .select()
         .single();
 
@@ -144,7 +221,35 @@ export function useUpdateRequestStatus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['request'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+    },
+  });
+}
+
+// Assign request to maker
+export function useAssignRequest() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ requestId, makerId }: { requestId: string; makerId: string }) => {
+      const { data, error } = await supabase
+        .from('requests')
+        .update({
+          assigned_to: makerId,
+          status: 'assigned',
+        })
+        .eq('id', requestId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['request'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
     },
   });

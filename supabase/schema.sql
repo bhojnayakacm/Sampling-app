@@ -100,6 +100,7 @@ ALTER TABLE public.request_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Coordinators and Admins can view all profiles" ON public.profiles FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'coordinator')));
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Admins can update any profile" ON public.profiles FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "Admins can insert profiles" ON public.profiles FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- Requests Policies
@@ -115,7 +116,11 @@ ON public.requests FOR UPDATE
 USING (auth.uid() = assigned_to)
 WITH CHECK (auth.uid() = assigned_to); 
 
-CREATE POLICY "Coordinators and Admins can update all requests" ON public.requests FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('coordinator', 'admin')));
+-- ONLY coordinators can update requests (assign, approve, dispatch) - NOT admins
+CREATE POLICY "Coordinators can update all requests"
+ON public.requests FOR UPDATE
+USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'coordinator'))
+WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'coordinator'));
 
 -- ============================================================
 -- TRIGGERS & FUNCTIONS
@@ -153,7 +158,8 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_requests_updated_at BEFORE UPDATE ON public.requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Storage Bucket Setup (Safe to run multiple times)
-INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', false) ON CONFLICT (id) DO NOTHING;
+-- NOTE: Bucket is public so sample images can be viewed by anyone with the URL
+INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', true) ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Authenticated users can upload images" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'sample-images');
-CREATE POLICY "Authenticated users can view images" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'sample-images');
+CREATE POLICY "Public can view sample images" ON storage.objects FOR SELECT TO public USING (bucket_id = 'sample-images');

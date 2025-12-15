@@ -12,7 +12,9 @@ import MakerDashboard from '@/pages/dashboard/MakerDashboard';
 import RequestList from '@/pages/requests/RequestList';
 import NewRequest from '@/pages/requests/NewRequest';
 import RequestDetail from '@/pages/requests/RequestDetail';
+import UserManagement from '@/pages/admin/UserManagement';
 import NotFound from '@/pages/NotFound';
+import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 
 // Loading spinner component
 function LoadingScreen() {
@@ -90,7 +92,9 @@ function App() {
             path="/requests/new"
             element={
               <ProtectedRoute>
-                <NewRequest />
+                <RoleProtectedRoute allowedRoles={['marketing']}>
+                  <NewRequest />
+                </RoleProtectedRoute>
               </ProtectedRoute>
             }
           />
@@ -100,6 +104,17 @@ function App() {
             element={
               <ProtectedRoute>
                 <RequestDetail />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['admin']}>
+                  <UserManagement />
+                </RoleProtectedRoute>
               </ProtectedRoute>
             }
           />

@@ -73,6 +73,18 @@ export interface Request {
   updated_at: string;
   completed_at: string | null;
   dispatched_at: string | null;
+
+  // Related data (populated via joins)
+  creator?: {
+    id: string;
+    full_name: string;
+    role: UserRole;
+  };
+  maker?: {
+    id: string;
+    full_name: string;
+    role: UserRole;
+  };
 }
 
 // Request with creator and maker names (from view)

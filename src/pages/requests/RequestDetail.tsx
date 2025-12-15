@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRequest } from '@/lib/api/requests';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import RequestActions from '@/components/requests/RequestActions';
+import MakerActions from '@/components/requests/MakerActions';
 
 export default function RequestDetail() {
   const { profile, signOut } = useAuth();
@@ -243,6 +245,12 @@ export default function RequestDetail() {
             </Card>
           </div>
         </div>
+
+        {/* Request Actions - for coordinators/admins */}
+        <RequestActions request={request} userRole={profile?.role || ''} />
+
+        {/* Maker Actions - for makers */}
+        <MakerActions request={request} userRole={profile?.role || ''} userId={profile?.id || ''} />
       </main>
     </div>
   );

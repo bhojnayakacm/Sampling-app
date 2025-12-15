@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useMakerStats } from '@/lib/api/requests';
 
 export default function MakerDashboard() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const { data: stats, isLoading } = useMakerStats(profile?.id);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -28,7 +30,7 @@ export default function MakerDashboard() {
               <CardTitle className="text-sm font-medium text-gray-600">Assigned to Me</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">0</p>
+              <p className="text-3xl font-bold">{isLoading ? '...' : stats?.assigned || 0}</p>
             </CardContent>
           </Card>
           <Card>
@@ -36,7 +38,7 @@ export default function MakerDashboard() {
               <CardTitle className="text-sm font-medium text-gray-600">In Progress</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">0</p>
+              <p className="text-3xl font-bold">{isLoading ? '...' : stats?.in_progress || 0}</p>
             </CardContent>
           </Card>
           <Card>
@@ -44,7 +46,7 @@ export default function MakerDashboard() {
               <CardTitle className="text-sm font-medium text-gray-600">Completed</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">0</p>
+              <p className="text-3xl font-bold">{isLoading ? '...' : stats?.completed || 0}</p>
             </CardContent>
           </Card>
         </div>

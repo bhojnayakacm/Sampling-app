@@ -59,10 +59,12 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        <div className="flex gap-4">
-          <Button onClick={() => navigate('/requests/new')}>New Request</Button>
+        <div className="flex gap-4 flex-wrap">
           <Button variant="outline" onClick={() => navigate('/requests')}>
             View All Requests
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/admin/users')}>
+            Manage Users
           </Button>
         </div>
       </main>
