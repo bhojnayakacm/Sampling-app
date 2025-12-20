@@ -72,7 +72,7 @@ export function useMakers() {
 /**
  * Update a user's role
  * @param userId - User ID to update
- * @param newRole - New role (marketing, coordinator, maker, admin)
+ * @param newRole - New role (requester, coordinator, maker, admin)
  */
 export function useUpdateUserRole() {
   const queryClient = useQueryClient();
@@ -115,6 +115,27 @@ export function useToggleUserActive() {
 
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+    },
+  });
+}
+
+/**
+ * Delete user by admin (calls RPC function)
+ * @param userId - User ID to delete
+ */
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.rpc('delete_user_by_admin', {
+        target_user_id: userId,
+      });
+
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-users'] });

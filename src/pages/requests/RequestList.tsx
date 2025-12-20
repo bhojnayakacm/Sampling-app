@@ -1,54 +1,114 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { useMyRequests, useRequests } from '@/lib/api/requests';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
+import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
+import { RequestStatus, Priority } from '@/types';
+import RequestToolbar from '@/components/requests/RequestToolbar';
+import TrackingDialog from '@/components/requests/TrackingDialog';
+
+// Status filter mapping for dashboard navigation
+const STATUS_FILTERS: Record<string, RequestStatus[]> = {
+  pending: ['pending_approval', 'approved', 'assigned'],
+  in_production: ['assigned', 'in_production'],
+  dispatched: ['dispatched'],
+  assigned: ['assigned'],
+  completed: ['ready', 'dispatched'],
+};
 
 export default function RequestList() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  // Determine which requests to fetch based on role
-  const isMarketingUser = profile?.role === 'marketing';
-  const isMakerUser = profile?.role === 'maker';
-  const isAdminOrCoordinator = profile?.role === 'admin' || profile?.role === 'coordinator';
+  // Pagination and filter state
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<RequestStatus | RequestStatus[] | null>(null);
+  const [priority, setPriority] = useState<Priority | null>(null);
+  const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
 
-  // Fetch requests based on role
-  const { data: myRequests, isLoading: myRequestsLoading } = useMyRequests(profile?.id);
-  const { data: allRequests, isLoading: allRequestsLoading } = useRequests();
+  // Initialize filters from URL parameters (for dashboard navigation)
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    const urlFilter = searchParams.get('filter');
 
-  // Select appropriate data based on role
-  const { requests, isLoading } = useMemo(() => {
-    if (isMarketingUser) {
-      return { requests: myRequests, isLoading: myRequestsLoading };
-    } else if (isMakerUser) {
-      // Filter to show only assigned tasks
-      const assignedRequests = allRequests?.filter(r => r.assigned_to === profile?.id) || [];
-      return { requests: assignedRequests, isLoading: allRequestsLoading };
-    } else {
-      // Admin and Coordinator see all requests
-      return { requests: allRequests, isLoading: allRequestsLoading };
+    // Handle status-based filtering from dashboard cards
+    if (urlStatus && STATUS_FILTERS[urlStatus]) {
+      setStatus(STATUS_FILTERS[urlStatus]);
+    } else if (urlStatus) {
+      setStatus(urlStatus as RequestStatus);
     }
-  }, [isMarketingUser, isMakerUser, myRequests, allRequests, myRequestsLoading, allRequestsLoading, profile?.id]);
+
+    // Handle filter-based navigation (drafts/submitted)
+    if (urlFilter === 'drafts') {
+      setStatus('draft');
+    } else if (urlFilter === 'submitted') {
+      // For submitted, we'll handle it differently - show all non-draft
+      // This is handled in the API call with role-based filtering
+    }
+  }, [searchParams]);
+
+  const deleteDraft = useDeleteDraft();
+
+  // Determine user role for filtering
+  const isRequesterUser = profile?.role === 'requester';
+  const isMakerUser = profile?.role === 'maker';
+
+  // Fetch paginated requests with server-side filtering
+  const { data: result, isLoading } = usePaginatedRequests({
+    page,
+    pageSize: 15,
+    search,
+    status,
+    priority,
+    userId: profile?.id,
+    userRole: profile?.role,
+  });
+
+  const requests = result?.data || [];
+  const totalPages = result?.totalPages || 0;
+  const totalCount = result?.count || 0;
 
   // Get appropriate page title based on role
   const getPageTitle = () => {
-    if (isMarketingUser) return 'My Requests';
+    if (isRequesterUser) return 'My Requests';
     if (isMakerUser) return 'My Tasks';
     return 'All Requests';
   };
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+      draft: { label: 'Draft', variant: 'outline' },
       pending_approval: { label: 'Pending Approval', variant: 'outline' },
       approved: { label: 'Approved', variant: 'secondary' },
       assigned: { label: 'Assigned', variant: 'secondary' },
       in_production: { label: 'In Production', variant: 'default' },
       ready: { label: 'Ready', variant: 'default' },
       dispatched: { label: 'Dispatched', variant: 'default' },
+      received: { label: 'Received', variant: 'secondary' },
       rejected: { label: 'Rejected', variant: 'destructive' },
     };
 
@@ -58,16 +118,51 @@ export default function RequestList() {
 
   const getPriorityBadge = (priority: string) => {
     const priorityMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' }> = {
-      high: { variant: 'destructive' },
-      medium: { variant: 'default' },
-      low: { variant: 'secondary' },
+      urgent: { variant: 'destructive' },
+      normal: { variant: 'default' },
     };
 
     return (
-      <Badge variant={priorityMap[priority]?.variant || 'secondary'}>
+      <Badge variant={priorityMap[priority]?.variant || 'default'}>
         {priority.toUpperCase()}
       </Badge>
     );
+  };
+
+  // Handle delete draft
+  const handleDeleteDraft = async () => {
+    if (!draftToDelete) return;
+    try {
+      await deleteDraft.mutateAsync(draftToDelete.id);
+      toast.success('Draft deleted successfully');
+      setDraftToDelete(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete draft');
+    }
+  };
+
+  // Reset all filters
+  const handleReset = () => {
+    setSearch('');
+    setStatus(null);
+    setPriority(null);
+    setPage(1);
+  };
+
+  // Reset to page 1 when filters change
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
+  const handleStatusChange = (value: RequestStatus | null) => {
+    setStatus(value); // Single status from toolbar filter
+    setPage(1);
+  };
+
+  const handlePriorityChange = (value: Priority | null) => {
+    setPriority(value);
+    setPage(1);
   };
 
   return (
@@ -84,81 +179,319 @@ export default function RequestList() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">
-            {isLoading ? 'Loading...' : `${requests?.length || 0} Requests`}
-          </h2>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Toolbar with Search and Filters */}
+        <RequestToolbar
+          search={search}
+          status={Array.isArray(status) ? null : status}
+          priority={priority}
+          onSearchChange={handleSearchChange}
+          onStatusChange={handleStatusChange}
+          onPriorityChange={handlePriorityChange}
+          onReset={handleReset}
+        />
+
+        {/* Header with count and actions */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold">
+              {isLoading ? 'Loading...' : `${totalCount} Request${totalCount !== 1 ? 's' : ''}`}
+            </h2>
+            {!isLoading && totalPages > 0 && (
+              <p className="text-sm text-gray-600 mt-1">
+                Page {page} of {totalPages}
+              </p>
+            )}
+          </div>
           <div className="flex gap-4">
             <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
-            {isMarketingUser && (
+            {isRequesterUser && (
               <Button onClick={() => navigate('/requests/new')}>New Request</Button>
             )}
           </div>
         </div>
 
+        {/* Data Table */}
         {isLoading ? (
-          <div className="bg-white rounded-lg border p-8 text-center">
-            <p className="text-gray-500">Loading requests...</p>
+          <div className="bg-white rounded-lg border p-12 text-center">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+              <div className="h-4 bg-gray-200 rounded w-2/3 mx-auto"></div>
+            </div>
+            <p className="text-gray-500 mt-4">Loading requests...</p>
           </div>
-        ) : !requests || requests.length === 0 ? (
-          <div className="bg-white rounded-lg border p-8 text-center">
-            <p className="text-gray-500">
-              {isMarketingUser && 'No requests found. Create your first request to get started.'}
-              {isMakerUser && 'No tasks assigned to you yet.'}
-              {isAdminOrCoordinator && 'No requests found in the system.'}
+        ) : requests.length === 0 ? (
+          <div className="bg-white rounded-lg border p-12 text-center">
+            <p className="text-gray-500 text-lg">
+              {search || status || priority
+                ? 'No requests found matching your filters.'
+                : isRequesterUser
+                ? 'No requests found. Create your first request to get started.'
+                : isMakerUser
+                ? 'No tasks assigned to you yet.'
+                : 'No requests found in the system.'}
             </p>
+            {(search || status || priority) && (
+              <Button variant="outline" onClick={handleReset} className="mt-4">
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {requests.map((request) => (
-              <Card
-                key={request.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/requests/${request.id}`)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{request.request_number}</h3>
-                      <p className="text-sm text-gray-600">{request.client_name}</p>
-                      {request.creator && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Created by: <span className="font-medium text-gray-700">{request.creator.full_name}</span>
+          <>
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {requests.map((request) => {
+                const isDraft = request.status === 'draft';
+                return (
+                  <div
+                    key={request.id}
+                    onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
+                    className={`bg-white rounded-lg border shadow-sm p-4 ${
+                      !isDraft ? 'cursor-pointer active:bg-gray-50' : ''
+                    }`}
+                  >
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <code className="text-sm font-mono font-semibold text-gray-900 block">
+                          {request.request_number}
+                        </code>
+                        <p className="text-sm font-medium text-gray-700 mt-1 truncate">
+                          {request.client_project_name}
                         </p>
-                      )}
+                        <p className="text-xs text-gray-500 truncate">{request.company_firm_name}</p>
+                      </div>
+                      <div className="flex gap-2 ml-2 flex-shrink-0">
+                        <TrackingDialog
+                          request={request}
+                          trigger={
+                            <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                              <MapPin className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                        {isRequesterUser && isDraft && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/requests/edit/${request.id}`);
+                              }}
+                              className="h-9 w-9 p-0"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDraftToDelete({ id: request.id, number: request.request_number });
+                              }}
+                              className="h-9 w-9 p-0"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      {getPriorityBadge(request.priority)}
+
+                    {/* Status and Priority Badges */}
+                    <div className="flex flex-wrap gap-2 mb-3">
                       {getStatusBadge(request.status)}
+                      {getPriorityBadge(request.priority)}
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium">Sample:</span> {request.sample_name}
+                    {/* Details Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">Product:</span>
+                        <span className="ml-1 font-medium capitalize">{request.product_type}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Quality:</span>
+                        <span className="ml-1 font-medium capitalize">{request.quality}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Quantity:</span>
+                        <span className="ml-1 font-medium">{request.quantity} pcs</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Created:</span>
+                        <span className="ml-1 font-medium">{formatDate(request.created_at)}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium">Stone Type:</span> {request.stone_type}
-                    </div>
-                    <div>
-                      <span className="font-medium">Quantity:</span> {request.quantity} {request.unit}
-                    </div>
-                  </div>
 
-                  <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
-                    <span>Created on {formatDate(request.created_at)}</span>
-                    {request.maker && (
-                      <span className="text-xs">
-                        Assigned to: <span className="font-medium text-gray-700">{request.maker.full_name}</span>
-                      </span>
+                    {/* Creator Info */}
+                    {request.creator && (
+                      <p className="text-xs text-gray-400 mt-2 pt-2 border-t">
+                        Requested by {request.creator.full_name}
+                      </p>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white rounded-lg border shadow-sm overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Request #</TableHead>
+                    <TableHead>Client / Project</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Quality</TableHead>
+                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-center">Track</TableHead>
+                    {isRequesterUser && <TableHead className="text-right">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requests.map((request) => {
+                    const isDraft = request.status === 'draft';
+                    return (
+                      <TableRow
+                        key={request.id}
+                        className={!isDraft ? 'cursor-pointer hover:bg-gray-50' : ''}
+                        onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
+                      >
+                        <TableCell className="font-medium font-mono text-sm">{request.request_number}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium text-sm">{request.client_project_name}</p>
+                            <p className="text-xs text-gray-500">{request.company_firm_name}</p>
+                            {request.creator && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                by {request.creator.full_name}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="capitalize">{request.product_type}</TableCell>
+                        <TableCell className="capitalize">{request.quality}</TableCell>
+                        <TableCell className="text-center">{request.quantity}</TableCell>
+                        <TableCell>{getPriorityBadge(request.priority)}</TableCell>
+                        <TableCell>{getStatusBadge(request.status)}</TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {formatDate(request.created_at)}
+                        </TableCell>
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <TrackingDialog
+                            request={request}
+                            trigger={
+                              <Button variant="ghost" size="sm">
+                                <MapPin className="h-4 w-4" />
+                              </Button>
+                            }
+                          />
+                        </TableCell>
+                        {isRequesterUser && (
+                          <TableCell className="text-right">
+                            {isDraft && (
+                              <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/requests/edit/${request.id}`);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDraftToDelete({ id: request.id, number: request.request_number });
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
+
+        {/* Pagination Controls - Mobile Optimized */}
+        {!isLoading && totalPages > 1 && (
+          <div className="bg-white px-3 sm:px-4 py-3 rounded-lg border">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
+                <span className="hidden sm:inline">
+                  Showing <span className="font-medium">{(page - 1) * 15 + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(page * 15, totalCount)}</span> of{' '}
+                  <span className="font-medium">{totalCount}</span> results
+                </span>
+                <span className="sm:hidden">
+                  Page <span className="font-medium">{page}</span> of <span className="font-medium">{totalPages}</span>
+                </span>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page - 1)}
+                  disabled={page === 1}
+                  className="flex-1 sm:flex-none h-10 sm:h-9"
+                >
+                  <ChevronLeft className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">Previous</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(page + 1)}
+                  disabled={page === totalPages}
+                  className="flex-1 sm:flex-none h-10 sm:h-9"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="h-4 w-4 sm:ml-1" />
+                </Button>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!draftToDelete} onOpenChange={() => setDraftToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Draft?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete draft <strong>{draftToDelete?.number}</strong>?
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteDraft}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Delete Draft
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

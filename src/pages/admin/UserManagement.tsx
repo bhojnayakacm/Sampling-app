@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,16 +9,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useAllUsers, useUpdateUserRole } from '@/lib/api/users';
+import { useAllUsers, useUpdateUserRole, useDeleteUser } from '@/lib/api/users';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
 
 export default function UserManagement() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const { data: users, isLoading } = useAllUsers();
   const updateRole = useUpdateUserRole();
+  const deleteUser = useDeleteUser();
+
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -28,12 +43,34 @@ export default function UserManagement() {
     }
   };
 
+  const handleDeleteClick = (userId: string, userName: string) => {
+    // Prevent admin from deleting themselves
+    if (userId === profile?.id) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
+    setUserToDelete({ id: userId, name: userName });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return;
+
+    try {
+      await deleteUser.mutateAsync(userToDelete.id);
+      toast.success('User deleted successfully');
+      setUserToDelete(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete user');
+      setUserToDelete(null);
+    }
+  };
+
   const getRoleBadge = (role: string) => {
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
       admin: 'destructive',
       coordinator: 'default',
       maker: 'secondary',
-      marketing: 'outline',
+      requester: 'outline',
     };
     return <Badge variant={variants[role] || 'outline'}>{role.toUpperCase()}</Badge>;
   };
@@ -89,9 +126,11 @@ export default function UserManagement() {
                     <th className="text-left py-3 px-4 font-semibold">Name</th>
                     <th className="text-left py-3 px-4 font-semibold">Email</th>
                     <th className="text-left py-3 px-4 font-semibold">Phone</th>
+                    <th className="text-left py-3 px-4 font-semibold">Department</th>
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
                     <th className="text-left py-3 px-4 font-semibold">Current Role</th>
                     <th className="text-left py-3 px-4 font-semibold">Change Role</th>
+                    <th className="text-left py-3 px-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -100,6 +139,9 @@ export default function UserManagement() {
                       <td className="py-3 px-4">{user.full_name}</td>
                       <td className="py-3 px-4 text-sm text-gray-600">{user.email}</td>
                       <td className="py-3 px-4 text-sm text-gray-600">{user.phone || 'N/A'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 capitalize">
+                        {user.department || 'N/A'}
+                      </td>
                       <td className="py-3 px-4">{getStatusBadge(user.is_active)}</td>
                       <td className="py-3 px-4">{getRoleBadge(user.role)}</td>
                       <td className="py-3 px-4">
@@ -112,12 +154,22 @@ export default function UserManagement() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="marketing">Marketing</SelectItem>
+                            <SelectItem value="requester">Requester</SelectItem>
                             <SelectItem value="maker">Maker</SelectItem>
                             <SelectItem value="coordinator">Coordinator</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteClick(user.id, user.full_name)}
+                          disabled={deleteUser.isPending || user.id === profile?.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -136,6 +188,11 @@ export default function UserManagement() {
                           <p className="font-semibold">{user.full_name}</p>
                           <p className="text-sm text-gray-600">{user.email}</p>
                           <p className="text-sm text-gray-600">{user.phone || 'No phone'}</p>
+                          {user.department && (
+                            <p className="text-sm text-gray-600 capitalize">
+                              Dept: {user.department}
+                            </p>
+                          )}
                         </div>
                         {getStatusBadge(user.is_active)}
                       </div>
@@ -156,12 +213,25 @@ export default function UserManagement() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="marketing">Marketing</SelectItem>
+                            <SelectItem value="requester">Requester</SelectItem>
                             <SelectItem value="maker">Maker</SelectItem>
                             <SelectItem value="coordinator">Coordinator</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => handleDeleteClick(user.id, user.full_name)}
+                          disabled={deleteUser.isPending || user.id === profile?.id}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete User
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -171,6 +241,28 @@ export default function UserManagement() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the user <strong>{userToDelete?.name}</strong> and all their associated data.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

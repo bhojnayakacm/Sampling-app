@@ -7,7 +7,7 @@ import Login from '@/pages/auth/Login';
 import Signup from '@/pages/auth/Signup';
 import AdminDashboard from '@/pages/dashboard/AdminDashboard';
 import CoordinatorDashboard from '@/pages/dashboard/CoordinatorDashboard';
-import MarketingDashboard from '@/pages/dashboard/MarketingDashboard';
+import RequesterDashboard from '@/pages/dashboard/RequesterDashboard';
 import MakerDashboard from '@/pages/dashboard/MakerDashboard';
 import RequestList from '@/pages/requests/RequestList';
 import NewRequest from '@/pages/requests/NewRequest';
@@ -53,8 +53,8 @@ function DashboardRouter() {
       return <AdminDashboard />;
     case 'coordinator':
       return <CoordinatorDashboard />;
-    case 'marketing':
-      return <MarketingDashboard />;
+    case 'requester':
+      return <RequesterDashboard />;
     case 'maker':
       return <MakerDashboard />;
     default:
@@ -92,7 +92,18 @@ function App() {
             path="/requests/new"
             element={
               <ProtectedRoute>
-                <RoleProtectedRoute allowedRoles={['marketing']}>
+                <RoleProtectedRoute allowedRoles={['requester']}>
+                  <NewRequest />
+                </RoleProtectedRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/requests/edit/:id"
+            element={
+              <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['requester']}>
                   <NewRequest />
                 </RoleProtectedRoute>
               </ProtectedRoute>

@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRequest } from '@/lib/api/requests';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
+import TrackingDialog from '@/components/requests/TrackingDialog';
+import { MapPin } from 'lucide-react';
 
 export default function RequestDetail() {
   const { profile, signOut } = useAuth();
@@ -22,6 +24,7 @@ export default function RequestDetail() {
       in_production: { label: 'In Production', variant: 'default' },
       ready: { label: 'Ready', variant: 'default' },
       dispatched: { label: 'Dispatched', variant: 'default' },
+      received: { label: 'Received', variant: 'secondary' },
       rejected: { label: 'Rejected', variant: 'destructive' },
     };
 
@@ -31,13 +34,12 @@ export default function RequestDetail() {
 
   const getPriorityBadge = (priority: string) => {
     const priorityMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' }> = {
-      high: { variant: 'destructive' },
-      medium: { variant: 'default' },
-      low: { variant: 'secondary' },
+      urgent: { variant: 'destructive' },
+      normal: { variant: 'default' },
     };
 
     return (
-      <Badge variant={priorityMap[priority]?.variant || 'secondary'}>
+      <Badge variant={priorityMap[priority]?.variant || 'default'}>
         {priority.toUpperCase()}
       </Badge>
     );
@@ -78,7 +80,8 @@ export default function RequestDetail() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Section */}
         <div className="flex justify-between items-start mb-6">
           <div>
             <h2 className="text-2xl font-bold mb-2">{request.request_number}</h2>
@@ -87,92 +90,220 @@ export default function RequestDetail() {
               {getStatusBadge(request.status)}
             </div>
           </div>
-          <Button variant="outline" onClick={() => navigate('/requests')}>
-            Back to Requests
-          </Button>
+          <div className="flex gap-2">
+            <TrackingDialog
+              request={request}
+              trigger={
+                <Button variant="outline">
+                  <MapPin className="h-4 w-4 mr-2" />
+                  Track Sample
+                </Button>
+              }
+            />
+            <Button variant="outline" onClick={() => navigate('/requests')}>
+              Back to Requests
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content - 2 columns */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Client Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Client Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+        <div className="space-y-6">
+          {/* Section 1: Request Overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Request Overview</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <span className="text-sm font-medium text-gray-600">Request Number</span>
+                <p className="text-base font-mono">{request.request_number}</p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-600">Status</span>
+                <div className="mt-1">{getStatusBadge(request.status)}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-600">Priority</span>
+                <div className="mt-1">{getPriorityBadge(request.priority)}</div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-600">Required By</span>
+                <p className="text-base">{formatDateTime(request.required_by)}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 2: Requester Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Requester Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Client Name</span>
-                  <p className="text-base">{request.client_name}</p>
+                  <span className="text-sm font-medium text-gray-600">Created By</span>
+                  <p className="text-base">{request.creator?.full_name || 'Unknown'}</p>
                 </div>
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Phone</span>
-                  <p className="text-base">{request.client_phone}</p>
+                  <span className="text-sm font-medium text-gray-600">Department</span>
+                  <p className="text-base capitalize">{request.department}</p>
                 </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Mobile No</span>
+                  <p className="text-base">{request.mobile_no}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Pickup Responsibility</span>
+                  <p className="text-base capitalize">{request.pickup_responsibility.replace('_', ' ')}</p>
+                </div>
+                {request.pickup_remarks && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Pickup Remarks</span>
+                    <p className="text-base">{request.pickup_remarks}</p>
+                  </div>
+                )}
+              </div>
+              {request.delivery_address && (
                 <div>
                   <span className="text-sm font-medium text-gray-600">Delivery Address</span>
                   <p className="text-base whitespace-pre-line">{request.delivery_address}</p>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* Marble Specifications */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Marble Specifications</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Sample Name</span>
-                    <p className="text-base">{request.sample_name}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Stone Type</span>
-                    <p className="text-base">{request.stone_type}</p>
-                  </div>
+          {/* Section 3: Client Project Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Client Project Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Client Type</span>
+                  <p className="text-base capitalize">{request.client_type}</p>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
+                {request.client_type_remarks && (
                   <div>
-                    <span className="text-sm font-medium text-gray-600">Dimensions</span>
-                    <p className="text-base">{request.dimensions}</p>
+                    <span className="text-sm font-medium text-gray-600">Client Type Remarks</span>
+                    <p className="text-base">{request.client_type_remarks}</p>
                   </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Thickness</span>
-                    <p className="text-base">{request.thickness}</p>
-                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Client/Architect/Project Name</span>
+                  <p className="text-base">{request.client_project_name}</p>
                 </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Mobile</span>
+                  <p className="text-base">{request.client_phone}</p>
+                </div>
+                {request.client_email && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Email</span>
+                    <p className="text-base">{request.client_email}</p>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Company Firm Name</span>
+                  <p className="text-base">{request.company_firm_name}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Site Location</span>
+                  <p className="text-base">{request.site_location}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                <div className="grid grid-cols-2 gap-4">
+          {/* Section 4: Sample Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sample Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Product Type</span>
+                  <p className="text-base capitalize">{request.product_type}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Quality</span>
+                  <p className="text-base capitalize">{request.quality}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Quantity</span>
+                  <p className="text-base">{request.quantity} pieces</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Sample Size</span>
+                  <p className="text-base">{request.sample_size}</p>
+                </div>
+                {request.sample_size_remarks && (
+                  <div className="md:col-span-2">
+                    <span className="text-sm font-medium text-gray-600">Size Remarks</span>
+                    <p className="text-base">{request.sample_size_remarks}</p>
+                  </div>
+                )}
+              </div>
+
+              {request.finish && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <span className="text-sm font-medium text-gray-600">Finish</span>
                     <p className="text-base">{request.finish}</p>
                   </div>
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Edge Profile</span>
-                    <p className="text-base">{request.edge_profile}</p>
-                  </div>
+                  {request.finish_remarks && (
+                    <div className="md:col-span-2">
+                      <span className="text-sm font-medium text-gray-600">Finish Remarks</span>
+                      <p className="text-base">{request.finish_remarks}</p>
+                    </div>
+                  )}
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Quantity</span>
-                    <p className="text-base">
-                      {request.quantity} {request.unit}
-                    </p>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Thickness</span>
+                  <p className="text-base">{request.thickness}</p>
                 </div>
-
-                {request.remarks && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Remarks</span>
-                    <p className="text-base whitespace-pre-line">{request.remarks}</p>
+                {request.thickness_remarks && (
+                  <div className="md:col-span-2">
+                    <span className="text-sm font-medium text-gray-600">Thickness Remarks</span>
+                    <p className="text-base">{request.thickness_remarks}</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Purpose of Sample</span>
+                  <p className="text-base capitalize">{request.purpose.replace('_', ' ')}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Packing</span>
+                  <p className="text-base capitalize">{request.packing_details.replace('_', ' ')}</p>
+                </div>
+              </div>
+
+              {request.packing_remarks && (
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Packing Remarks</span>
+                  <p className="text-base">{request.packing_remarks}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Section 5: Additional Information */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sample Image */}
             {request.image_url && (
               <Card>
@@ -188,24 +319,13 @@ export default function RequestDetail() {
                 </CardContent>
               </Card>
             )}
-          </div>
 
-          {/* Sidebar - 1 column */}
-          <div className="space-y-6">
-            {/* Request Details */}
+            {/* Timestamps */}
             <Card>
               <CardHeader>
-                <CardTitle>Request Details</CardTitle>
+                <CardTitle>Timeline</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Request Number</span>
-                  <p className="text-base font-mono">{request.request_number}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Requested Date</span>
-                  <p className="text-base">{formatDate(request.requested_date)}</p>
-                </div>
                 <div>
                   <span className="text-sm font-medium text-gray-600">Created</span>
                   <p className="text-base">{formatDateTime(request.created_at)}</p>
@@ -222,31 +342,18 @@ export default function RequestDetail() {
                     <p className="text-base">{formatDateTime(request.dispatched_at)}</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Status Timeline - Future enhancement */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Timeline</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1 w-2 h-2 rounded-full bg-blue-500"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Request Created</p>
-                      <p className="text-xs text-gray-500">{formatDateTime(request.created_at)}</p>
-                    </div>
+                {request.maker && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Assigned To</span>
+                    <p className="text-base">{request.maker.full_name}</p>
                   </div>
-                  {/* More timeline items can be added based on request_history */}
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
         </div>
 
-        {/* Request Actions - for coordinators/admins */}
+        {/* Request Actions - for coordinators */}
         <RequestActions request={request} userRole={profile?.role || ''} />
 
         {/* Maker Actions - for makers */}

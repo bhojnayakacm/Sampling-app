@@ -80,14 +80,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!user) throw new Error('No user found');
 
+      // Extract role from metadata and convert to lowercase
+      let role = user.user_metadata?.role?.toLowerCase() || 'requester';
+
+      // Validate role
+      if (!['admin', 'coordinator', 'requester', 'maker'].includes(role)) {
+        role = 'requester';
+      }
+
       // Create profile with user metadata
       const { data, error } = await supabase
         .from('profiles')
         .insert({
           id: userId,
-          role: 'marketing', // Default role
+          role: role,
           full_name: user.user_metadata?.full_name || user.email || 'User',
           phone: user.user_metadata?.phone || null,
+          department: user.user_metadata?.department || null,
         })
         .select()
         .single();

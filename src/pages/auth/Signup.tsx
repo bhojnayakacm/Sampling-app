@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -16,6 +17,8 @@ export default function Signup() {
     confirmPassword: '',
     fullName: '',
     phone: '',
+    role: '',
+    department: '',
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -42,18 +45,47 @@ export default function Signup() {
       return;
     }
 
+    if (!formData.role) {
+      toast.error('Please select a role');
+      return;
+    }
+
+    // Department is mandatory ONLY for requesters
+    if (formData.role === 'requester' && !formData.department) {
+      toast.error('Department is required for requesters');
+      return;
+    }
+
+    // Validate phone number: must be exactly 10 digits
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      toast.error('Phone number must be exactly 10 digits');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Sanitize and prepare metadata
+      // IMPORTANT: Convert role to lowercase and ensure department is null (not empty string)
+      const roleToSend = formData.role.toLowerCase(); // Ensure lowercase
+      const departmentToSend = formData.role === 'requester' ? formData.department : null; // null if not requester
+
+      const metadata = {
+        full_name: formData.fullName,
+        phone: formData.phone,
+        role: roleToSend, // Lowercase role
+        department: departmentToSend, // null or actual department
+      };
+
+      console.log('Sending metadata:', metadata); // Debug log
+
       // Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          data: {
-            full_name: formData.fullName,
-            phone: formData.phone,
-          },
+          data: metadata,
         },
       });
 
@@ -109,16 +141,62 @@ export default function Signup() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone (Optional)</Label>
+              <Label htmlFor="role">Role *</Label>
+              <Select
+                value={formData.role}
+                onValueChange={(value) => {
+                  // Clear department when role changes
+                  setFormData({ ...formData, role: value, department: '' });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* IMPORTANT: value prop is lowercase, label is capitalized */}
+                  <SelectItem value="requester">Requester</SelectItem>
+                  <SelectItem value="maker">Maker</SelectItem>
+                  <SelectItem value="coordinator">Coordinator</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">Admin access is granted manually by existing admins</p>
+            </div>
+
+            {/* Department - Only visible if role is Requester */}
+            {formData.role === 'requester' && (
+              <div className="space-y-2">
+                <Label htmlFor="department">Department *</Label>
+                <Select
+                  value={formData.department}
+                  onValueChange={(value) => setFormData({ ...formData, department: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* IMPORTANT: value prop is lowercase */}
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="marketing">Marketing</SelectItem>
+                    <SelectItem value="logistics">Logistics</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number *</Label>
               <Input
                 id="phone"
                 name="phone"
                 type="tel"
-                placeholder="+91 1234567890"
+                placeholder="1234567890"
                 value={formData.phone}
                 onChange={handleChange}
+                required
                 autoComplete="tel"
+                maxLength={10}
               />
+              <p className="text-xs text-gray-500">Enter 10-digit mobile number without country code</p>
             </div>
 
             <div className="space-y-2">

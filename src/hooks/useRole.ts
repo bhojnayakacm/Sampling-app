@@ -7,12 +7,12 @@ export function useRole() {
 
   const isAdmin = role === 'admin';
   const isCoordinator = role === 'coordinator';
-  const isMarketing = role === 'marketing';
+  const isRequester = role === 'requester';
   const isMaker = role === 'maker';
 
   const canViewAllRequests = isAdmin || isCoordinator;
   const canAssignRequests = isAdmin || isCoordinator;
-  const canCreateRequests = isAdmin || isCoordinator || isMarketing;
+  const canCreateRequests = isAdmin || isCoordinator || isRequester;
   const canUpdateStatus = isAdmin || isCoordinator || isMaker;
   const canDeleteRequests = isAdmin;
 
@@ -20,7 +20,7 @@ export function useRole() {
     role,
     isAdmin,
     isCoordinator,
-    isMarketing,
+    isRequester,
     isMaker,
     canViewAllRequests,
     canAssignRequests,
