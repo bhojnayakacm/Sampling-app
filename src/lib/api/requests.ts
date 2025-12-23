@@ -298,7 +298,7 @@ export function useMakerStats(userId: string | undefined) {
   });
 }
 
-// Update request status (enhanced with auto-timestamps)
+// Update request status (enhanced with auto-timestamps and optional message)
 export function useUpdateRequestStatus() {
   const queryClient = useQueryClient();
 
@@ -306,11 +306,18 @@ export function useUpdateRequestStatus() {
     mutationFn: async ({
       requestId,
       status,
+      message,
     }: {
       requestId: string;
       status: string;
+      message?: string;
     }) => {
       const updates: any = { status };
+
+      // Add coordinator message if provided (for approve/reject)
+      if (message !== undefined) {
+        updates.coordinator_message = message;
+      }
 
       // Auto-set timestamps based on status
       if (status === 'dispatched') {
@@ -337,6 +344,7 @@ export function useUpdateRequestStatus() {
       queryClient.invalidateQueries({ queryKey: ['request'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     },
   });
 }

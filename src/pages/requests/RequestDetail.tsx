@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useRequest } from '@/lib/api/requests';
@@ -8,7 +9,7 @@ import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
-import { MapPin } from 'lucide-react';
+import { MapPin, MessageSquare, CheckCircle, XCircle, ChevronLeft } from 'lucide-react';
 
 export default function RequestDetail() {
   const { profile, signOut } = useAuth();
@@ -94,17 +95,70 @@ export default function RequestDetail() {
             <TrackingDialog
               request={request}
               trigger={
-                <Button variant="outline">
-                  <MapPin className="h-4 w-4 mr-2" />
-                  Track Sample
+                <Button variant="outline" className="h-11">
+                  <MapPin className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Track Sample</span>
                 </Button>
               }
             />
-            <Button variant="outline" onClick={() => navigate('/requests')}>
-              Back to Requests
+            {/* Back button - Icon only on mobile, text on desktop */}
+            <Button
+              variant="outline"
+              onClick={() => navigate('/requests')}
+              className="h-11"
+            >
+              <ChevronLeft className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Back to Requests</span>
             </Button>
           </div>
         </div>
+
+        {/* Coordinator Message Alert (if exists) */}
+        {request.coordinator_message && (
+          <Alert
+            className={
+              request.status === 'rejected'
+                ? 'mb-6 border-l-4 border-l-red-500 bg-red-50'
+                : request.status === 'approved'
+                ? 'mb-6 border-l-4 border-l-green-500 bg-green-50'
+                : 'mb-6 border-l-4 border-l-blue-500 bg-blue-50'
+            }
+          >
+            <div className="flex items-start gap-3">
+              {request.status === 'rejected' ? (
+                <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+              ) : request.status === 'approved' ? (
+                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+              ) : (
+                <MessageSquare className="h-5 w-5 text-blue-600 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <AlertTitle
+                  className={
+                    request.status === 'rejected'
+                      ? 'text-red-800 font-semibold'
+                      : request.status === 'approved'
+                      ? 'text-green-800 font-semibold'
+                      : 'text-blue-800 font-semibold'
+                  }
+                >
+                  Message from Coordinator
+                </AlertTitle>
+                <AlertDescription
+                  className={
+                    request.status === 'rejected'
+                      ? 'text-red-700 mt-2'
+                      : request.status === 'approved'
+                      ? 'text-green-700 mt-2'
+                      : 'text-blue-700 mt-2'
+                  }
+                >
+                  {request.coordinator_message}
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
 
         <div className="space-y-6">
           {/* Section 1: Request Overview */}

@@ -1,4 +1,13 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -6,10 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useMakers } from '@/lib/api/users';
 import { useAssignRequest, useUpdateRequestStatus } from '@/lib/api/requests';
 import { toast } from 'sonner';
 import type { Request } from '@/types';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 interface RequestActionsProps {
   request: Request;
@@ -21,12 +32,47 @@ export default function RequestActions({ request, userRole }: RequestActionsProp
   const assignRequest = useAssignRequest();
   const updateStatus = useUpdateRequestStatus();
 
+  // Dialog states
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [message, setMessage] = useState('');
+
   const handleAssign = async (makerId: string) => {
     try {
       await assignRequest.mutateAsync({ requestId: request.id, makerId });
       toast.success('Request assigned to maker');
     } catch (error: any) {
       toast.error(error.message || 'Failed to assign request');
+    }
+  };
+
+  const handleApprove = async () => {
+    try {
+      await updateStatus.mutateAsync({
+        requestId: request.id,
+        status: 'approved',
+        message: message.trim() || undefined,
+      });
+      toast.success('Request approved successfully!');
+      setApproveDialogOpen(false);
+      setMessage('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to approve request');
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await updateStatus.mutateAsync({
+        requestId: request.id,
+        status: 'rejected',
+        message: message.trim() || undefined,
+      });
+      toast.success('Request rejected');
+      setRejectDialogOpen(false);
+      setMessage('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to reject request');
     }
   };
 
@@ -70,13 +116,25 @@ export default function RequestActions({ request, userRole }: RequestActionsProp
       {/* Status Actions */}
       <div className="flex gap-2 flex-wrap">
         {request.status === 'pending_approval' && (
-          <Button
-            onClick={() => handleStatusChange('approved')}
-            size="sm"
-            disabled={updateStatus.isPending}
-          >
-            Approve Request
-          </Button>
+          <>
+            <Button
+              onClick={() => setApproveDialogOpen(true)}
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 gap-2"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Approve Request
+            </Button>
+            <Button
+              onClick={() => setRejectDialogOpen(true)}
+              size="sm"
+              variant="destructive"
+              className="gap-2"
+            >
+              <XCircle className="h-4 w-4" />
+              Reject Request
+            </Button>
+          </>
         )}
 
         {request.status === 'ready' && (
@@ -92,13 +150,139 @@ export default function RequestActions({ request, userRole }: RequestActionsProp
 
       {/* Help text */}
       <p className="text-xs text-gray-600">
-        {request.status === 'pending_approval' && 'Review and approve this request to proceed.'}
+        {request.status === 'pending_approval' && 'Review and approve/reject this request.'}
         {request.status === 'approved' && 'Assign this request to a maker to begin production.'}
         {request.status === 'assigned' && 'Waiting for maker to start work.'}
         {request.status === 'in_production' && 'Maker is currently working on this request.'}
         {request.status === 'ready' && 'Sample is ready. Mark as dispatched when sent.'}
         {request.status === 'dispatched' && 'This request has been dispatched.'}
       </p>
+
+      {/* Approve Dialog */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-700">
+              <CheckCircle className="h-5 w-5" />
+              Approve Request
+            </DialogTitle>
+            <DialogDescription>
+              Approve request <strong>{request.request_number}</strong> for{' '}
+              <strong>{request.client_project_name}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <label htmlFor="approve-message" className="text-sm font-medium text-gray-700 mb-2 block">
+              Message to Requester <span className="text-gray-500 font-normal">(Optional)</span>
+            </label>
+            <Textarea
+              id="approve-message"
+              placeholder="E.g., Estimated delivery: 1 week"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              This message will be visible to the requester in the request details.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setApproveDialogOpen(false);
+                setMessage('');
+              }}
+              disabled={updateStatus.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApprove}
+              disabled={updateStatus.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {updateStatus.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Confirm Approval
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <XCircle className="h-5 w-5" />
+              Reject Request
+            </DialogTitle>
+            <DialogDescription>
+              Reject request <strong>{request.request_number}</strong> for{' '}
+              <strong>{request.client_project_name}</strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <label htmlFor="reject-message" className="text-sm font-medium text-gray-700 mb-2 block">
+              Reason for Rejection <span className="text-gray-500 font-normal">(Optional)</span>
+            </label>
+            <Textarea
+              id="reject-message"
+              placeholder="E.g., Out of stock, or please provide more details"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              This message will be visible to the requester in the request details.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRejectDialogOpen(false);
+                setMessage('');
+              }}
+              disabled={updateStatus.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReject}
+              disabled={updateStatus.isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {updateStatus.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                <>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Confirm Rejection
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -50,9 +50,9 @@ export default function RequestToolbar({
   const hasActiveFilters = search || status || priority;
 
   return (
-    <div className="bg-white p-3 sm:p-4 rounded-lg border shadow-sm space-y-3 sm:space-y-4">
-      {/* Header (Mobile Only) */}
-      <div className="flex items-center justify-between sm:hidden">
+    <div className="bg-white p-3 sm:p-4 rounded-lg border shadow-sm">
+      {/* Mobile Header */}
+      <div className="flex items-center justify-between mb-3 sm:hidden">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-gray-500" />
           <h3 className="text-sm font-medium text-gray-700">Search & Filter</h3>
@@ -70,26 +70,26 @@ export default function RequestToolbar({
         )}
       </div>
 
-      {/* Search Bar - Full Width on Mobile */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
-        <Input
-          placeholder="Search requests..."
-          value={localSearch}
-          onChange={(e) => setLocalSearch(e.target.value)}
-          className="pl-10 pr-4 h-11 w-full text-base"
-        />
-      </div>
+      {/* Single Row Layout on Desktop, Stacked on Mobile */}
+      <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center gap-3">
+        {/* Search Input - Elastic (expands to fill available space) */}
+        <div className="relative flex-1 sm:min-w-[250px]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
+          <Input
+            placeholder="Search requests..."
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            className="pl-10 pr-4 h-10 w-full"
+          />
+        </div>
 
-      {/* Filters - Stack Vertically on Mobile, Horizontal on Desktop */}
-      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-        {/* Status Filter - Full Width on Mobile */}
-        <div className="flex-1 w-full sm:w-auto">
+        {/* Status Filter - Fixed Width */}
+        <div className="sm:w-[200px] sm:flex-shrink-0">
           <Select
             value={status || 'all'}
             onValueChange={(value) => onStatusChange(value === 'all' ? null : (value as RequestStatus))}
           >
-            <SelectTrigger className="h-11 w-full">
+            <SelectTrigger className="h-10 w-full">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -107,13 +107,13 @@ export default function RequestToolbar({
           </Select>
         </div>
 
-        {/* Priority Filter - Full Width on Mobile */}
-        <div className="flex-1 w-full sm:w-auto">
+        {/* Priority Filter - Fixed Width */}
+        <div className="sm:w-[180px] sm:flex-shrink-0">
           <Select
             value={priority || 'all'}
             onValueChange={(value) => onPriorityChange(value === 'all' ? null : (value as Priority))}
           >
-            <SelectTrigger className="h-11 w-full">
+            <SelectTrigger className="h-10 w-full">
               <SelectValue placeholder="All Priorities" />
             </SelectTrigger>
             <SelectContent>
@@ -124,22 +124,22 @@ export default function RequestToolbar({
           </Select>
         </div>
 
-        {/* Reset Button - Full Width on Mobile (if filters active) */}
+        {/* Clear Filters Button (Desktop Only) - Fixed Width */}
         {hasActiveFilters && (
           <Button
             variant="outline"
             onClick={onReset}
-            className="gap-2 h-11 w-full sm:w-auto hidden sm:flex"
+            className="gap-2 h-10 w-full sm:w-auto sm:flex-shrink-0 hidden sm:flex whitespace-nowrap"
           >
             <X className="h-4 w-4" />
-            Clear Filters
+            Clear
           </Button>
         )}
       </div>
 
       {/* Active Filters Summary (Mobile Only) */}
       {hasActiveFilters && (
-        <div className="flex flex-wrap gap-2 pt-2 border-t sm:hidden">
+        <div className="flex flex-wrap gap-2 pt-3 mt-3 border-t sm:hidden">
           <span className="text-xs text-gray-500">Active:</span>
           {search && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">

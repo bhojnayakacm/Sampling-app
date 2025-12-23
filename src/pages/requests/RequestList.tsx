@@ -191,22 +191,43 @@ export default function RequestList() {
           onReset={handleReset}
         />
 
-        {/* Header with count and actions */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold">
-              {isLoading ? 'Loading...' : `${totalCount} Request${totalCount !== 1 ? 's' : ''}`}
-            </h2>
+        {/* Header with count and actions - Mobile Optimized */}
+        <div className="flex justify-between items-start gap-4">
+          {/* Left Side: Text Group */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-xl font-semibold">
+                {isLoading ? 'Loading...' : totalCount}
+              </h2>
+              <span className="text-base text-gray-600">
+                Request{totalCount !== 1 ? 's' : ''}
+              </span>
+            </div>
             {!isLoading && totalPages > 0 && (
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-600">
                 Page {page} of {totalPages}
               </p>
             )}
           </div>
-          <div className="flex gap-4">
-            <Button onClick={() => navigate('/')}>Back to Dashboard</Button>
+
+          {/* Right Side: Button Group - Vertical on mobile, horizontal on desktop */}
+          <div className="flex flex-col md:flex-row gap-2 md:gap-4 ml-auto flex-shrink-0">
+            <Button
+              onClick={() => navigate('/')}
+              variant="outline"
+              size="sm"
+              className="h-10 whitespace-nowrap"
+            >
+              Back to Dashboard
+            </Button>
             {isRequesterUser && (
-              <Button onClick={() => navigate('/requests/new')}>New Request</Button>
+              <Button
+                onClick={() => navigate('/requests/new')}
+                size="sm"
+                className="h-10 whitespace-nowrap"
+              >
+                New Request
+              </Button>
             )}
           </div>
         </div>
@@ -264,14 +285,16 @@ export default function RequestList() {
                         <p className="text-xs text-gray-500 truncate">{request.company_firm_name}</p>
                       </div>
                       <div className="flex gap-2 ml-2 flex-shrink-0">
-                        <TrackingDialog
-                          request={request}
-                          trigger={
-                            <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                              <MapPin className="h-4 w-4" />
-                            </Button>
-                          }
-                        />
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <TrackingDialog
+                            request={request}
+                            trigger={
+                              <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                                <MapPin className="h-4 w-4" />
+                              </Button>
+                            }
+                          />
+                        </div>
                         {isRequesterUser && isDraft && (
                           <>
                             <Button

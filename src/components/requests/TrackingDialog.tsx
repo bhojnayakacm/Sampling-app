@@ -33,6 +33,7 @@ import {
   PackageCheck,
   XCircle,
   Loader2,
+  Box,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -66,6 +67,14 @@ const TIMELINE_STEPS = [
     icon: Package,
     color: 'text-purple-600',
     bgColor: 'bg-purple-100',
+  },
+  {
+    status: 'ready' as RequestStatus,
+    label: 'Ready',
+    description: 'Sample completed and ready for dispatch',
+    icon: Box,
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-100',
   },
   {
     status: 'dispatched' as RequestStatus,

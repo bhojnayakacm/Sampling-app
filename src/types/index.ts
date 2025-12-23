@@ -111,6 +111,9 @@ export interface Request {
   // Image
   image_url: string | null;
 
+  // Coordinator message (for approval/rejection notes)
+  coordinator_message: string | null;
+
   // Timestamps
   created_at: string;
   updated_at: string;

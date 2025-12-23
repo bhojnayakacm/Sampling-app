@@ -71,6 +71,25 @@ export default function RequesterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6">
+        {/* Action Buttons - Prominent placement at top */}
+        <div className="flex flex-col gap-3">
+          <Button
+            size="lg"
+            onClick={() => navigate('/requests/new')}
+            className="h-12 gap-2 text-base font-semibold"
+          >
+            <Plus className="h-5 w-5" />
+            Create New Request
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => navigate('/requests')}
+            className="h-11"
+          >
+            View All Requests
+          </Button>
+        </div>
         {/* Stats Cards - Responsive Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
           {/* Drafts Card */}
@@ -267,28 +286,7 @@ export default function RequesterDashboard() {
           </Card>
         )}
 
-        {/* Desktop Action Buttons */}
-        <div className="hidden md:flex flex-wrap gap-4">
-          <Button size="lg" onClick={() => navigate('/requests/new')} className="gap-2">
-            <Plus className="h-5 w-5" />
-            Create New Request
-          </Button>
-          <Button variant="outline" size="lg" onClick={() => navigate('/requests')}>
-            View All Requests
-          </Button>
-        </div>
       </main>
-
-      {/* Floating Action Button (Mobile Only) */}
-      <div className="md:hidden fixed bottom-6 right-6 z-50">
-        <Button
-          size="lg"
-          onClick={() => navigate('/requests/new')}
-          className="h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-110 active:scale-95"
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </div>
     </div>
   );
 }
