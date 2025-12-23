@@ -104,11 +104,11 @@ export default function RequestDetail() {
             {/* Back button - Icon only on mobile, text on desktop */}
             <Button
               variant="outline"
-              onClick={() => navigate('/requests')}
+              onClick={() => navigate('/')}
               className="h-11"
             >
               <ChevronLeft className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Back to Requests</span>
+              <span className="hidden sm:inline">Back to Dashboard</span>
             </Button>
           </div>
         </div>

@@ -44,12 +44,14 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
           creator:profiles!created_by (
             id,
             full_name,
-            role
+            role,
+            department
           ),
           maker:profiles!assigned_to (
             id,
             full_name,
-            role
+            role,
+            department
           )
         `, { count: 'exact' });
 
@@ -65,11 +67,21 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
         query = query.neq('status', 'draft');
       }
 
-      // Search filter (search in request_number, client_project_name, OR company_firm_name)
+      // Role-based search filter
+      // Note: For staff, we'll do client-side filtering on creator name due to Supabase limitations
+      const isStaffSearch = (userRole === 'admin' || userRole === 'coordinator' || userRole === 'maker') && search && search.trim();
+
       if (search && search.trim()) {
-        query = query.or(
-          `request_number.ilike.%${search}%,client_project_name.ilike.%${search}%,company_firm_name.ilike.%${search}%`
-        );
+        const searchTerm = search.trim();
+        if (userRole === 'requester') {
+          // Requesters: Search by Request ID, Client Name, or Company Name
+          query = query.or(
+            `request_number.ilike.%${searchTerm}%,client_project_name.ilike.%${searchTerm}%,company_firm_name.ilike.%${searchTerm}%`
+          );
+        } else if (userRole === 'admin' || userRole === 'coordinator' || userRole === 'maker') {
+          // Staff: Search by Request ID only (creator name search done client-side below)
+          query = query.ilike('request_number', `%${searchTerm}%`);
+        }
       }
 
       // Status filter
@@ -98,12 +110,56 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
 
       if (error) throw error;
 
+      let filteredData = (data as Request[]) || [];
+      let finalCount = count || 0;
+
+      // Client-side filtering for staff searching by creator name
+      if (isStaffSearch && search) {
+        const searchLower = search.trim().toLowerCase();
+        // If the request_number search returned no results, try searching by creator name
+        if (filteredData.length === 0) {
+          // Re-fetch without search filter to search by creator name
+          const { data: allData, error: refetchError } = await supabase
+            .from('requests')
+            .select(`
+              *,
+              creator:profiles!created_by (
+                id,
+                full_name,
+                role,
+                department
+              ),
+              maker:profiles!assigned_to (
+                id,
+                full_name,
+                role,
+                department
+              )
+            `, { count: 'exact' })
+            .neq('status', 'draft')
+            .order('created_at', { ascending: false });
+
+          if (refetchError) throw refetchError;
+
+          // Filter by creator name
+          filteredData = (allData as Request[])?.filter(req =>
+            req.creator?.full_name?.toLowerCase().includes(searchLower)
+          ) || [];
+
+          // Apply pagination manually
+          finalCount = filteredData.length;
+          const from = (page - 1) * pageSize;
+          const to = from + pageSize;
+          filteredData = filteredData.slice(from, to);
+        }
+      }
+
       return {
-        data: (data as Request[]) || [],
-        count: count || 0,
+        data: filteredData,
+        count: finalCount,
         page,
         pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize),
+        totalPages: Math.ceil(finalCount / pageSize),
       };
     },
   });

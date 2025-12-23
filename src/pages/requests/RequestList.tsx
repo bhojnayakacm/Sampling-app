@@ -76,6 +76,7 @@ export default function RequestList() {
   // Determine user role for filtering
   const isRequesterUser = profile?.role === 'requester';
   const isMakerUser = profile?.role === 'maker';
+  const isStaffUser = profile?.role === 'admin' || profile?.role === 'coordinator' || profile?.role === 'maker';
 
   // Fetch paginated requests with server-side filtering
   const { data: result, isLoading } = usePaginatedRequests({
@@ -367,6 +368,7 @@ export default function RequestList() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Request #</TableHead>
+                    {isStaffUser && <TableHead>Requester</TableHead>}
                     <TableHead>Client / Project</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Quality</TableHead>
@@ -388,11 +390,23 @@ export default function RequestList() {
                         onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
                       >
                         <TableCell className="font-medium font-mono text-sm">{request.request_number}</TableCell>
+                        {isStaffUser && (
+                          <TableCell>
+                            <p className="font-medium text-sm">
+                              {request.creator?.full_name || 'Unknown'}
+                            </p>
+                            {request.creator?.department && (
+                              <p className="text-xs text-gray-500 capitalize">
+                                {request.creator.department}
+                              </p>
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div>
                             <p className="font-medium text-sm">{request.client_project_name}</p>
                             <p className="text-xs text-gray-500">{request.company_firm_name}</p>
-                            {request.creator && (
+                            {!isStaffUser && request.creator && (
                               <p className="text-xs text-gray-400 mt-0.5">
                                 by {request.creator.full_name}
                               </p>

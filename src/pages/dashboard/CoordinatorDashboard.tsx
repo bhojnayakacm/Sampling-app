@@ -74,6 +74,7 @@ export default function CoordinatorDashboard() {
   const totalCount = result?.count || 0;
 
   const isRequesterUser = profile?.role === 'requester';
+  const isStaffUser = profile?.role === 'admin' || profile?.role === 'coordinator' || profile?.role === 'maker';
 
   // Badge helpers
   const getStatusBadge = (status: string) => {
@@ -346,11 +347,19 @@ export default function CoordinatorDashboard() {
                         </div>
                       </div>
 
-                      {/* Creator Info */}
+                      {/* Creator Info - Highlighted for Staff */}
                       {request.creator && (
-                        <p className="text-xs text-gray-400 mt-2 pt-2 border-t">
-                          Requested by {request.creator.full_name}
-                        </p>
+                        <div className="mt-2 pt-2 border-t">
+                          <span className="text-xs text-gray-500">Requester: </span>
+                          <span className="text-xs font-semibold text-blue-600">
+                            {request.creator.full_name}
+                          </span>
+                          {request.creator.department && (
+                            <span className="text-xs text-gray-400 ml-1 capitalize">
+                              ({request.creator.department})
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -363,6 +372,7 @@ export default function CoordinatorDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Request #</TableHead>
+                      {isStaffUser && <TableHead>Requester</TableHead>}
                       <TableHead>Client / Project</TableHead>
                       <TableHead>Product</TableHead>
                       <TableHead>Quality</TableHead>
@@ -384,11 +394,23 @@ export default function CoordinatorDashboard() {
                           onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
                         >
                           <TableCell className="font-medium font-mono text-sm">{request.request_number}</TableCell>
+                          {isStaffUser && (
+                            <TableCell>
+                              <p className="font-medium text-sm">
+                                {request.creator?.full_name || 'Unknown'}
+                              </p>
+                              {request.creator?.department && (
+                                <p className="text-xs text-gray-500 capitalize">
+                                  {request.creator.department}
+                                </p>
+                              )}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <div>
                               <p className="font-medium text-sm">{request.client_project_name}</p>
                               <p className="text-xs text-gray-500">{request.company_firm_name}</p>
-                              {request.creator && (
+                              {!isStaffUser && request.creator && (
                                 <p className="text-xs text-gray-400 mt-0.5">
                                   by {request.creator.full_name}
                                 </p>

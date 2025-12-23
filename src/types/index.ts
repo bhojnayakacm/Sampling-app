@@ -126,11 +126,13 @@ export interface Request {
     id: string;
     full_name: string;
     role: UserRole;
+    department: string | null;
   };
   maker?: {
     id: string;
     full_name: string;
     role: UserRole;
+    department: string | null;
   };
 }
 
