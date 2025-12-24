@@ -30,11 +30,13 @@ import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 
 // Status filter mapping for dashboard navigation
+// IMPORTANT: Only use multi-status arrays when you explicitly want to show multiple statuses together
+// Single status values will automatically fall through to the else clause (line 62)
 const STATUS_FILTERS: Record<string, RequestStatus[]> = {
+  // Note: Removed 'in_production', 'assigned', 'dispatched' - they now filter strictly to single status
+  // 'pending' intentionally shows multiple related statuses for broad "pending work" view
   pending: ['pending_approval', 'approved', 'assigned'],
-  in_production: ['assigned', 'in_production'],
-  dispatched: ['dispatched'],
-  assigned: ['assigned'],
+  // 'completed' intentionally shows both ready and dispatched for "completed work" view
   completed: ['ready', 'dispatched'],
 };
 
