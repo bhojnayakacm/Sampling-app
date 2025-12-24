@@ -4,26 +4,50 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* ===================================
+       PREMIUM MARBLE SAMPLING APP THEME
+       Modern • Professional • Trustworthy
+       =================================== */
+
+    /* Background & Surface Colors */
+    --background: 215 25% 97%;        /* Soft slate-50 - main app background */
+    --foreground: 222 47% 11%;        /* Deep slate-900 - primary text */
+
+    /* Card & Elevated Surfaces */
+    --card: 0 0% 100%;                /* Pure white - content cards */
+    --card-foreground: 222 47% 11%;   /* Deep slate-900 */
+
+    /* Popover & Dropdown */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary Brand Color - Deep Indigo (Premium, Trustworthy) */
+    --primary: 239 84% 57%;           /* Indigo-600 - primary actions */
+    --primary-foreground: 0 0% 100%;  /* White text on primary */
+
+    /* Secondary - Soft Slate */
+    --secondary: 215 20% 95%;         /* Slate-100 - subtle backgrounds */
+    --secondary-foreground: 222 47% 11%;
+
+    /* Muted - For disabled states and subtle elements */
+    --muted: 215 20% 95%;             /* Slate-100 */
+    --muted-foreground: 215 16% 47%;  /* Slate-500 */
+
+    /* Accent - Subtle Gold (Marble Veining Reference) */
+    --accent: 43 96% 90%;             /* Amber-100 - subtle highlights */
+    --accent-foreground: 38 92% 30%;  /* Amber-900 - for text on accent */
+
+    /* Destructive - Modern Red */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & Inputs */
+    --border: 215 20% 88%;            /* Slate-200 - subtle borders */
+    --input: 215 20% 88%;             /* Slate-200 */
+    --ring: 239 84% 57%;              /* Indigo-600 - focus rings */
+
+    /* Border Radius - Softer, More Modern */
+    --radius: 0.75rem;                /* 12px - more rounded */
   }
 }
 
@@ -31,8 +55,42 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Premium Typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  /* Smooth Transitions for Interactive Elements */
+  button, a, input, select, textarea {
+    @apply transition-all duration-200 ease-in-out;
+  }
+}
+
+@layer components {
+  /* Premium Shadow System */
+  .shadow-premium-sm {
+    box-shadow:
+      0 1px 2px 0 rgb(0 0 0 / 0.03),
+      0 1px 3px 0 rgb(0 0 0 / 0.06);
+  }
+
+  .shadow-premium {
+    box-shadow:
+      0 2px 4px 0 rgb(0 0 0 / 0.04),
+      0 4px 8px 0 rgb(0 0 0 / 0.08);
+  }
+
+  .shadow-premium-lg {
+    box-shadow:
+      0 4px 6px 0 rgb(0 0 0 / 0.05),
+      0 10px 15px 0 rgb(0 0 0 / 0.10);
   }
 }
