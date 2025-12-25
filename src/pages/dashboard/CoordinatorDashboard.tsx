@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ import {
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
+import ReportsView from './coordinator/ReportsView';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAllRequestsStats, usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
@@ -44,10 +45,14 @@ import { RequestStatus, Priority } from '@/types';
 export default function CoordinatorDashboard() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: stats, isLoading: statsLoading } = useAllRequestsStats();
 
-  // Tab state for sidebar navigation
-  const [activeTab, setActiveTab] = useState('sample-requests');
+  // Tab state from URL - persists across page refresh
+  const activeTab = searchParams.get('tab') || 'sample-requests';
+  const setActiveTab = (tab: string) => {
+    setSearchParams({ tab });
+  };
 
   // Filter and pagination state
   const [page, setPage] = useState(1);
@@ -535,6 +540,11 @@ export default function CoordinatorDashboard() {
           </AlertDialog>
         </div>
       );
+    }
+
+    // Reports & Analytics Tab
+    if (activeTab === 'reports') {
+      return <ReportsView />;
     }
 
     // Placeholder for other tabs

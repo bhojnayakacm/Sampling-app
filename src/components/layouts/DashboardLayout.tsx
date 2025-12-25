@@ -32,9 +32,9 @@ const navItems: NavItem[] = [
   },
   {
     id: 'reports',
-    label: 'Reports',
+    label: 'Reports & Analytics',
     icon: BarChart3,
-    disabled: true,
+    // Enabled - fully functional with date filters and smart trends
   },
   {
     id: 'clients',
