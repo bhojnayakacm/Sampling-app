@@ -363,16 +363,23 @@ export function useUpdateRequestStatus() {
       requestId,
       status,
       message,
+      dispatchNotes,
     }: {
       requestId: string;
       status: string;
       message?: string;
+      dispatchNotes?: string;
     }) => {
       const updates: any = { status };
 
       // Add coordinator message if provided (for approve/reject)
       if (message !== undefined) {
         updates.coordinator_message = message;
+      }
+
+      // Add dispatch notes if provided (for dispatch action)
+      if (dispatchNotes !== undefined) {
+        updates.dispatch_notes = dispatchNotes;
       }
 
       // Auto-set timestamps based on status

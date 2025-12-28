@@ -189,6 +189,9 @@ export interface Request {
   // Coordinator message (for approval/rejection notes)
   coordinator_message: string | null;
 
+  // Dispatch notes (for courier/tracking info)
+  dispatch_notes: string | null;
+
   // Timestamps
   created_at: string;
   updated_at: string;

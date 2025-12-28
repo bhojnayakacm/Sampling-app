@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   Package,
   Image as ImageIcon,
+  Truck,
 } from 'lucide-react';
 import type { RequestItemDB } from '@/types';
 
@@ -362,6 +363,23 @@ export default function RequestDetail() {
                   }
                 >
                   {request.coordinator_message}
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
+        {/* Dispatch Notes Alert (if exists and status is dispatched/received) */}
+        {request.dispatch_notes && (request.status === 'dispatched' || request.status === 'received') && (
+          <Alert className="mb-6 border-l-4 border-l-blue-500 bg-blue-50">
+            <div className="flex items-start gap-3">
+              <Truck className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div className="flex-1">
+                <AlertTitle className="text-blue-800 font-semibold">
+                  Dispatch Information
+                </AlertTitle>
+                <AlertDescription className="text-blue-700 mt-2">
+                  {request.dispatch_notes}
                 </AlertDescription>
               </div>
             </div>
