@@ -24,8 +24,8 @@ import { usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin } from 'lucide-react';
-import { RequestStatus, Priority } from '@/types';
+import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package } from 'lucide-react';
+import { RequestStatus, Priority, Request } from '@/types';
 import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 
@@ -39,6 +39,30 @@ const STATUS_FILTERS: Record<string, RequestStatus[]> = {
   // 'completed' intentionally shows both ready and dispatched for "completed work" view
   completed: ['ready', 'dispatched'],
 };
+
+// Helper function to generate smart item summary for table display
+function getItemSummary(request: Request): { text: string; tooltip: string; isMulti: boolean } {
+  const itemCount = request.item_count || 1;
+  const totalQuantity = request.quantity || 0;
+
+  // Single item (or legacy request without item_count)
+  if (itemCount === 1) {
+    const productType = request.product_type || 'Unknown';
+    const capitalizedType = productType.charAt(0).toUpperCase() + productType.slice(1);
+    return {
+      text: `${capitalizedType} (${totalQuantity} pcs)`,
+      tooltip: `${capitalizedType} - ${request.quality || 'N/A'}`,
+      isMulti: false,
+    };
+  }
+
+  // Multi-item request
+  return {
+    text: `${itemCount} Products`,
+    tooltip: 'Click to view all products in this request',
+    isMulti: true,
+  };
+}
 
 export default function RequestList() {
   const { profile, signOut } = useAuth();
@@ -335,17 +359,20 @@ export default function RequestList() {
 
                     {/* Details Grid */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-gray-500">Product:</span>
-                        <span className="ml-1 font-medium capitalize">{request.product_type}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Quality:</span>
-                        <span className="ml-1 font-medium capitalize">{request.quality}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Quantity:</span>
-                        <span className="ml-1 font-medium">{request.quantity} pcs</span>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Items:</span>
+                        {(() => {
+                          const summary = getItemSummary(request);
+                          return (
+                            <span
+                              className={`ml-1 font-medium ${summary.isMulti ? 'text-primary' : ''}`}
+                              title={summary.tooltip}
+                            >
+                              {summary.isMulti && <Package className="inline h-3 w-3 mr-1" />}
+                              {summary.text}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div>
                         <span className="text-gray-500">Created:</span>
@@ -372,9 +399,7 @@ export default function RequestList() {
                     <TableHead>Request #</TableHead>
                     {isStaffUser && <TableHead>Requester</TableHead>}
                     <TableHead>Client / Project</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Quality</TableHead>
-                    <TableHead className="text-center">Qty</TableHead>
+                    <TableHead>Items</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
@@ -415,9 +440,20 @@ export default function RequestList() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="capitalize">{request.product_type}</TableCell>
-                        <TableCell className="capitalize">{request.quality}</TableCell>
-                        <TableCell className="text-center">{request.quantity}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            const summary = getItemSummary(request);
+                            return (
+                              <div
+                                className={`flex items-center gap-1.5 ${summary.isMulti ? 'text-primary font-medium' : ''}`}
+                                title={summary.tooltip}
+                              >
+                                {summary.isMulti && <Package className="h-4 w-4" />}
+                                <span>{summary.text}</span>
+                              </div>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell>{getPriorityBadge(request.priority)}</TableCell>
                         <TableCell>{getStatusBadge(request.status)}</TableCell>
                         <TableCell className="text-sm text-gray-600">
