@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory } from '@/types';
+import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput } from '@/types';
 
 // Pagination and filtering parameters
 export interface RequestFilters {
@@ -674,4 +674,218 @@ export async function checkForDuplicates(params: DuplicateCheckParams): Promise<
     duplicate_type: result.duplicate_type || null,
     existing_request: result.existing_request || null,
   };
+}
+
+// ============================================================
+// REQUEST ITEMS (MULTI-PRODUCT SUPPORT)
+// ============================================================
+
+// Fetch items for a specific request
+export function useRequestItems(requestId: string | undefined) {
+  return useQuery({
+    queryKey: ['request-items', requestId],
+    queryFn: async () => {
+      if (!requestId) throw new Error('Request ID is required');
+
+      const { data, error } = await supabase
+        .from('request_items')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('item_index', { ascending: true });
+
+      if (error) throw error;
+      return data as RequestItemDB[];
+    },
+    enabled: !!requestId,
+  });
+}
+
+// Fetch request with items (combined query)
+export function useRequestWithItems(requestId: string | undefined) {
+  return useQuery({
+    queryKey: ['request-with-items', requestId],
+    queryFn: async () => {
+      if (!requestId) throw new Error('Request ID is required');
+
+      // Fetch request
+      const { data: request, error: requestError } = await supabase
+        .from('requests')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            full_name,
+            role,
+            department
+          ),
+          maker:profiles!assigned_to (
+            id,
+            full_name,
+            role,
+            department
+          )
+        `)
+        .eq('id', requestId)
+        .single();
+
+      if (requestError) throw requestError;
+
+      // Fetch items
+      const { data: items, error: itemsError } = await supabase
+        .from('request_items')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('item_index', { ascending: true });
+
+      if (itemsError) throw itemsError;
+
+      return {
+        ...request,
+        items: items || [],
+      } as Request;
+    },
+    enabled: !!requestId,
+  });
+}
+
+// Create request with items (transactional insert)
+export async function createRequestWithItems(
+  requestData: Record<string, any>,
+  items: Omit<CreateRequestItemInput, 'request_id'>[]
+): Promise<{ request: Request; items: RequestItemDB[] }> {
+  // Step 1: Insert the parent request
+  const { data: request, error: requestError } = await supabase
+    .from('requests')
+    .insert([{
+      ...requestData,
+      item_count: items.length,
+    }])
+    .select()
+    .single();
+
+  if (requestError) throw requestError;
+
+  // Step 2: Insert all items with the request_id
+  const itemsToInsert: CreateRequestItemInput[] = items.map((item, index) => ({
+    ...item,
+    request_id: request.id,
+    item_index: index,
+  }));
+
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from('request_items')
+    .insert(itemsToInsert)
+    .select();
+
+  if (itemsError) {
+    // If items insertion fails, we should ideally rollback the request
+    // But since Supabase doesn't support transactions in JS SDK,
+    // we'll delete the orphaned request
+    await supabase.from('requests').delete().eq('id', request.id);
+    throw itemsError;
+  }
+
+  return {
+    request: request as Request,
+    items: insertedItems as RequestItemDB[],
+  };
+}
+
+// Update request with items (for editing drafts)
+export async function updateRequestWithItems(
+  requestId: string,
+  requestData: Record<string, any>,
+  items: Omit<CreateRequestItemInput, 'request_id'>[]
+): Promise<{ request: Request; items: RequestItemDB[] }> {
+  // Step 1: Update the parent request
+  const { data: request, error: requestError } = await supabase
+    .from('requests')
+    .update({
+      ...requestData,
+      item_count: items.length,
+    })
+    .eq('id', requestId)
+    .select()
+    .single();
+
+  if (requestError) throw requestError;
+
+  // Step 2: Delete existing items
+  const { error: deleteError } = await supabase
+    .from('request_items')
+    .delete()
+    .eq('request_id', requestId);
+
+  if (deleteError) throw deleteError;
+
+  // Step 3: Insert new items
+  const itemsToInsert: CreateRequestItemInput[] = items.map((item, index) => ({
+    ...item,
+    request_id: requestId,
+    item_index: index,
+  }));
+
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from('request_items')
+    .insert(itemsToInsert)
+    .select();
+
+  if (itemsError) throw itemsError;
+
+  return {
+    request: request as Request,
+    items: insertedItems as RequestItemDB[],
+  };
+}
+
+// Hook for creating request with items
+export function useCreateRequestWithItems() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      requestData,
+      items,
+    }: {
+      requestData: Record<string, any>;
+      items: Omit<CreateRequestItemInput, 'request_id'>[];
+    }) => {
+      return createRequestWithItems(requestData, items);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+    },
+  });
+}
+
+// Hook for updating request with items
+export function useUpdateRequestWithItems() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      requestData,
+      items,
+    }: {
+      requestId: string;
+      requestData: Record<string, any>;
+      items: Omit<CreateRequestItemInput, 'request_id'>[];
+    }) => {
+      return updateRequestWithItems(requestId, requestData, items);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['request'] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    },
+  });
 }

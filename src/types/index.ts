@@ -43,9 +43,79 @@ export type ClientType = 'retail' | 'architect' | 'project' | 'others';
 // Section 3: Sample Request Details
 export type ProductType = 'marble' | 'tile' | 'terrazzo' | 'quartz';
 
-export type Quality = 'standard' | 'premium';
+export type Quality = 'standard' | 'premium' | string; // Allow custom quality strings
 
 export type Purpose = 'new_launch' | 'client_presentation' | 'mock_up' | 'approval';
+
+// ============================================================
+// DYNAMIC QUALITY OPTIONS BY PRODUCT TYPE
+// ============================================================
+
+export const PRODUCT_QUALITY_OPTIONS: Record<ProductType, string[]> = {
+  marble: ['Statuario', 'Michel Angelo', 'Angelo White', 'Royal Crema', 'Ice Berg White', 'Custom'],
+  terrazzo: ['I flower', 'Orbico', 'S grey', 'R stone', 'Custom'],
+  quartz: ['Tajmahal', 'P grey', 'F mountain', 'Frosty Bianc', 'Custom'],
+  tile: ['Premium', 'Standard', 'Custom'],
+};
+
+// ============================================================
+// MULTI-PRODUCT TYPES
+// ============================================================
+
+// Form state for product items (used in UI)
+export interface ProductItem {
+  id: string; // Unique identifier for React keys (client-side only)
+  product_type: ProductType | '';
+  quality: string;
+  quality_custom?: string; // Custom quality text when "Custom" is selected
+  sample_size: string;
+  sample_size_remarks?: string;
+  thickness: string;
+  thickness_remarks?: string;
+  finish: string;
+  finish_remarks?: string;
+  quantity: number;
+  image_file?: File | null;
+  image_preview?: string | null;
+  image_url?: string | null; // For existing images when editing
+}
+
+// Database model for request items (stored in request_items table)
+export interface RequestItemDB {
+  id: string;
+  request_id: string;
+  item_index: number;
+  product_type: string;
+  quality: string;
+  quality_custom: string | null;
+  sample_size: string;
+  sample_size_remarks: string | null;
+  thickness: string;
+  thickness_remarks: string | null;
+  finish: string | null;
+  finish_remarks: string | null;
+  quantity: number;
+  image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Input for creating request items
+export interface CreateRequestItemInput {
+  request_id: string;
+  item_index: number;
+  product_type: string;
+  quality: string;
+  quality_custom?: string | null;
+  sample_size: string;
+  sample_size_remarks?: string | null;
+  thickness: string;
+  thickness_remarks?: string | null;
+  finish?: string | null;
+  finish_remarks?: string | null;
+  quantity: number;
+  image_url?: string | null;
+}
 
 export type PackingType = 'wooden_crate' | 'cardboard' | 'bubble_wrap' | 'foam' | 'custom';
 
@@ -94,7 +164,8 @@ export interface Request {
   company_firm_name: string;  // Was firm_name
   site_location: string;
 
-  // Section 3: Sample Request Details
+  // Section 3: Sample Request Details (DEPRECATED - kept for backward compatibility)
+  // New requests store product data in request_items table
   product_type: string;  // ProductType
   quality: string;  // Quality
   sample_size: string;
@@ -108,8 +179,12 @@ export interface Request {
   packing_details: string;  // PackingType
   packing_remarks: string | null;
 
-  // Image
+  // Image (DEPRECATED - kept for backward compatibility)
   image_url: string | null;
+
+  // Multi-product support (new)
+  item_count: number;  // Number of items in this request
+  items?: RequestItemDB[];  // Populated via join with request_items
 
   // Coordinator message (for approval/rejection notes)
   coordinator_message: string | null;

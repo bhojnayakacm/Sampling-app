@@ -4,21 +4,33 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useRequest } from '@/lib/api/requests';
+import { useRequestWithItems } from '@/lib/api/requests';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
-import { MapPin, MessageSquare, CheckCircle, XCircle, ChevronLeft } from 'lucide-react';
+import {
+  MapPin,
+  MessageSquare,
+  CheckCircle,
+  XCircle,
+  ChevronLeft,
+  Package,
+  Image as ImageIcon,
+} from 'lucide-react';
+import type { RequestItemDB } from '@/types';
 
 export default function RequestDetail() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
-  const { data: request, isLoading, error } = useRequest(id);
+
+  // Use the new hook that fetches request WITH items
+  const { data: request, isLoading, error } = useRequestWithItems(id);
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+      draft: { label: 'Draft', variant: 'outline' },
       pending_approval: { label: 'Pending Approval', variant: 'outline' },
       approved: { label: 'Approved', variant: 'secondary' },
       assigned: { label: 'Assigned', variant: 'secondary' },
@@ -46,6 +58,192 @@ export default function RequestDetail() {
     );
   };
 
+  // Get product type color for visual differentiation
+  const getProductTypeColor = (productType: string) => {
+    const colors: Record<string, string> = {
+      marble: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      tile: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      terrazzo: 'bg-amber-100 text-amber-800 border-amber-200',
+      quartz: 'bg-pink-100 text-pink-800 border-pink-200',
+    };
+    return colors[productType] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  // Render a single product item card
+  const renderProductItem = (item: RequestItemDB, index: number, total: number) => {
+    const showFinish = item.product_type === 'marble' || item.product_type === 'tile';
+
+    return (
+      <Card key={item.id} className="border-l-4 border-l-primary">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+                {index + 1}
+              </div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                <span className="capitalize">{item.product_type}</span>
+              </CardTitle>
+            </div>
+            <Badge className={getProductTypeColor(item.product_type)}>
+              {total > 1 ? `Item ${index + 1} of ${total}` : 'Single Item'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Main Product Details Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-600">Product Type</span>
+              <p className="text-base capitalize font-medium">{item.product_type}</p>
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-600">Quality</span>
+              <p className="text-base capitalize">
+                {item.quality_custom || item.quality}
+              </p>
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-600">Quantity</span>
+              <p className="text-base font-semibold">{item.quantity} pieces</p>
+            </div>
+          </div>
+
+          {/* Size & Thickness */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-600">Sample Size</span>
+              <p className="text-base">{item.sample_size}</p>
+              {item.sample_size_remarks && (
+                <p className="text-xs text-gray-500 mt-1">{item.sample_size_remarks}</p>
+              )}
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-600">Thickness</span>
+              <p className="text-base">{item.thickness}</p>
+              {item.thickness_remarks && (
+                <p className="text-xs text-gray-500 mt-1">{item.thickness_remarks}</p>
+              )}
+            </div>
+            {showFinish && item.finish && (
+              <div>
+                <span className="text-sm font-medium text-gray-600">Finish</span>
+                <p className="text-base">{item.finish}</p>
+                {item.finish_remarks && (
+                  <p className="text-xs text-gray-500 mt-1">{item.finish_remarks}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Item Image */}
+          {item.image_url && (
+            <div className="pt-2 border-t">
+              <span className="text-sm font-medium text-gray-600 flex items-center gap-1 mb-2">
+                <ImageIcon className="h-4 w-4" />
+                Reference Image
+              </span>
+              <img
+                src={item.image_url}
+                alt={`${item.product_type} reference`}
+                className="max-w-xs h-40 object-contain rounded-lg border bg-gray-50"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Render legacy product details (backward compatibility)
+  const renderLegacyProductDetails = () => {
+    if (!request) return null;
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Sample Details
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-600">Product Type</span>
+              <p className="text-base capitalize">{request.product_type}</p>
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-600">Quality</span>
+              <p className="text-base capitalize">{request.quality}</p>
+            </div>
+            <div>
+              <span className="text-sm font-medium text-gray-600">Quantity</span>
+              <p className="text-base">{request.quantity} pieces</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-600">Sample Size</span>
+              <p className="text-base">{request.sample_size}</p>
+            </div>
+            {request.sample_size_remarks && (
+              <div className="md:col-span-2">
+                <span className="text-sm font-medium text-gray-600">Size Remarks</span>
+                <p className="text-base">{request.sample_size_remarks}</p>
+              </div>
+            )}
+          </div>
+
+          {request.finish && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <span className="text-sm font-medium text-gray-600">Finish</span>
+                <p className="text-base">{request.finish}</p>
+              </div>
+              {request.finish_remarks && (
+                <div className="md:col-span-2">
+                  <span className="text-sm font-medium text-gray-600">Finish Remarks</span>
+                  <p className="text-base">{request.finish_remarks}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-600">Thickness</span>
+              <p className="text-base">{request.thickness}</p>
+            </div>
+            {request.thickness_remarks && (
+              <div className="md:col-span-2">
+                <span className="text-sm font-medium text-gray-600">Thickness Remarks</span>
+                <p className="text-base">{request.thickness_remarks}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Legacy Image */}
+          {request.image_url && (
+            <div className="pt-4 border-t">
+              <span className="text-sm font-medium text-gray-600 flex items-center gap-1 mb-2">
+                <ImageIcon className="h-4 w-4" />
+                Sample Image
+              </span>
+              <img
+                src={request.image_url}
+                alt="Sample reference"
+                className="max-w-md h-48 object-contain rounded-lg border bg-gray-50"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -67,6 +265,10 @@ export default function RequestDetail() {
     );
   }
 
+  // Determine if we have items in the new structure
+  const hasItems = request.items && request.items.length > 0;
+  const itemCount = hasItems ? request.items!.length : 1;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b">
@@ -83,9 +285,16 @@ export default function RequestDetail() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
-        <div className="flex justify-between items-start mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold mb-2">{request.request_number}</h2>
+            <div className="flex items-center gap-3 mb-2">
+              <h2 className="text-2xl font-bold">{request.request_number}</h2>
+              {itemCount > 1 && (
+                <Badge variant="secondary" className="text-xs">
+                  {itemCount} Products
+                </Badge>
+              )}
+            </div>
             <div className="flex gap-2">
               {getPriorityBadge(request.priority)}
               {getStatusBadge(request.status)}
@@ -101,7 +310,6 @@ export default function RequestDetail() {
                 </Button>
               }
             />
-            {/* Back button - Icon only on mobile, text on desktop */}
             <Button
               variant="outline"
               onClick={() => navigate('/')}
@@ -166,7 +374,7 @@ export default function RequestDetail() {
             <CardHeader>
               <CardTitle>Request Overview</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <span className="text-sm font-medium text-gray-600">Request Number</span>
                 <p className="text-base font-mono">{request.request_number}</p>
@@ -209,7 +417,7 @@ export default function RequestDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm font-medium text-gray-600">Pickup Responsibility</span>
-                  <p className="text-base capitalize">{request.pickup_responsibility.replace('_', ' ')}</p>
+                  <p className="text-base capitalize">{request.pickup_responsibility?.replace('_', ' ')}</p>
                 </div>
                 {request.pickup_remarks && (
                   <div>
@@ -274,79 +482,48 @@ export default function RequestDetail() {
             </CardContent>
           </Card>
 
-          {/* Section 4: Sample Details */}
+          {/* Section 4: Product Items (NEW - Multi-Product Support) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Product Items
+                {hasItems && (
+                  <Badge variant="outline" className="ml-2">
+                    {request.items!.length} {request.items!.length === 1 ? 'item' : 'items'}
+                  </Badge>
+                )}
+              </h3>
+            </div>
+
+            {/* Render items if available, otherwise fall back to legacy */}
+            {hasItems ? (
+              <div className="space-y-4">
+                {request.items!.map((item, index) =>
+                  renderProductItem(item, index, request.items!.length)
+                )}
+              </div>
+            ) : (
+              renderLegacyProductDetails()
+            )}
+          </div>
+
+          {/* Section 5: Shared Details (Purpose & Packing) */}
           <Card>
             <CardHeader>
-              <CardTitle>Sample Details</CardTitle>
+              <CardTitle>Shipping & Packing</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Product Type</span>
-                  <p className="text-base capitalize">{request.product_type}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Quality</span>
-                  <p className="text-base capitalize">{request.quality}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Quantity</span>
-                  <p className="text-base">{request.quantity} pieces</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Sample Size</span>
-                  <p className="text-base">{request.sample_size}</p>
-                </div>
-                {request.sample_size_remarks && (
-                  <div className="md:col-span-2">
-                    <span className="text-sm font-medium text-gray-600">Size Remarks</span>
-                    <p className="text-base">{request.sample_size_remarks}</p>
-                  </div>
-                )}
-              </div>
-
-              {request.finish && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Finish</span>
-                    <p className="text-base">{request.finish}</p>
-                  </div>
-                  {request.finish_remarks && (
-                    <div className="md:col-span-2">
-                      <span className="text-sm font-medium text-gray-600">Finish Remarks</span>
-                      <p className="text-base">{request.finish_remarks}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Thickness</span>
-                  <p className="text-base">{request.thickness}</p>
-                </div>
-                {request.thickness_remarks && (
-                  <div className="md:col-span-2">
-                    <span className="text-sm font-medium text-gray-600">Thickness Remarks</span>
-                    <p className="text-base">{request.thickness_remarks}</p>
-                  </div>
-                )}
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm font-medium text-gray-600">Purpose of Sample</span>
-                  <p className="text-base capitalize">{request.purpose.replace('_', ' ')}</p>
+                  <p className="text-base capitalize">{request.purpose?.replace('_', ' ')}</p>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-gray-600">Packing</span>
-                  <p className="text-base capitalize">{request.packing_details.replace('_', ' ')}</p>
+                  <p className="text-base capitalize">{request.packing_details?.replace('_', ' ')}</p>
                 </div>
               </div>
-
               {request.packing_remarks && (
                 <div>
                   <span className="text-sm font-medium text-gray-600">Packing Remarks</span>
@@ -356,30 +533,13 @@ export default function RequestDetail() {
             </CardContent>
           </Card>
 
-          {/* Section 5: Additional Information */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Sample Image */}
-            {request.image_url && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Sample Image</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <img
-                    src={request.image_url}
-                    alt="Sample reference"
-                    className="w-full rounded-lg border"
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Timestamps */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Timeline</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+          {/* Section 6: Timeline & Assignment */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Timeline</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <span className="text-sm font-medium text-gray-600">Created</span>
                   <p className="text-base">{formatDateTime(request.created_at)}</p>
@@ -396,15 +556,21 @@ export default function RequestDetail() {
                     <p className="text-base">{formatDateTime(request.dispatched_at)}</p>
                   </div>
                 )}
-                {request.maker && (
+                {request.received_at && (
                   <div>
-                    <span className="text-sm font-medium text-gray-600">Assigned To</span>
-                    <p className="text-base">{request.maker.full_name}</p>
+                    <span className="text-sm font-medium text-gray-600">Received</span>
+                    <p className="text-base">{formatDateTime(request.received_at)}</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+              {request.maker && (
+                <div className="pt-3 border-t">
+                  <span className="text-sm font-medium text-gray-600">Assigned To</span>
+                  <p className="text-base">{request.maker.full_name}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Request Actions - for coordinators */}
