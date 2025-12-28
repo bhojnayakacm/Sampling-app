@@ -572,7 +572,7 @@ export default function NewRequest() {
   // ============================================================
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-32 md:pb-8">
+    <div className="min-h-screen bg-gray-50">
       {/* Mobile-Optimized Header */}
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
@@ -605,7 +605,7 @@ export default function NewRequest() {
         </div>
       </header>
 
-      <form onSubmit={(e) => e.preventDefault()} className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-40 md:pb-6">
+      <form onSubmit={(e) => e.preventDefault()} className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-8">
         <Accordion type="multiple" defaultValue={["section-1", "section-2", "section-3"]} className="space-y-4">
           {/* ============================================================ */}
           {/* SECTION 1: REQUESTER DETAILS */}
@@ -914,19 +914,17 @@ export default function NewRequest() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-      </form>
 
-      {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 md:relative md:max-w-4xl md:mx-auto md:px-4 sm:px-6 lg:px-8 md:mt-6 z-30">
-        <div className="bg-white border-t md:border md:rounded-lg shadow-lg md:shadow-sm p-4">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end max-w-4xl mx-auto">
+        {/* Form Actions - Static at bottom of form */}
+        <div className="mt-8 bg-white border rounded-lg shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end">
             {/* Cancel Button */}
             <Button
               type="button"
               variant="outline"
               onClick={() => navigate('/requests')}
               disabled={isSubmitting}
-              className="flex-1 sm:flex-none h-12 sm:h-11"
+              className="w-full sm:w-auto h-12 sm:h-11"
             >
               Cancel
             </Button>
@@ -937,7 +935,7 @@ export default function NewRequest() {
               variant="outline"
               onClick={handleSaveDraft}
               disabled={isSubmitting}
-              className="flex-1 sm:flex-none h-12 sm:h-11 gap-2"
+              className="w-full sm:w-auto h-12 sm:h-11 gap-2"
             >
               {isSubmitting ? (
                 <>
@@ -957,7 +955,7 @@ export default function NewRequest() {
               type="button"
               onClick={handleSubmit(handleSubmitRequest)}
               disabled={isSubmitting}
-              className="flex-1 sm:flex-none h-12 sm:h-11 gap-2"
+              className="w-full sm:w-auto h-12 sm:h-11 gap-2"
             >
               {isSubmitting ? (
                 <>
@@ -973,7 +971,7 @@ export default function NewRequest() {
             </Button>
           </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
