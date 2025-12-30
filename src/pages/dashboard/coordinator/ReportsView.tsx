@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DateRangeFilter, { DateRange } from '@/components/analytics/DateRangeFilter';
 import StatCard from '@/components/analytics/StatCard';
 import QualityBarChart from '@/components/analytics/QualityBarChart';
 import ProductPieChart from '@/components/analytics/ProductPieChart';
-import { Package, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Package, Clock, FileSpreadsheet, Lock, ChevronRight } from 'lucide-react';
 
 // ===================================================================
 // SMART DUMMY DATA - Reacts to Date Range Filter
@@ -86,22 +88,23 @@ function getAnalyticsData(range: DateRange): AnalyticsData {
 // MAIN COMPONENT
 // ===================================================================
 export default function ReportsView() {
+  const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRange>('this_month');
   const data = getAnalyticsData(dateRange);
 
   return (
-    <div className="h-[calc(100vh-theme('spacing.16'))] flex flex-col p-4 gap-4">
+    <div className="h-[calc(100vh-theme('spacing.16'))] flex flex-col p-4 gap-3">
       {/* ===================================
-          HEADER ROW
+          HEADER ROW - Compact
           =================================== */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-shrink-0">
         {/* Left: Title */}
         <div>
-          <h2 className="text-xl font-bold text-foreground tracking-tight">
+          <h2 className="text-lg font-bold text-foreground tracking-tight">
             Reports & Analytics
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            View detailed insights and performance metrics
+          <p className="text-xs text-muted-foreground">
+            Performance metrics and insights
           </p>
         </div>
 
@@ -110,9 +113,9 @@ export default function ReportsView() {
       </div>
 
       {/* ===================================
-          SUMMARY CARDS ROW
+          SUMMARY CARDS ROW - Reduced gap
           =================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-shrink-0">
         {/* Card 1: Total Samples */}
         <StatCard
           title="Total Samples"
@@ -139,27 +142,58 @@ export default function ReportsView() {
       </div>
 
       {/* ===================================
-          CHARTS SECTION - Full Width Fill Strategy
+          CHARTS SECTION - Expanded (takes most space)
           =================================== */}
       <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
         {/* Left: Quality Bar Chart (65% width) */}
-        <div className="flex-[2] min-w-0">
+        <div className="flex-[2] min-w-0 min-h-[280px] lg:min-h-0">
           <QualityBarChart />
         </div>
 
         {/* Right: Product Pie Chart (35% width) */}
-        <div className="flex-[1] min-w-0">
+        <div className="flex-[1] min-w-0 min-h-[280px] lg:min-h-0">
           <ProductPieChart />
         </div>
       </div>
 
-      {/* Debug Info (Optional - Remove in production) */}
-      <div className="p-3 bg-muted/30 rounded-xl border border-border/30">
-        <p className="text-xs text-muted-foreground font-mono">
-          <strong>Debug:</strong> Current Range = <code className="bg-background px-2 py-0.5 rounded">{dateRange}</code>
-          {' '} | Total Samples = <code className="bg-background px-2 py-0.5 rounded">{data.totalSamples}</code>
-          {' '} | Avg Turnaround = <code className="bg-background px-2 py-0.5 rounded">{data.avgTurnaround} days</code>
-        </p>
+      {/* ===================================
+          EXPORT REPORTS - Compact Action Bar
+          =================================== */}
+      <div className="flex-shrink-0 bg-muted/40 rounded-lg border border-border/50 px-4 py-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          {/* Left: Label */}
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">Export Reports:</span>
+          </div>
+
+          {/* Right: Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Requester Report Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/reports/requester')}
+              className="h-8 gap-2 bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              <span>Requester Report</span>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            </Button>
+
+            {/* Product Report Button - Disabled */}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              className="h-8 gap-2 opacity-50"
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span>Product Report</span>
+              <Lock className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

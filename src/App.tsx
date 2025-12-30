@@ -13,6 +13,7 @@ import RequestList from '@/pages/requests/RequestList';
 import NewRequest from '@/pages/requests/NewRequest';
 import RequestDetail from '@/pages/requests/RequestDetail';
 import UserManagement from '@/pages/admin/UserManagement';
+import RequesterReport from '@/pages/reports/RequesterReport';
 import NotFound from '@/pages/NotFound';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 
@@ -125,6 +126,18 @@ function App() {
               <ProtectedRoute>
                 <RoleProtectedRoute allowedRoles={['admin']}>
                   <UserManagement />
+                </RoleProtectedRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Reports Routes - Coordinators Only */}
+          <Route
+            path="/reports/requester"
+            element={
+              <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['coordinator', 'admin']}>
+                  <RequesterReport />
                 </RoleProtectedRoute>
               </ProtectedRoute>
             }
