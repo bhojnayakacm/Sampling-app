@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import {
   BarChart,
   Bar,
@@ -18,8 +19,7 @@ import {
   Cell,
 } from 'recharts';
 import { Package } from 'lucide-react';
-
-type ProductType = 'marble' | 'tile' | 'terrazzo' | 'quartz';
+import { PRODUCT_TYPES, PRODUCT_QUALITIES, POPULAR_QUALITIES, type ProductType, type ProductTypeKey } from '@/lib/productData';
 
 interface QualityData {
   name: string;
@@ -27,33 +27,43 @@ interface QualityData {
   color: string;
 }
 
+// Color palette for bars
+const CHART_COLORS = [
+  '#4F46E5', // indigo
+  '#10B981', // emerald
+  '#F59E0B', // amber
+  '#EC4899', // pink
+  '#8B5CF6', // violet
+  '#06B6D4', // cyan
+  '#EF4444', // red
+  '#84CC16', // lime
+];
+
 // ===================================================================
-// SMART DUMMY DATA - Different qualities for each product type
+// SMART DUMMY DATA - Generates sample data for any quality
+// In production, this would come from actual database queries
 // ===================================================================
-const qualityDataByProduct: Record<ProductType, QualityData[]> = {
-  marble: [
-    { name: 'Premium', count: 45, color: '#4F46E5' },
-    { name: 'Standard', count: 32, color: '#10B981' },
-    { name: 'Commercial', count: 28, color: '#F59E0B' },
-    { name: 'Rustic', count: 15, color: '#EC4899' },
-  ],
-  tile: [
-    { name: 'Grade A', count: 38, color: '#4F46E5' },
-    { name: 'Grade B', count: 25, color: '#10B981' },
-    { name: 'Seconds', count: 12, color: '#F59E0B' },
-  ],
-  terrazzo: [
-    { name: 'Premium', count: 22, color: '#4F46E5' },
-    { name: 'Standard', count: 18, color: '#10B981' },
-    { name: 'Economy', count: 10, color: '#F59E0B' },
-  ],
-  quartz: [
-    { name: 'Premium Plus', count: 30, color: '#4F46E5' },
-    { name: 'Premium', count: 24, color: '#10B981' },
-    { name: 'Standard', count: 16, color: '#F59E0B' },
-    { name: 'Builder Grade', count: 8, color: '#EC4899' },
-  ],
-};
+function generateDummyData(productType: ProductType, selectedQuality: string): QualityData[] {
+  const qualities = PRODUCT_QUALITIES[productType];
+
+  if (selectedQuality) {
+    // If a specific quality is selected, show just that one
+    const randomCount = Math.floor(Math.random() * 50) + 10;
+    return [{
+      name: selectedQuality.length > 15 ? selectedQuality.substring(0, 15) + '...' : selectedQuality,
+      count: randomCount,
+      color: CHART_COLORS[0],
+    }];
+  }
+
+  // Show top 6 qualities with dummy data
+  const topQualities = qualities.slice(0, 6);
+  return topQualities.map((quality, index) => ({
+    name: quality.length > 12 ? quality.substring(0, 12) + '...' : quality,
+    count: Math.floor(Math.random() * 45) + 10,
+    color: CHART_COLORS[index % CHART_COLORS.length],
+  }));
+}
 
 // Custom Tooltip
 const CustomTooltip = ({ active, payload }: any) => {
@@ -71,34 +81,84 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function QualityBarChart() {
-  const [selectedProduct, setSelectedProduct] = useState<ProductType>('marble');
-  const data = qualityDataByProduct[selectedProduct];
+  const [selectedProduct, setSelectedProduct] = useState<ProductType>('Marble');
+  const [selectedQuality, setSelectedQuality] = useState<string>('');
+
+  // Map capitalized product type to lowercase key for popular qualities
+  const productKeyMap: Record<ProductType, ProductTypeKey> = {
+    'Marble': 'marble',
+    'Tile': 'tile',
+    'Magro Stone': 'magro_stone',
+    'Quartz': 'quartz',
+    'Terrazzo': 'terrazzo',
+  };
+
+  // Get qualities for selected product
+  const qualityOptions = useMemo(() => {
+    return PRODUCT_QUALITIES[selectedProduct] || [];
+  }, [selectedProduct]);
+
+  // Get popular qualities for the selected product
+  const popularOptions = useMemo(() => {
+    const key = productKeyMap[selectedProduct];
+    return key ? POPULAR_QUALITIES[key] || [] : [];
+  }, [selectedProduct]);
+
+  // Generate chart data
+  const data = useMemo(() => {
+    return generateDummyData(selectedProduct, selectedQuality);
+  }, [selectedProduct, selectedQuality]);
+
+  // Reset quality when product changes
+  const handleProductChange = (value: string) => {
+    setSelectedProduct(value as ProductType);
+    setSelectedQuality(''); // Reset quality filter
+  };
 
   return (
     <Card className="border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200 h-full w-full flex flex-col">
-      {/* Header - Consistent with ProductPieChart */}
+      {/* Header */}
       <CardHeader className="py-2.5 px-3 bg-gradient-to-br from-slate-50/80 to-transparent border-b border-slate-100">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-            <Package className="h-4 w-4 text-primary" />
-            Quality Breakdown
-          </CardTitle>
+        <div className="flex flex-col gap-2">
+          {/* Title Row */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+              <Package className="h-4 w-4 text-primary" />
+              Quality Breakdown
+            </CardTitle>
+            <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              {qualityOptions.length} qualities
+            </span>
+          </div>
 
-          {/* Product Type Filter */}
-          <Select
-            value={selectedProduct}
-            onValueChange={(val) => setSelectedProduct(val as ProductType)}
-          >
-            <SelectTrigger className="w-[110px] h-7 rounded-md border border-slate-200 text-xs bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-lg">
-              <SelectItem value="marble" className="text-sm">Marble</SelectItem>
-              <SelectItem value="tile" className="text-sm">Tile</SelectItem>
-              <SelectItem value="terrazzo" className="text-sm">Terrazzo</SelectItem>
-              <SelectItem value="quartz" className="text-sm">Quartz</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Filters Row */}
+          <div className="flex items-center gap-2">
+            {/* Product Type Filter */}
+            <Select value={selectedProduct} onValueChange={handleProductChange}>
+              <SelectTrigger className="w-[110px] h-7 rounded-md border border-slate-200 text-xs bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-lg">
+                {PRODUCT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type} className="text-sm">
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Quality Filter - Searchable Combobox */}
+            <Combobox
+              options={qualityOptions}
+              popularOptions={popularOptions}
+              value={selectedQuality}
+              onChange={setSelectedQuality}
+              placeholder="All Qualities"
+              searchPlaceholder="Type to search..."
+              emptyMessage="No matching quality"
+              className="flex-1 min-w-[140px]"
+            />
+          </div>
         </div>
       </CardHeader>
 
@@ -113,9 +173,13 @@ export default function QualityBarChart() {
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
               <XAxis
                 dataKey="name"
-                tick={{ fill: '#64748B', fontSize: 11 }}
+                tick={{ fill: '#64748B', fontSize: 10 }}
                 axisLine={{ stroke: '#E2E8F0' }}
                 tickLine={false}
+                interval={0}
+                angle={-20}
+                textAnchor="end"
+                height={50}
               />
               <YAxis
                 tick={{ fill: '#64748B', fontSize: 11 }}
@@ -138,19 +202,22 @@ export default function QualityBarChart() {
           </ResponsiveContainer>
         </div>
 
-        {/* Legend - Single Horizontal Line (Consistent with ProductPieChart) */}
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 pt-2 border-t border-slate-100">
-          {data.map((item) => (
+        {/* Legend */}
+        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 pt-2 border-t border-slate-100">
+          {data.slice(0, 4).map((item) => (
             <div key={item.name} className="flex items-center gap-1.5">
               <div
                 className="w-2.5 h-2.5 rounded-sm"
                 style={{ backgroundColor: item.color }}
               />
-              <span className="text-[11px] font-medium text-slate-600">
+              <span className="text-[10px] font-medium text-slate-600">
                 {item.name}: <span className="text-slate-800">{item.count}</span>
               </span>
             </div>
           ))}
+          {data.length > 4 && (
+            <span className="text-[10px] text-slate-400">+{data.length - 4} more</span>
+          )}
         </div>
       </CardContent>
     </Card>

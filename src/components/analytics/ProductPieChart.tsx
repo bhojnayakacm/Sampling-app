@@ -20,10 +20,11 @@ interface ProductData {
 // SMART DUMMY DATA - Product Distribution
 // ===================================================================
 const productData: ProductData[] = [
-  { name: 'Marble', value: 120, color: '#4F46E5', percentage: 35 },
-  { name: 'Tile', value: 95, color: '#10B981', percentage: 28 },
-  { name: 'Terrazzo', value: 75, color: '#F59E0B', percentage: 22 },
-  { name: 'Quartz', value: 52, color: '#EC4899', percentage: 15 },
+  { name: 'Marble', value: 120, color: '#4F46E5', percentage: 30 },
+  { name: 'Tile', value: 95, color: '#10B981', percentage: 24 },
+  { name: 'Magro Stone', value: 68, color: '#8B5CF6', percentage: 17 },
+  { name: 'Terrazzo', value: 65, color: '#F59E0B', percentage: 16 },
+  { name: 'Quartz', value: 52, color: '#EC4899', percentage: 13 },
 ];
 
 // Calculate total

@@ -3,16 +3,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Trash2, Upload, X, Package, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import type { ProductItem, ProductType } from '@/types';
 import {
   PRODUCT_SIZE_OPTIONS,
   PRODUCT_FINISH_OPTIONS,
   PRODUCT_THICKNESS_OPTIONS,
-  PRODUCT_QUALITY_OPTIONS,
 } from '@/types';
+import {
+  PRODUCT_TYPE_LABELS,
+  PRODUCT_TYPES_ORDERED,
+  PRODUCT_QUALITIES_BY_KEY,
+  POPULAR_QUALITIES,
+  type ProductTypeKey,
+} from '@/lib/productData';
 
 interface ProductItemCardProps {
   item: ProductItem;
@@ -33,10 +40,23 @@ export default function ProductItemCard({
 
   // Get product-specific options
   const productType = item.product_type as ProductType;
+  const productTypeKey = item.product_type as ProductTypeKey;
   const sizeOptions = productType ? PRODUCT_SIZE_OPTIONS[productType] : [];
   const finishOptions = productType ? PRODUCT_FINISH_OPTIONS[productType] : null;
   const thicknessOptions = productType ? PRODUCT_THICKNESS_OPTIONS[productType] : [];
-  const qualityOptions = productType ? PRODUCT_QUALITY_OPTIONS[productType] : [];
+
+  // Get quality options from the new data source with "Custom" option appended
+  const qualityOptions = useMemo(() => {
+    if (!productTypeKey) return [];
+    const qualities = PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [];
+    return [...qualities, 'Custom'];
+  }, [productTypeKey]);
+
+  // Get popular qualities for the selected product type
+  const popularQualities = useMemo(() => {
+    if (!productTypeKey) return [];
+    return POPULAR_QUALITIES[productTypeKey] || [];
+  }, [productTypeKey]);
 
   // Check if finish should be shown (not for terrazzo/quartz)
   const showFinish = productType && finishOptions !== null;
@@ -81,22 +101,24 @@ export default function ProductItemCard({
       sample_size_remarks: '',
       thickness: '',
       thickness_remarks: '',
-      // Default finish to "Polish" for marble/tile, empty for others
+      // Default finish to "Polish" for marble/tile/magro_stone, empty for others
       finish: hasFinish ? 'Polish' : '',
       finish_remarks: '',
+    });
+  };
+
+  // Handle quality selection from Combobox
+  const handleQualityChange = (value: string) => {
+    onUpdate(index, {
+      quality: value,
+      quality_custom: value === 'Custom' ? '' : undefined,
     });
   };
 
   // Get display label for card header
   const getProductLabel = () => {
     if (!item.product_type) return 'New Product';
-    const labels: Record<ProductType, string> = {
-      marble: 'Marble',
-      tile: 'Tile',
-      terrazzo: 'Terrazzo',
-      quartz: 'Quartz',
-    };
-    return labels[item.product_type as ProductType] || 'Product';
+    return PRODUCT_TYPE_LABELS[item.product_type] || 'Product';
   };
 
   const imagePreview = item.image_preview || item.image_url;
@@ -161,36 +183,29 @@ export default function ProductItemCard({
                   <SelectValue placeholder="Select product type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="marble">Marble</SelectItem>
-                  <SelectItem value="tile">Tile</SelectItem>
-                  <SelectItem value="terrazzo">Terrazzo</SelectItem>
-                  <SelectItem value="quartz">Quartz</SelectItem>
+                  {PRODUCT_TYPES_ORDERED.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {PRODUCT_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Quality - Dynamic based on product type */}
+            {/* Quality - Searchable Combobox */}
             <div>
               <Label>Quality *</Label>
-              {productType ? (
-                <Select
+              {productTypeKey ? (
+                <Combobox
+                  options={qualityOptions}
+                  popularOptions={popularQualities}
                   value={item.quality}
-                  onValueChange={(value) => onUpdate(index, {
-                    quality: value,
-                    quality_custom: value === 'Custom' ? '' : undefined
-                  })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select quality" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {qualityOptions.map((quality) => (
-                      <SelectItem key={quality} value={quality}>
-                        {quality}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={handleQualityChange}
+                  placeholder="Select quality..."
+                  searchPlaceholder="Type to search..."
+                  emptyMessage="No matching quality"
+                  className="w-full"
+                />
               ) : (
                 <Input placeholder="Select product type first" disabled />
               )}
@@ -286,7 +301,7 @@ export default function ProductItemCard({
               </div>
             )}
 
-            {/* Finish - Only show for marble/tile */}
+            {/* Finish - Only show for marble/tile/magro_stone */}
             {showFinish && (
               <>
                 <div>
