@@ -147,12 +147,12 @@ export default function ReportsView() {
       <div className="flex flex-col lg:flex-row gap-3 flex-1 min-h-0">
         {/* Left: Quality Bar Chart (65% width) */}
         <div className="flex-[2] min-w-0 min-h-[280px] lg:min-h-0">
-          <QualityBarChart />
+          <QualityBarChart dateRange={dateRange} />
         </div>
 
         {/* Right: Product Pie Chart (35% width) */}
         <div className="flex-[1] min-w-0 min-h-[280px] lg:min-h-0">
-          <ProductPieChart />
+          <ProductPieChart dateRange={dateRange} />
         </div>
       </div>
 
