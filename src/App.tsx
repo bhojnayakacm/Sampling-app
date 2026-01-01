@@ -5,6 +5,8 @@ import { Toaster } from 'sonner';
 // Pages
 import Login from '@/pages/auth/Login';
 import Signup from '@/pages/auth/Signup';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
+import UpdatePassword from '@/pages/auth/UpdatePassword';
 import AdminDashboard from '@/pages/dashboard/AdminDashboard';
 import CoordinatorDashboard from '@/pages/dashboard/CoordinatorDashboard';
 import RequesterDashboard from '@/pages/dashboard/RequesterDashboard';
@@ -70,6 +72,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
 
           <Route
             path="/"
