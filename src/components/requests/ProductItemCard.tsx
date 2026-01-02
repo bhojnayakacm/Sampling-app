@@ -88,21 +88,37 @@ export default function ProductItemCard({
     });
   };
 
+  // Helper: Get the first non-custom option if only one exists
+  const getAutoSelectValue = (options: string[]): string | null => {
+    const nonCustomOptions = options.filter(opt => opt !== 'Custom' && opt !== 'Customize');
+    return nonCustomOptions.length === 1 ? nonCustomOptions[0] : null;
+  };
+
   // Reset dependent fields when product type changes
   const handleProductTypeChange = (value: string) => {
     const newProductType = value as ProductType;
     const hasFinish = PRODUCT_FINISH_OPTIONS[newProductType] !== null;
 
+    // Get options for the new product type
+    const newSizeOptions = PRODUCT_SIZE_OPTIONS[newProductType] || [];
+    const newThicknessOptions = PRODUCT_THICKNESS_OPTIONS[newProductType] || [];
+    const newFinishOptions = PRODUCT_FINISH_OPTIONS[newProductType] || [];
+
+    // Auto-select if only one non-custom option exists
+    const autoSize = getAutoSelectValue(newSizeOptions);
+    const autoThickness = getAutoSelectValue(newThicknessOptions);
+    const autoFinish = hasFinish ? getAutoSelectValue(newFinishOptions) : null;
+
     onUpdate(index, {
       product_type: newProductType,
       quality: '',
       quality_custom: '',
-      sample_size: '',
+      sample_size: autoSize || '',
       sample_size_remarks: '',
-      thickness: '',
+      thickness: autoThickness || '',
       thickness_remarks: '',
-      // Default finish to "Polish" for marble/tile/magro_stone, empty for others
-      finish: hasFinish ? 'Polish' : '',
+      // Auto-select finish if only one option, otherwise default to first option for products with finish
+      finish: autoFinish || (hasFinish ? newFinishOptions[0] : ''),
       finish_remarks: '',
     });
   };

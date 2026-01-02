@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -66,6 +66,81 @@ interface RequestFormData {
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
+}
+
+// Map database errors to user-friendly messages
+function getFriendlyErrorMessage(error: any): { title: string; description: string } {
+  const message = error?.message?.toLowerCase() || '';
+  const code = error?.code || '';
+
+  // Check constraint violations
+  if (message.includes('valid_product_type') || message.includes('product_type')) {
+    return {
+      title: 'Invalid Product Type',
+      description: 'The selected product type is not valid. Please select a different product type.',
+    };
+  }
+
+  if (message.includes('valid_quantity') || message.includes('quantity')) {
+    return {
+      title: 'Invalid Quantity',
+      description: 'Quantity must be greater than 0.',
+    };
+  }
+
+  // Foreign key violations
+  if (message.includes('foreign key') || code === '23503') {
+    return {
+      title: 'Reference Error',
+      description: 'A referenced record no longer exists. Please refresh and try again.',
+    };
+  }
+
+  // Unique constraint violations
+  if (message.includes('unique') || code === '23505') {
+    return {
+      title: 'Duplicate Entry',
+      description: 'This record already exists. Please check your entries.',
+    };
+  }
+
+  // Not null violations
+  if (message.includes('not-null') || message.includes('null value') || code === '23502') {
+    return {
+      title: 'Missing Required Field',
+      description: 'A required field is empty. Please fill in all required fields.',
+    };
+  }
+
+  // Network errors
+  if (message.includes('network') || message.includes('fetch')) {
+    return {
+      title: 'Connection Error',
+      description: 'Unable to connect to the server. Please check your internet connection.',
+    };
+  }
+
+  // RLS policy violations
+  if (message.includes('policy') || message.includes('permission')) {
+    return {
+      title: 'Permission Denied',
+      description: 'You do not have permission to perform this action.',
+    };
+  }
+
+  // Storage errors
+  if (message.includes('storage') || message.includes('upload')) {
+    return {
+      title: 'Image Upload Failed',
+      description: 'Failed to upload one or more images. Please try again.',
+    };
+  }
+
+  // Default fallback
+  return {
+    title: 'Submission Failed',
+    description: 'Something went wrong. Please try again or contact support.',
+  };
 }
 
 function createEmptyProduct(): ProductItem {
@@ -164,6 +239,9 @@ export default function NewRequest() {
   const { id: draftId } = useParams<{ id: string }>();
   const { profile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Ref to prevent double-submission (belt + suspenders with isSubmitting state)
+  const isSubmittingRef = useRef(false);
 
   // Multi-product state
   const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()]);
@@ -344,7 +422,7 @@ export default function NewRequest() {
       missingFields.push('Client Type Remarks (required when "Others" is selected)');
     }
     if (!data.client_project_name) missingFields.push('Client/Project Name');
-    if (!data.client_phone) missingFields.push('Client Phone');
+    // client_phone is now optional
     if (!data.company_firm_name) missingFields.push('Company/Firm Name');
     if (!data.site_location) missingFields.push('Site Location');
 
@@ -436,7 +514,14 @@ export default function NewRequest() {
       navigate('/requests');
     } catch (error: any) {
       console.error('Error saving draft:', error);
-      toast.error(error.message || 'Failed to save draft');
+      const friendly = getFriendlyErrorMessage(error);
+      toast.error(
+        <div>
+          <p className="font-semibold">{friendly.title}</p>
+          <p className="text-sm mt-1">{friendly.description}</p>
+        </div>,
+        { duration: 5000 }
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -447,6 +532,14 @@ export default function NewRequest() {
   // ============================================================
 
   const handleSubmitRequest = async (data: RequestFormData) => {
+    // ========================================
+    // GUARD: Prevent double-submission
+    // ========================================
+    if (isSubmittingRef.current) {
+      console.warn('[NewRequest] Blocked duplicate submission attempt');
+      return;
+    }
+
     if (!profile) {
       toast.error('You must be logged in to submit a request');
       return;
@@ -472,13 +565,25 @@ export default function NewRequest() {
       return;
     }
 
+    // Lock submission immediately (ref for synchronous check, state for UI)
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
+
+    // Generate unique submission ID for debugging
+    const submissionId = `SUB-${Date.now()}`;
+    console.log(`[NewRequest] Starting submission ${submissionId}`);
+    console.log(`[NewRequest] Products count: ${products.length}`);
+    console.log(`[NewRequest] Products data:`, products.map(p => ({
+      type: p.product_type,
+      quality: p.quality,
+      quantity: p.quantity, // This should be a NUMBER, not causing multiple requests
+    })));
 
     try {
       // Step 1: Upload all images in parallel
       const imageUrlMap = await uploadAllImages(products);
 
-      // Step 2: Prepare request data (parent - ONE request ID)
+      // Step 2: Prepare request data (parent - EXACTLY ONE request)
       const requestData = {
         created_by: profile.id,
         status: 'pending_approval',
@@ -516,18 +621,24 @@ export default function NewRequest() {
         image_url: imageUrlMap.get(0) || products[0]?.image_url || null,
       };
 
-      // Step 3: Prepare items data (children - ALL products)
+      // Step 3: Prepare items data (ONE item per product card, quantity is just a field value)
       const itemsData = products.map((product, index) => {
         const imageUrl = imageUrlMap.get(index) || product.image_url || null;
         return productToItemInput(product, imageUrl);
       });
 
-      // Step 4: Create or update using transactional API
+      console.log(`[NewRequest] ${submissionId} - Items to insert: ${itemsData.length}`);
+      console.log(`[NewRequest] ${submissionId} - Item quantities:`, itemsData.map(i => i.quantity));
+
+      // Step 4: Create or update - CALLED EXACTLY ONCE
       if (isEditMode && draftId) {
+        console.log(`[NewRequest] ${submissionId} - Updating draft ${draftId}`);
         await updateRequestWithItems(draftId, requestData, itemsData);
         toast.success('Draft submitted successfully');
       } else {
+        console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
         const result = await createRequestWithItems(requestData, itemsData);
+        console.log(`[NewRequest] ${submissionId} - Created request: ${result.request.request_number}`);
         toast.success(
           <div>
             <p className="font-semibold">Request submitted successfully!</p>
@@ -541,8 +652,17 @@ export default function NewRequest() {
       navigate('/requests');
     } catch (error: any) {
       console.error('Error submitting request:', error);
-      toast.error(error.message || 'Failed to submit request');
+      const friendly = getFriendlyErrorMessage(error);
+      toast.error(
+        <div>
+          <p className="font-semibold">{friendly.title}</p>
+          <p className="text-sm mt-1">{friendly.description}</p>
+        </div>,
+        { duration: 5000 }
+      );
     } finally {
+      // Reset both the ref and state
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -658,13 +778,16 @@ export default function NewRequest() {
 
                 {/* Required By */}
                 <div>
-                  <Label htmlFor="required_by">Required By *</Label>
+                  <Label htmlFor="required_by" className={errors.required_by ? 'text-red-500' : ''}>
+                    Required By *
+                  </Label>
                   <Input
                     id="required_by"
                     type="datetime-local"
                     {...register('required_by', { required: 'Required by date is required' })}
+                    error={!!errors.required_by}
                   />
-                  {errors.required_by && <p className="text-red-500 text-sm mt-1">{errors.required_by.message}</p>}
+                  {errors.required_by && <p className="text-red-500 text-xs mt-1">{errors.required_by.message}</p>}
                 </div>
 
                 {/* Pickup Responsibility */}
@@ -696,19 +819,18 @@ export default function NewRequest() {
                   </div>
                 )}
 
-                {/* Delivery Address */}
-                <div className="md:col-span-2">
-                  <Label htmlFor="delivery_address">
-                    Delivery Address {pickupResponsibility !== 'self_pickup' && '*'}
-                  </Label>
-                  <Textarea
-                    id="delivery_address"
-                    {...register('delivery_address')}
-                    placeholder={pickupResponsibility === 'self_pickup' ? 'Not required for self pickup' : 'Enter delivery address'}
-                    rows={3}
-                    disabled={pickupResponsibility === 'self_pickup'}
-                  />
-                </div>
+                {/* Delivery Address - Hidden for Self Pickup */}
+                {pickupResponsibility !== 'self_pickup' && (
+                  <div className="md:col-span-2">
+                    <Label htmlFor="delivery_address">Delivery Address *</Label>
+                    <Textarea
+                      id="delivery_address"
+                      {...register('delivery_address')}
+                      placeholder="Enter delivery address"
+                      rows={3}
+                    />
+                  </div>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -757,24 +879,26 @@ export default function NewRequest() {
 
                 {/* Client/Project Name */}
                 <div>
-                  <Label htmlFor="client_project_name">Client/Architect/Project Name *</Label>
+                  <Label htmlFor="client_project_name" className={errors.client_project_name ? 'text-red-500' : ''}>
+                    Client/Architect/Project Name *
+                  </Label>
                   <Input
                     id="client_project_name"
                     {...register('client_project_name', { required: 'Client/Project name is required' })}
                     placeholder="Enter name"
+                    error={!!errors.client_project_name}
                   />
-                  {errors.client_project_name && <p className="text-red-500 text-sm mt-1">{errors.client_project_name.message}</p>}
+                  {errors.client_project_name && <p className="text-red-500 text-xs mt-1">{errors.client_project_name.message}</p>}
                 </div>
 
-                {/* Mobile */}
+                {/* Mobile (Optional) */}
                 <div>
-                  <Label htmlFor="client_phone">Mobile *</Label>
+                  <Label htmlFor="client_phone">Mobile</Label>
                   <Input
                     id="client_phone"
-                    {...register('client_phone', { required: 'Mobile number is required' })}
-                    placeholder="Enter mobile number"
+                    {...register('client_phone')}
+                    placeholder="Enter mobile number (optional)"
                   />
-                  {errors.client_phone && <p className="text-red-500 text-sm mt-1">{errors.client_phone.message}</p>}
                 </div>
 
                 {/* Email */}
@@ -790,24 +914,30 @@ export default function NewRequest() {
 
                 {/* Company Firm Name */}
                 <div>
-                  <Label htmlFor="company_firm_name">Company Firm Name *</Label>
+                  <Label htmlFor="company_firm_name" className={errors.company_firm_name ? 'text-red-500' : ''}>
+                    Company Firm Name *
+                  </Label>
                   <Input
                     id="company_firm_name"
                     {...register('company_firm_name', { required: 'Company firm name is required' })}
                     placeholder="Enter firm name"
+                    error={!!errors.company_firm_name}
                   />
                   {errors.company_firm_name && <p className="text-red-500 text-sm mt-1">{errors.company_firm_name.message}</p>}
                 </div>
 
                 {/* Site Location */}
                 <div className="md:col-span-2">
-                  <Label htmlFor="site_location">Site Location (City + State) *</Label>
+                  <Label htmlFor="site_location" className={errors.site_location ? 'text-red-500' : ''}>
+                    Site Location (City + State) *
+                  </Label>
                   <Input
                     id="site_location"
                     {...register('site_location', { required: 'Site location is required' })}
                     placeholder="e.g., Mumbai, Maharashtra"
+                    error={!!errors.site_location}
                   />
-                  {errors.site_location && <p className="text-red-500 text-sm mt-1">{errors.site_location.message}</p>}
+                  {errors.site_location && <p className="text-red-500 text-xs mt-1">{errors.site_location.message}</p>}
                 </div>
               </div>
             </AccordionContent>

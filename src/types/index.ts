@@ -279,7 +279,7 @@ export interface DashboardStats {
 export const PRODUCT_SIZE_OPTIONS: Record<ProductType, string[]> = {
   marble: ['12x12', '6x4', '6x6', '12x9', 'A4', '2x2', '24x24', 'Custom'],
   tile: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Custom'],
-  magro_stone: ['12x12', '6x4', '6x6', '12x9', 'A4', '2x2', '24x24', 'Custom'],
+  magro_stone: ['4x4', 'Custom'],
   terrazzo: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Custom'],
   quartz: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Custom'],
 };
@@ -288,7 +288,7 @@ export const PRODUCT_SIZE_OPTIONS: Record<ProductType, string[]> = {
 export const PRODUCT_FINISH_OPTIONS: Record<ProductType, string[] | null> = {
   marble: ['Polish', 'Honed', 'Leather/Brushed', 'Sandblasted', 'Lappato', 'Satin', 'Custom'],
   tile: ['Matt', 'Satin', 'Glossy', 'High Glossy', 'Textured', 'Carvin', 'Lappato', 'Rustic', 'Grew', 'Customize'],
-  magro_stone: ['Polish', 'Honed', 'Leather/Brushed', 'Custom'],
+  magro_stone: ['Semi gloss', 'Gloss', 'Matt', 'Custom'],
   terrazzo: null,  // No finish for terrazzo
   quartz: null,    // No finish for quartz
 };
@@ -297,7 +297,7 @@ export const PRODUCT_FINISH_OPTIONS: Record<ProductType, string[] | null> = {
 export const PRODUCT_THICKNESS_OPTIONS: Record<ProductType, string[]> = {
   marble: ['20mm', '18mm', '16mm', 'Custom'],
   tile: ['5mm', '6mm', '9mm', '12mm', '15mm', '16mm', '20mm', 'Custom'],
-  magro_stone: ['20mm', '18mm', '16mm', 'Custom'],
+  magro_stone: ['20mm', 'Custom'],
   terrazzo: ['20mm', 'Custom'],
   quartz: ['16mm', 'Custom'],
 };

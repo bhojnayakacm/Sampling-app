@@ -756,11 +756,17 @@ export function useRequestWithItems(requestId: string | undefined) {
 }
 
 // Create request with items (transactional insert)
+// IMPORTANT: This function creates EXACTLY ONE parent request, regardless of item quantities
 export async function createRequestWithItems(
   requestData: Record<string, any>,
   items: Omit<CreateRequestItemInput, 'request_id'>[]
 ): Promise<{ request: Request; items: RequestItemDB[] }> {
-  // Step 1: Insert the parent request
+  console.log('[API] createRequestWithItems called');
+  console.log('[API] Items to create:', items.length);
+  console.log('[API] Item quantities:', items.map(i => i.quantity));
+
+  // Step 1: Insert EXACTLY ONE parent request
+  console.log('[API] Inserting ONE parent request...');
   const { data: request, error: requestError } = await supabase
     .from('requests')
     .insert([{
@@ -770,14 +776,21 @@ export async function createRequestWithItems(
     .select()
     .single();
 
-  if (requestError) throw requestError;
+  if (requestError) {
+    console.error('[API] Failed to create parent request:', requestError);
+    throw requestError;
+  }
 
-  // Step 2: Insert all items with the request_id
+  console.log('[API] Created parent request:', request.id, request.request_number);
+
+  // Step 2: Insert all items with the request_id (quantity is a field value, NOT a loop count)
   const itemsToInsert: CreateRequestItemInput[] = items.map((item, index) => ({
     ...item,
     request_id: request.id,
     item_index: index,
   }));
+
+  console.log('[API] Inserting', itemsToInsert.length, 'items for request', request.request_number);
 
   const { data: insertedItems, error: itemsError } = await supabase
     .from('request_items')
@@ -785,12 +798,15 @@ export async function createRequestWithItems(
     .select();
 
   if (itemsError) {
+    console.error('[API] Failed to create items, rolling back request:', itemsError);
     // If items insertion fails, we should ideally rollback the request
     // But since Supabase doesn't support transactions in JS SDK,
     // we'll delete the orphaned request
     await supabase.from('requests').delete().eq('id', request.id);
     throw itemsError;
   }
+
+  console.log('[API] Successfully created request', request.request_number, 'with', insertedItems?.length, 'items');
 
   return {
     request: request as Request,

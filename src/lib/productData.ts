@@ -36,8 +36,8 @@ export type ProductType = (typeof PRODUCT_TYPES)[number];
 // Popular/frequently used qualities by product type (shown at top of dropdown)
 export const POPULAR_QUALITIES: Record<ProductTypeKey, string[]> = {
   marble: ['Statuario', 'Michel Angelo', 'Angelo White', 'Royal Crema', 'Ice Berg White'],
-  tile: ['Antique Beige', 'Art Nero', 'Concrete', 'Elite White'],
-  magro_stone: ['Arctic', 'Glacier', 'Majesty', 'Smokey'],
+  tile: ['Cordoso Beige', 'Art Walnut', 'Terra Beige', 'Concrete Nero', 'Myra Sand'],
+  magro_stone: ['Frosty Blanc', 'Cascade'],
   quartz: ['Tajmahal', 'P Grey', 'F Mountain', 'Frosty Bianc'],
   terrazzo: ['I Flower', 'Orbico', 'S Grey', 'R Stone'],
 };
