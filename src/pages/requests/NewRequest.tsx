@@ -19,7 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check } from 'lucide-react';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
 import type {
@@ -723,16 +723,30 @@ export default function NewRequest() {
   // ============================================================
 
   if (!profile || (draftId && isDraftLoading)) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+          <p className="text-slate-600 font-medium">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (draftId && existingDraft && existingDraft.status !== 'draft') {
     return (
-      <div className="container mx-auto p-6 max-w-4xl">
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Cannot Edit Submitted Request</h2>
-          <p className="text-gray-600 mb-6">This request has already been submitted and cannot be edited.</p>
-          <Button onClick={() => navigate('/requests')}>Back to Requests</Button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
+        <div className="container mx-auto p-6 max-w-4xl">
+          <div className="text-center py-12 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Cannot Edit Submitted Request</h2>
+            <p className="text-slate-600 mb-6">This request has already been submitted and cannot be edited.</p>
+            <Button
+              onClick={() => navigate('/requests')}
+              className="min-h-[60px] py-5 px-8 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25"
+            >
+              Back to Requests
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -743,33 +757,34 @@ export default function NewRequest() {
   // ============================================================
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile-Optimized Header with improved touch targets */}
-      <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <div className="flex items-center gap-2 sm:gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
+      {/* Premium Gradient Header */}
+      <header className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white shadow-lg">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => navigate('/requests')}
-              className="md:hidden h-11 px-2 gap-1 min-w-[70px]"
+              className="md:hidden min-h-[56px] py-4 px-3 gap-2 text-white hover:bg-white/20 hover:text-white"
             >
               <ChevronLeft className="h-5 w-5" />
-              <span className="text-sm font-medium">Back</span>
+              <span className="text-sm font-semibold">Back</span>
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-bold truncate">
-                {isEditMode ? 'Edit Draft' : 'New Request'}
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-amber-300" />
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">
+                  {isEditMode ? 'Edit Draft' : 'New Request'}
+                </h1>
+              </div>
+              <p className="text-sm text-white/80 hidden sm:block mt-1">
                 {profile.full_name} | {profile.department}
               </p>
             </div>
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
               onClick={() => navigate('/requests')}
-              className="hidden md:flex h-11 gap-1 font-medium"
+              className="hidden md:flex min-h-[56px] py-4 px-4 gap-2 text-white hover:bg-white/20 hover:text-white font-semibold"
             >
               <ChevronLeft className="h-4 w-4" />
               Cancel
@@ -783,37 +798,37 @@ export default function NewRequest() {
           {/* ============================================================ */}
           {/* SECTION 1: REQUESTER DETAILS */}
           {/* ============================================================ */}
-          <AccordionItem value="section-1" className="border rounded-lg bg-white">
-            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
+          <AccordionItem value="section-1" className="border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-md overflow-hidden">
+            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
               <div className="flex items-center gap-3 text-left">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm flex-shrink-0 transition-colors ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm flex-shrink-0 transition-all duration-300 ${
                   isSection1Complete
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : 'bg-blue-100 text-blue-600'
+                    ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-lg shadow-emerald-500/30'
+                    : 'bg-gradient-to-br from-indigo-400 to-violet-500 text-white shadow-lg shadow-indigo-500/30'
                 }`}>
                   {isSection1Complete ? <Check className="h-5 w-5" /> : '1'}
                 </div>
-                <span className="font-semibold text-base sm:text-lg">Requester Details</span>
+                <span className="font-bold text-base sm:text-lg text-slate-800">Requester Details</span>
               </div>
             </AccordionTrigger>
-            <AccordionContent className="px-4 sm:px-6 pb-4">
+            <AccordionContent className="px-4 sm:px-6 pb-5">
               {/* Read-only profile info */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200/50 rounded-xl p-4 mb-5">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label className="text-gray-700">Name</Label>
-                    <p className="text-base font-medium mt-1">{profile.full_name}</p>
+                    <Label className="text-indigo-700 font-medium text-xs uppercase tracking-wide">Name</Label>
+                    <p className="text-base font-semibold mt-1 text-slate-800">{profile.full_name}</p>
                   </div>
                   <div>
-                    <Label className="text-gray-700">Department</Label>
-                    <p className="text-base font-medium mt-1 capitalize">{profile.department || 'Not Set'}</p>
+                    <Label className="text-indigo-700 font-medium text-xs uppercase tracking-wide">Department</Label>
+                    <p className="text-base font-semibold mt-1 capitalize text-slate-800">{profile.department || 'Not Set'}</p>
                   </div>
                   <div>
-                    <Label className="text-gray-700">Mobile No</Label>
-                    <p className="text-base font-medium mt-1">{profile.phone || 'Not Set'}</p>
+                    <Label className="text-indigo-700 font-medium text-xs uppercase tracking-wide">Mobile No</Label>
+                    <p className="text-base font-semibold mt-1 text-slate-800">{profile.phone || 'Not Set'}</p>
                   </div>
                 </div>
-                <p className="text-xs text-gray-600 mt-3">
+                <p className="text-xs text-indigo-600/70 mt-3">
                   These details were captured during signup and cannot be changed here.
                 </p>
               </div>
@@ -821,9 +836,9 @@ export default function NewRequest() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Priority */}
                 <div>
-                  <Label htmlFor="priority">Priority *</Label>
+                  <Label htmlFor="priority" className="text-slate-700 font-semibold">Priority *</Label>
                   <Select onValueChange={(value) => setValue('priority', value as 'urgent' | 'normal')} defaultValue="normal">
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -835,7 +850,7 @@ export default function NewRequest() {
 
                 {/* Required By */}
                 <div>
-                  <Label htmlFor="required_by" className={errors.required_by ? 'text-red-500' : ''}>
+                  <Label htmlFor="required_by" className={`font-semibold ${errors.required_by ? 'text-red-500' : 'text-slate-700'}`}>
                     Required By *
                   </Label>
                   <Input
@@ -843,15 +858,16 @@ export default function NewRequest() {
                     type="datetime-local"
                     {...register('required_by', { required: 'Required by date is required' })}
                     error={!!errors.required_by}
+                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
                   {errors.required_by && <p className="text-red-500 text-xs mt-1">{errors.required_by.message}</p>}
                 </div>
 
                 {/* Pickup Responsibility */}
                 <div>
-                  <Label htmlFor="pickup_responsibility">Pickup Responsibility *</Label>
+                  <Label htmlFor="pickup_responsibility" className="text-slate-700 font-semibold">Pickup Responsibility *</Label>
                   <Select onValueChange={(value) => setValue('pickup_responsibility', value as PickupResponsibility)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                       <SelectValue placeholder="Select pickup method" />
                     </SelectTrigger>
                     <SelectContent>
@@ -867,11 +883,12 @@ export default function NewRequest() {
                 {/* Pickup Remarks */}
                 {pickupResponsibility === 'other' && (
                   <div>
-                    <Label htmlFor="pickup_remarks">Pickup Remarks *</Label>
+                    <Label htmlFor="pickup_remarks" className="text-slate-700 font-semibold">Pickup Remarks *</Label>
                     <Input
                       id="pickup_remarks"
                       {...register('pickup_remarks')}
                       placeholder="Please specify pickup method"
+                      className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                     />
                   </div>
                 )}
@@ -879,12 +896,13 @@ export default function NewRequest() {
                 {/* Delivery Address - Hidden for Self Pickup */}
                 {pickupResponsibility !== 'self_pickup' && (
                   <div className="md:col-span-2">
-                    <Label htmlFor="delivery_address">Delivery Address *</Label>
+                    <Label htmlFor="delivery_address" className="text-slate-700 font-semibold">Delivery Address *</Label>
                     <Textarea
                       id="delivery_address"
                       {...register('delivery_address')}
                       placeholder="Enter delivery address"
                       rows={3}
+                      className="mt-1.5 border-slate-200 focus:ring-indigo-500"
                     />
                   </div>
                 )}
@@ -895,26 +913,26 @@ export default function NewRequest() {
           {/* ============================================================ */}
           {/* SECTION 2: CLIENT PROJECT DETAILS */}
           {/* ============================================================ */}
-          <AccordionItem value="section-2" className="border rounded-lg bg-white">
-            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
+          <AccordionItem value="section-2" className="border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-md overflow-hidden">
+            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
               <div className="flex items-center gap-3 text-left">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm flex-shrink-0 transition-colors ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm flex-shrink-0 transition-all duration-300 ${
                   isSection2Complete
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : 'bg-purple-100 text-purple-600'
+                    ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-lg shadow-emerald-500/30'
+                    : 'bg-gradient-to-br from-violet-400 to-purple-500 text-white shadow-lg shadow-violet-500/30'
                 }`}>
                   {isSection2Complete ? <Check className="h-5 w-5" /> : '2'}
                 </div>
-                <span className="font-semibold text-base sm:text-lg">Client Project Details</span>
+                <span className="font-bold text-base sm:text-lg text-slate-800">Client Project Details</span>
               </div>
             </AccordionTrigger>
-            <AccordionContent className="px-4 sm:px-6 pb-4">
+            <AccordionContent className="px-4 sm:px-6 pb-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Client Type */}
                 <div>
-                  <Label htmlFor="client_type">Client Type *</Label>
+                  <Label htmlFor="client_type" className="text-slate-700 font-semibold">Client Type *</Label>
                   <Select onValueChange={(value) => setValue('client_type', value as ClientType)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                       <SelectValue placeholder="Select client type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -929,18 +947,19 @@ export default function NewRequest() {
                 {/* Client Type Remarks */}
                 {clientType === 'others' && (
                   <div>
-                    <Label htmlFor="client_type_remarks">Client Type Remarks *</Label>
+                    <Label htmlFor="client_type_remarks" className="text-slate-700 font-semibold">Client Type Remarks *</Label>
                     <Input
                       id="client_type_remarks"
                       {...register('client_type_remarks')}
                       placeholder="Please specify client type"
+                      className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                     />
                   </div>
                 )}
 
                 {/* Client/Project Name */}
                 <div>
-                  <Label htmlFor="client_project_name" className={errors.client_project_name ? 'text-red-500' : ''}>
+                  <Label htmlFor="client_project_name" className={`font-semibold ${errors.client_project_name ? 'text-red-500' : 'text-slate-700'}`}>
                     Client/Architect/Project Name *
                   </Label>
                   <Input
@@ -948,34 +967,37 @@ export default function NewRequest() {
                     {...register('client_project_name', { required: 'Client/Project name is required' })}
                     placeholder="Enter name"
                     error={!!errors.client_project_name}
+                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
                   {errors.client_project_name && <p className="text-red-500 text-xs mt-1">{errors.client_project_name.message}</p>}
                 </div>
 
                 {/* Mobile (Optional) */}
                 <div>
-                  <Label htmlFor="client_phone">Mobile</Label>
+                  <Label htmlFor="client_phone" className="text-slate-700 font-semibold">Mobile</Label>
                   <Input
                     id="client_phone"
                     {...register('client_phone')}
                     placeholder="Enter mobile number (optional)"
+                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
                 </div>
 
                 {/* Email */}
                 <div>
-                  <Label htmlFor="client_email">Email</Label>
+                  <Label htmlFor="client_email" className="text-slate-700 font-semibold">Email</Label>
                   <Input
                     id="client_email"
                     type="email"
                     {...register('client_email')}
                     placeholder="Enter email (optional)"
+                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
                 </div>
 
                 {/* Company Firm Name */}
                 <div>
-                  <Label htmlFor="company_firm_name" className={errors.company_firm_name ? 'text-red-500' : ''}>
+                  <Label htmlFor="company_firm_name" className={`font-semibold ${errors.company_firm_name ? 'text-red-500' : 'text-slate-700'}`}>
                     Company Firm Name *
                   </Label>
                   <Input
@@ -983,13 +1005,14 @@ export default function NewRequest() {
                     {...register('company_firm_name', { required: 'Company firm name is required' })}
                     placeholder="Enter firm name"
                     error={!!errors.company_firm_name}
+                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
                   {errors.company_firm_name && <p className="text-red-500 text-sm mt-1">{errors.company_firm_name.message}</p>}
                 </div>
 
                 {/* Site Location */}
                 <div className="md:col-span-2">
-                  <Label htmlFor="site_location" className={errors.site_location ? 'text-red-500' : ''}>
+                  <Label htmlFor="site_location" className={`font-semibold ${errors.site_location ? 'text-red-500' : 'text-slate-700'}`}>
                     Site Location (City + State) *
                   </Label>
                   <Input
@@ -997,6 +1020,7 @@ export default function NewRequest() {
                     {...register('site_location', { required: 'Site location is required' })}
                     placeholder="e.g., Mumbai, Maharashtra"
                     error={!!errors.site_location}
+                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
                   {errors.site_location && <p className="text-red-500 text-xs mt-1">{errors.site_location.message}</p>}
                 </div>
@@ -1007,29 +1031,29 @@ export default function NewRequest() {
           {/* ============================================================ */}
           {/* SECTION 3: PRODUCT ITEMS (MULTI-PRODUCT) */}
           {/* ============================================================ */}
-          <AccordionItem value="section-3" className="border rounded-lg bg-white">
-            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
+          <AccordionItem value="section-3" className="border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-md overflow-hidden">
+            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
               <div className="flex items-center gap-3 text-left">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm flex-shrink-0 transition-colors ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm flex-shrink-0 transition-all duration-300 ${
                   isSection3Complete
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : 'bg-green-100 text-green-600'
+                    ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-lg shadow-emerald-500/30'
+                    : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
                 }`}>
                   {isSection3Complete ? <Check className="h-5 w-5" /> : '3'}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-base sm:text-lg">Products</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  <span className="font-bold text-base sm:text-lg text-slate-800">Products</span>
+                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${
                     isSection3Complete
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-green-100 text-green-700'
+                      ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700'
+                      : 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700'
                   }`}>
                     {products.length} {products.length === 1 ? 'item' : 'items'}
                   </span>
                 </div>
               </div>
             </AccordionTrigger>
-            <AccordionContent className="px-4 sm:px-6 pb-4">
+            <AccordionContent className="px-4 sm:px-6 pb-5">
               {/* Product Cards */}
               <div className="space-y-4">
                 {products.map((product, index) => (
@@ -1049,25 +1073,25 @@ export default function NewRequest() {
                 type="button"
                 variant="outline"
                 onClick={addProduct}
-                className="w-full mt-4 border-dashed border-2 h-12 gap-2"
+                className="w-full mt-4 border-dashed border-2 border-indigo-300 min-h-[56px] py-4 gap-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 font-semibold transition-all"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
                 Add Another Product
               </Button>
 
               {/* Shared Details Divider */}
-              <div className="mt-6 pt-6 border-t">
-                <h4 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                  <Package className="h-4 w-4" />
+              <div className="mt-6 pt-6 border-t border-slate-200">
+                <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                  <Package className="h-5 w-5 text-indigo-500" />
                   Shared Details (Applied to All Products)
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Purpose */}
                   <div>
-                    <Label htmlFor="purpose">Purpose of Sample *</Label>
+                    <Label htmlFor="purpose" className="text-slate-700 font-semibold">Purpose of Sample *</Label>
                     <Select onValueChange={(value) => setValue('purpose', value as Purpose)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                         <SelectValue placeholder="Select purpose" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1081,9 +1105,9 @@ export default function NewRequest() {
 
                   {/* Packing Details */}
                   <div>
-                    <Label htmlFor="packing_details">Packing *</Label>
+                    <Label htmlFor="packing_details" className="text-slate-700 font-semibold">Packing *</Label>
                     <Select onValueChange={(value) => setValue('packing_details', value as PackingType)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                         <SelectValue placeholder="Select packing type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1099,12 +1123,13 @@ export default function NewRequest() {
                   {/* Packing Remarks */}
                   {packingDetails === 'custom' && (
                     <div className="md:col-span-2">
-                      <Label htmlFor="packing_remarks">Packing Remarks *</Label>
+                      <Label htmlFor="packing_remarks" className="text-slate-700 font-semibold">Packing Remarks *</Label>
                       <Textarea
                         id="packing_remarks"
                         {...register('packing_remarks')}
                         placeholder="Specify custom packing requirements"
                         rows={2}
+                        className="mt-1.5 border-slate-200 focus:ring-indigo-500"
                       />
                     </div>
                   )}
@@ -1114,8 +1139,8 @@ export default function NewRequest() {
           </AccordionItem>
         </Accordion>
 
-        {/* Form Actions - Static at bottom of form */}
-        <div className="mt-8 bg-white border rounded-lg shadow-sm p-4">
+        {/* Form Actions - Premium Card at bottom */}
+        <div className="mt-8 bg-white/80 backdrop-blur-sm border border-white/50 rounded-xl shadow-lg p-5">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end">
             {/* Cancel Button */}
             <Button
@@ -1123,7 +1148,7 @@ export default function NewRequest() {
               variant="outline"
               onClick={() => navigate('/requests')}
               disabled={isSubmitting}
-              className="w-full sm:w-auto h-12 sm:h-11"
+              className="w-full sm:w-auto min-h-[60px] py-5 px-6 text-base font-semibold border-slate-300 hover:bg-slate-50 transition-all"
             >
               Cancel
             </Button>
@@ -1134,36 +1159,36 @@ export default function NewRequest() {
               variant="outline"
               onClick={handleSaveDraft}
               disabled={isSubmitting}
-              className="w-full sm:w-auto h-12 sm:h-11 gap-2"
+              className="w-full sm:w-auto min-h-[60px] py-5 px-6 gap-2 text-base font-semibold border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 transition-all"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   <span>{isEditMode ? 'Updating...' : 'Saving...'}</span>
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4" />
+                  <Save className="h-5 w-5" />
                   <span>{isEditMode ? 'Update Draft' : 'Save Draft'}</span>
                 </>
               )}
             </Button>
 
-            {/* Submit Button */}
+            {/* Submit Button - Primary Gradient */}
             <Button
               type="button"
               onClick={handleSubmit(handleSubmitRequest)}
               disabled={isSubmitting}
-              className="w-full sm:w-auto h-12 sm:h-11 gap-2"
+              className="w-full sm:w-auto min-h-[60px] py-5 px-8 gap-2 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   Submitting...
                 </>
               ) : (
                 <>
-                  <SendHorizontal className="h-4 w-4" />
+                  <SendHorizontal className="h-5 w-5" />
                   <span>Submit {products.length > 1 ? `(${products.length} items)` : 'Request'}</span>
                 </>
               )}
