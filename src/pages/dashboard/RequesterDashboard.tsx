@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useDashboardStats, usePaginatedRequests } from '@/lib/api/requests';
@@ -31,31 +30,31 @@ export default function RequesterDashboard() {
   });
 
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-      draft: { label: 'Draft', variant: 'outline' },
-      pending_approval: { label: 'Pending', variant: 'outline' },
-      approved: { label: 'Approved', variant: 'secondary' },
-      in_production: { label: 'In Production', variant: 'default' },
-      dispatched: { label: 'Dispatched', variant: 'default' },
-      received: { label: 'Received', variant: 'secondary' },
+    const statusMap: Record<string, { label: string; color: string }> = {
+      draft: { label: 'Draft', color: 'bg-gray-100 text-gray-700' },
+      pending_approval: { label: 'Pending', color: 'bg-amber-100 text-amber-700' },
+      approved: { label: 'Approved', color: 'bg-blue-100 text-blue-700' },
+      in_production: { label: 'In Production', color: 'bg-purple-100 text-purple-700' },
+      dispatched: { label: 'Dispatched', color: 'bg-emerald-100 text-emerald-700' },
+      received: { label: 'Received', color: 'bg-green-100 text-green-700' },
     };
-    const { label, variant } = statusMap[status] || { label: status, variant: 'outline' };
-    return <Badge variant={variant} className="text-xs">{label}</Badge>;
+    const { label, color } = statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+    return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>{label}</span>;
   };
 
   const hasRequests = stats && stats.total > 0;
   const hasDrafts = stats && stats.drafts > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pb-20 md:pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pb-8">
       {/* Header - Mobile Optimized */}
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">My Requests</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-                Welcome back, {profile?.full_name?.split(' ')[0]}
+                Welcome, {profile?.full_name?.split(' ')[0]} 👋
               </p>
             </div>
             <Button
@@ -70,13 +69,13 @@ export default function RequesterDashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5">
         {/* Action Buttons - Prominent placement at top */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <Button
             size="lg"
             onClick={() => navigate('/requests/new')}
-            className="h-12 gap-2 text-base font-semibold"
+            className="h-12 sm:h-11 gap-2 text-base font-semibold flex-1 sm:flex-none"
           >
             <Plus className="h-5 w-5" />
             Create New Request
@@ -85,7 +84,7 @@ export default function RequesterDashboard() {
             variant="outline"
             size="lg"
             onClick={() => navigate('/requests')}
-            className="h-11"
+            className="h-11 flex-1 sm:flex-none"
           >
             View All Requests
           </Button>
@@ -186,8 +185,8 @@ export default function RequesterDashboard() {
 
         {/* Recent Activity Section */}
         {hasRequests && recentRequests?.data && recentRequests.data.length > 0 && (
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
+          <Card className="shadow-sm overflow-hidden">
+            <CardHeader className="pb-2 sm:pb-3 bg-gray-50/50">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
@@ -197,15 +196,15 @@ export default function RequesterDashboard() {
                   variant="ghost"
                   size="sm"
                   onClick={() => navigate('/requests')}
-                  className="text-xs sm:text-sm"
+                  className="text-xs sm:text-sm h-8"
                 >
                   View All
                   <ArrowRight className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              {recentRequests.data.map((request) => (
+            <CardContent className="p-0">
+              {recentRequests.data.map((request, index) => (
                 <div
                   key={request.id}
                   onClick={() =>
@@ -213,23 +212,25 @@ export default function RequesterDashboard() {
                       ? navigate(`/requests/edit/${request.id}`)
                       : navigate(`/requests/${request.id}`)
                   }
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border border-gray-100 active:bg-gray-100"
+                  className={`flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors active:bg-gray-100 ${
+                    index !== recentRequests.data.length - 1 ? 'border-b' : ''
+                  }`}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <code className="text-xs sm:text-sm font-mono font-medium text-gray-900">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <code className="text-sm font-mono font-semibold text-gray-900">
                         {request.request_number}
                       </code>
                       {getStatusBadge(request.status)}
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">
+                    <p className="text-sm text-gray-700 truncate font-medium">
                       {request.client_project_name || 'Untitled'}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {formatDate(request.created_at)}
                     </p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-gray-400 flex-shrink-0 ml-2" />
+                  <ArrowRight className="h-5 w-5 text-gray-300 flex-shrink-0 ml-3" />
                 </div>
               ))}
             </CardContent>

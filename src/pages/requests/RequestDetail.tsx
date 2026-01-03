@@ -70,85 +70,87 @@ export default function RequestDetail() {
     return colors[productType] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  // Render a single product item card
+  // Render a single product item card - Mobile-optimized stacked layout
   const renderProductItem = (item: RequestItemDB, index: number, total: number) => {
     const showFinish = item.product_type === 'marble' || item.product_type === 'tile';
 
     return (
-      <Card key={item.id} className="border-l-4 border-l-primary">
-        <CardHeader className="pb-3">
+      <Card key={item.id} className="border-l-4 border-l-primary overflow-hidden">
+        {/* Card Header - Compact on mobile */}
+        <CardHeader className="pb-2 sm:pb-3 bg-gray-50/50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-xs sm:text-sm">
                 {index + 1}
               </div>
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
                 <Package className="h-4 w-4" />
                 <span className="capitalize">{item.product_type}</span>
               </CardTitle>
             </div>
-            <Badge className={getProductTypeColor(item.product_type)}>
-              {total > 1 ? `Item ${index + 1} of ${total}` : 'Single Item'}
+            <Badge className={`text-xs ${getProductTypeColor(item.product_type)}`}>
+              {total > 1 ? `${index + 1}/${total}` : 'Item'}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Main Product Details Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <span className="text-sm font-medium text-gray-600">Product Type</span>
-              <p className="text-base capitalize font-medium">{item.product_type}</p>
+        <CardContent className="pt-3 sm:pt-4 space-y-3 sm:space-y-4">
+          {/* Mobile-First: Stacked detail rows */}
+          <div className="space-y-3">
+            {/* Quality & Quantity - Side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Quality</span>
+                <p className="text-sm sm:text-base font-medium mt-0.5 capitalize">
+                  {item.quality_custom || item.quality}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Quantity</span>
+                <p className="text-sm sm:text-base font-semibold mt-0.5">{item.quantity} pcs</p>
+              </div>
             </div>
-            <div>
-              <span className="text-sm font-medium text-gray-600">Quality</span>
-              <p className="text-base capitalize">
-                {item.quality_custom || item.quality}
-              </p>
-            </div>
-            <div>
-              <span className="text-sm font-medium text-gray-600">Quantity</span>
-              <p className="text-base font-semibold">{item.quantity} pieces</p>
-            </div>
-          </div>
 
-          {/* Size & Thickness */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <span className="text-sm font-medium text-gray-600">Sample Size</span>
-              <p className="text-base">{item.sample_size}</p>
-              {item.sample_size_remarks && (
-                <p className="text-xs text-gray-500 mt-1">{item.sample_size_remarks}</p>
-              )}
+            {/* Size & Thickness - Side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Size</span>
+                <p className="text-sm font-medium mt-0.5">{item.sample_size}</p>
+                {item.sample_size_remarks && (
+                  <p className="text-xs text-gray-500 mt-0.5">{item.sample_size_remarks}</p>
+                )}
+              </div>
+              <div>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Thickness</span>
+                <p className="text-sm font-medium mt-0.5">{item.thickness}</p>
+                {item.thickness_remarks && (
+                  <p className="text-xs text-gray-500 mt-0.5">{item.thickness_remarks}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <span className="text-sm font-medium text-gray-600">Thickness</span>
-              <p className="text-base">{item.thickness}</p>
-              {item.thickness_remarks && (
-                <p className="text-xs text-gray-500 mt-1">{item.thickness_remarks}</p>
-              )}
-            </div>
+
+            {/* Finish - Full width if applicable */}
             {showFinish && item.finish && (
               <div>
-                <span className="text-sm font-medium text-gray-600">Finish</span>
-                <p className="text-base">{item.finish}</p>
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Finish</span>
+                <p className="text-sm font-medium mt-0.5">{item.finish}</p>
                 {item.finish_remarks && (
-                  <p className="text-xs text-gray-500 mt-1">{item.finish_remarks}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{item.finish_remarks}</p>
                 )}
               </div>
             )}
           </div>
 
-          {/* Item Image */}
+          {/* Item Image - Responsive */}
           {item.image_url && (
-            <div className="pt-2 border-t">
-              <span className="text-sm font-medium text-gray-600 flex items-center gap-1 mb-2">
-                <ImageIcon className="h-4 w-4" />
+            <div className="pt-3 border-t">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1 mb-2">
+                <ImageIcon className="h-3.5 w-3.5" />
                 Reference Image
               </span>
               <img
                 src={item.image_url}
                 alt={`${item.product_type} reference`}
-                className="max-w-xs h-40 object-contain rounded-lg border bg-gray-50"
+                className="w-full sm:max-w-xs h-32 sm:h-40 object-contain rounded-lg border bg-gray-50"
               />
             </div>
           )}
@@ -270,55 +272,88 @@ export default function RequestDetail() {
   const hasItems = request.items && request.items.length > 0;
   const itemCount = hasItems ? request.items!.length : 1;
 
+  // Get status color for the prominent banner
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: 'bg-gray-100 border-gray-300 text-gray-700',
+      pending_approval: 'bg-amber-50 border-amber-300 text-amber-800',
+      approved: 'bg-blue-50 border-blue-300 text-blue-800',
+      assigned: 'bg-indigo-50 border-indigo-300 text-indigo-800',
+      in_production: 'bg-purple-50 border-purple-300 text-purple-800',
+      ready: 'bg-teal-50 border-teal-300 text-teal-800',
+      dispatched: 'bg-emerald-50 border-emerald-300 text-emerald-800',
+      received: 'bg-green-50 border-green-300 text-green-800',
+      rejected: 'bg-red-50 border-red-300 text-red-800',
+    };
+    return colors[status] || 'bg-gray-50 border-gray-300 text-gray-700';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Request Details</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{profile?.full_name}</span>
-            <Button variant="outline" size="sm" onClick={signOut}>
-              Sign Out
-            </Button>
+      {/* Mobile-Optimized Header */}
+      <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/')}
+                className="md:hidden h-9 w-9 p-0"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">Request Details</h1>
+                <code className="text-xs sm:text-sm font-mono text-gray-600">{request.request_number}</code>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrackingDialog
+                request={request}
+                trigger={
+                  <Button variant="outline" size="sm" className="h-9 gap-1">
+                    <MapPin className="h-4 w-4" />
+                    <span className="hidden sm:inline">Track</span>
+                  </Button>
+                }
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/')}
+                className="hidden md:flex h-9"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Dashboard
+              </Button>
+              <Button variant="ghost" size="sm" onClick={signOut} className="hidden sm:flex h-9">
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-2xl font-bold">{request.request_number}</h2>
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* PROMINENT STATUS BANNER - Always visible at top */}
+        <div className={`rounded-lg border-2 p-4 mb-4 sm:mb-6 ${getStatusColor(request.status)}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {getStatusBadge(request.status)}
+                {getPriorityBadge(request.priority)}
+              </div>
               {itemCount > 1 && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="outline" className="text-xs border-current">
                   {itemCount} Products
                 </Badge>
               )}
             </div>
-            <div className="flex gap-2">
-              {getPriorityBadge(request.priority)}
-              {getStatusBadge(request.status)}
+            <div className="text-sm">
+              <span className="opacity-75">Required by:</span>{' '}
+              <span className="font-semibold">{formatDateTime(request.required_by)}</span>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <TrackingDialog
-              request={request}
-              trigger={
-                <Button variant="outline" className="h-11">
-                  <MapPin className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Track Sample</span>
-                </Button>
-              }
-            />
-            <Button
-              variant="outline"
-              onClick={() => navigate('/')}
-              className="h-11"
-            >
-              <ChevronLeft className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Back to Dashboard</span>
-            </Button>
           </div>
         </div>
 
@@ -386,119 +421,85 @@ export default function RequestDetail() {
           </Alert>
         )}
 
-        <div className="space-y-6">
-          {/* Section 1: Request Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Request Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <span className="text-sm font-medium text-gray-600">Request Number</span>
-                <p className="text-base font-mono">{request.request_number}</p>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600">Status</span>
-                <div className="mt-1">{getStatusBadge(request.status)}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600">Priority</span>
-                <div className="mt-1">{getPriorityBadge(request.priority)}</div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-gray-600">Required By</span>
-                <p className="text-base">{formatDateTime(request.required_by)}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Section 2: Requester Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Requester Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Created By</span>
-                  <p className="text-base">{request.creator?.full_name || 'Unknown'}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Department</span>
-                  <p className="text-base capitalize">{request.department}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Mobile No</span>
-                  <p className="text-base">{request.mobile_no}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Pickup Responsibility</span>
-                  <p className="text-base capitalize">{request.pickup_responsibility?.replace('_', ' ')}</p>
-                </div>
-                {request.pickup_remarks && (
+        <div className="space-y-4 sm:space-y-6">
+          {/* Section 1: Requester & Client Info - Grouped for mobile */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Requester Details */}
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2 sm:pb-3 bg-blue-50/50 border-b">
+                <CardTitle className="text-base sm:text-lg text-blue-900">Requester Info</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3 sm:pt-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-sm font-medium text-gray-600">Pickup Remarks</span>
-                    <p className="text-base">{request.pickup_remarks}</p>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Created By</span>
+                    <p className="text-sm font-medium mt-0.5">{request.creator?.full_name || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Department</span>
+                    <p className="text-sm font-medium mt-0.5 capitalize">{request.department}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Mobile</span>
+                    <p className="text-sm font-medium mt-0.5">{request.mobile_no}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pickup</span>
+                    <p className="text-sm font-medium mt-0.5 capitalize">{request.pickup_responsibility?.replace('_', ' ')}</p>
+                  </div>
+                </div>
+                {request.delivery_address && (
+                  <div className="pt-2 border-t">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Delivery Address</span>
+                    <p className="text-sm mt-0.5 whitespace-pre-line">{request.delivery_address}</p>
                   </div>
                 )}
-              </div>
-              {request.delivery_address && (
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Delivery Address</span>
-                  <p className="text-base whitespace-pre-line">{request.delivery_address}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Section 3: Client Project Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Client Project Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Client Details */}
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2 sm:pb-3 bg-purple-50/50 border-b">
+                <CardTitle className="text-base sm:text-lg text-purple-900">Client Info</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3 sm:pt-4 space-y-3">
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Client Type</span>
-                  <p className="text-base capitalize">{request.client_type}</p>
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Project Name</span>
+                  <p className="text-sm font-semibold mt-0.5">{request.client_project_name}</p>
                 </div>
-                {request.client_type_remarks && (
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <span className="text-sm font-medium text-gray-600">Client Type Remarks</span>
-                    <p className="text-base">{request.client_type_remarks}</p>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Client Type</span>
+                    <p className="text-sm font-medium mt-0.5 capitalize">{request.client_type}</p>
                   </div>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Client/Architect/Project Name</span>
-                  <p className="text-base">{request.client_project_name}</p>
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Company</span>
+                    <p className="text-sm font-medium mt-0.5">{request.company_firm_name}</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Mobile</span>
-                  <p className="text-base">{request.client_phone}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {request.client_phone && (
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</span>
+                      <p className="text-sm font-medium mt-0.5">{request.client_phone}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Location</span>
+                    <p className="text-sm font-medium mt-0.5">{request.site_location}</p>
+                  </div>
                 </div>
                 {request.client_email && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Email</span>
-                    <p className="text-base">{request.client_email}</p>
+                  <div className="pt-2 border-t">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</span>
+                    <p className="text-sm mt-0.5">{request.client_email}</p>
                   </div>
                 )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Company Firm Name</span>
-                  <p className="text-base">{request.company_firm_name}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Site Location</span>
-                  <p className="text-base">{request.site_location}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Section 4: Product Items (NEW - Multi-Product Support) */}
           <div className="space-y-4">
@@ -526,65 +527,66 @@ export default function RequestDetail() {
             )}
           </div>
 
-          {/* Section 5: Shared Details (Purpose & Packing) */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Shipping & Packing</CardTitle>
+          {/* Section 5: Shipping & Packing - Compact on mobile */}
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-2 sm:pb-3 bg-green-50/50 border-b">
+              <CardTitle className="text-base sm:text-lg text-green-900">Shipping & Packing</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Purpose of Sample</span>
-                  <p className="text-base capitalize">{request.purpose?.replace('_', ' ')}</p>
+            <CardContent className="pt-3 sm:pt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Purpose</span>
+                  <p className="text-sm font-medium mt-0.5 capitalize">{request.purpose?.replace('_', ' ')}</p>
                 </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Packing</span>
-                  <p className="text-base capitalize">{request.packing_details?.replace('_', ' ')}</p>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Packing</span>
+                  <p className="text-sm font-medium mt-0.5 capitalize">{request.packing_details?.replace('_', ' ')}</p>
                 </div>
               </div>
               {request.packing_remarks && (
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Packing Remarks</span>
-                  <p className="text-base">{request.packing_remarks}</p>
+                <div className="mt-3 pt-3 border-t">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Packing Notes</span>
+                  <p className="text-sm mt-0.5">{request.packing_remarks}</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Section 6: Timeline & Assignment */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Timeline</CardTitle>
+          {/* Section 6: Timeline & Assignment - Horizontal scroll on mobile */}
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-2 sm:pb-3 bg-gray-50/50 border-b">
+              <CardTitle className="text-base sm:text-lg">Timeline</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Created</span>
-                  <p className="text-base">{formatDateTime(request.created_at)}</p>
+            <CardContent className="pt-3 sm:pt-4">
+              {/* Timeline as horizontal steps on mobile */}
+              <div className="flex overflow-x-auto gap-3 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible">
+                <div className="flex-shrink-0 min-w-[120px] sm:min-w-0 bg-gray-50 rounded-lg p-3">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</span>
+                  <p className="text-xs sm:text-sm font-medium mt-0.5">{formatDateTime(request.created_at)}</p>
                 </div>
                 {request.completed_at && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Completed</span>
-                    <p className="text-base">{formatDateTime(request.completed_at)}</p>
+                  <div className="flex-shrink-0 min-w-[120px] sm:min-w-0 bg-blue-50 rounded-lg p-3">
+                    <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Completed</span>
+                    <p className="text-xs sm:text-sm font-medium mt-0.5">{formatDateTime(request.completed_at)}</p>
                   </div>
                 )}
                 {request.dispatched_at && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Dispatched</span>
-                    <p className="text-base">{formatDateTime(request.dispatched_at)}</p>
+                  <div className="flex-shrink-0 min-w-[120px] sm:min-w-0 bg-emerald-50 rounded-lg p-3">
+                    <span className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Dispatched</span>
+                    <p className="text-xs sm:text-sm font-medium mt-0.5">{formatDateTime(request.dispatched_at)}</p>
                   </div>
                 )}
                 {request.received_at && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-600">Received</span>
-                    <p className="text-base">{formatDateTime(request.received_at)}</p>
+                  <div className="flex-shrink-0 min-w-[120px] sm:min-w-0 bg-green-50 rounded-lg p-3">
+                    <span className="text-xs font-medium text-green-600 uppercase tracking-wide">Received</span>
+                    <p className="text-xs sm:text-sm font-medium mt-0.5">{formatDateTime(request.received_at)}</p>
                   </div>
                 )}
               </div>
               {request.maker && (
-                <div className="pt-3 border-t">
-                  <span className="text-sm font-medium text-gray-600">Assigned To</span>
-                  <p className="text-base">{request.maker.full_name}</p>
+                <div className="mt-3 pt-3 border-t flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Assigned To:</span>
+                  <span className="text-sm font-medium">{request.maker.full_name}</span>
                 </div>
               )}
             </CardContent>

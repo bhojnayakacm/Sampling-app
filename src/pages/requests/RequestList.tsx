@@ -24,7 +24,7 @@ import { usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package } from 'lucide-react';
+import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, Plus } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
@@ -194,19 +194,51 @@ export default function RequestList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{profile?.full_name}</span>
-            <Button variant="outline" size="sm" onClick={signOut}>
-              Sign Out
-            </Button>
+      {/* Mobile-Optimized Header */}
+      <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/')}
+                className="md:hidden h-9 w-9 p-0"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-lg sm:text-2xl font-bold">{getPageTitle()}</h1>
+                <p className="text-xs text-gray-500 sm:hidden">
+                  {isLoading ? 'Loading...' : `${totalCount} request${totalCount !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="text-sm text-gray-600 hidden sm:block">{profile?.full_name}</span>
+              <Button variant="outline" size="sm" onClick={signOut} className="hidden sm:flex">
+                Sign Out
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Mobile Quick Action - New Request button prominent on mobile */}
+        {isRequesterUser && (
+          <div className="md:hidden">
+            <Button
+              onClick={() => navigate('/requests/new')}
+              size="lg"
+              className="w-full h-12 gap-2 font-semibold"
+            >
+              <Plus className="h-5 w-5" />
+              New Request
+            </Button>
+          </div>
+        )}
+
         {/* Toolbar with Search and Filters */}
         <RequestToolbar
           search={search}
@@ -218,10 +250,10 @@ export default function RequestList() {
           onReset={handleReset}
         />
 
-        {/* Header with count and actions - Mobile Optimized */}
-        <div className="flex justify-between items-start gap-4">
+        {/* Header with count and actions - Desktop focused */}
+        <div className="flex justify-between items-center">
           {/* Left Side: Text Group */}
-          <div className="flex flex-col gap-1">
+          <div className="hidden sm:flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
               <h2 className="text-xl font-semibold">
                 {isLoading ? 'Loading...' : totalCount}
@@ -231,28 +263,30 @@ export default function RequestList() {
               </span>
             </div>
             {!isLoading && totalPages > 0 && (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-500">
                 Page {page} of {totalPages}
               </p>
             )}
           </div>
 
-          {/* Right Side: Button Group - Vertical on mobile, horizontal on desktop */}
-          <div className="flex flex-col md:flex-row gap-2 md:gap-4 ml-auto flex-shrink-0">
+          {/* Right Side: Button Group - Desktop only */}
+          <div className="hidden md:flex gap-3 ml-auto">
             <Button
               onClick={() => navigate('/')}
               variant="outline"
               size="sm"
-              className="h-10 whitespace-nowrap"
+              className="h-10"
             >
-              Back to Dashboard
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Dashboard
             </Button>
             {isRequesterUser && (
               <Button
                 onClick={() => navigate('/requests/new')}
                 size="sm"
-                className="h-10 whitespace-nowrap"
+                className="h-10 gap-2"
               >
+                <Plus className="h-4 w-4" />
                 New Request
               </Button>
             )}
@@ -288,104 +322,114 @@ export default function RequestList() {
           </div>
         ) : (
           <>
-            {/* Mobile Card View */}
+            {/* Mobile Card View - Enhanced */}
             <div className="md:hidden space-y-3">
               {requests.map((request) => {
                 const isDraft = request.status === 'draft';
+                const summary = getItemSummary(request);
                 return (
                   <div
                     key={request.id}
                     onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
-                    className={`bg-white rounded-lg border shadow-sm p-4 ${
+                    className={`bg-white rounded-xl border shadow-sm overflow-hidden ${
                       !isDraft ? 'cursor-pointer active:bg-gray-50' : ''
                     }`}
                   >
-                    {/* Header Row */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <code className="text-sm font-mono font-semibold text-gray-900 block">
-                          {request.request_number}
-                        </code>
-                        <p className="text-sm font-medium text-gray-700 mt-1 truncate">
-                          {request.client_project_name}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">{request.company_firm_name}</p>
-                      </div>
-                      <div className="flex gap-2 ml-2 flex-shrink-0">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <TrackingDialog
-                            request={request}
-                            trigger={
-                              <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                                <MapPin className="h-4 w-4" />
-                              </Button>
-                            }
-                          />
+                    {/* Status Bar - Color coded top border */}
+                    <div className={`h-1 ${
+                      request.status === 'draft' ? 'bg-gray-300' :
+                      request.status === 'pending_approval' ? 'bg-amber-400' :
+                      request.status === 'approved' ? 'bg-blue-400' :
+                      request.status === 'in_production' ? 'bg-purple-400' :
+                      request.status === 'dispatched' ? 'bg-emerald-400' :
+                      request.status === 'rejected' ? 'bg-red-400' :
+                      'bg-gray-300'
+                    }`} />
+
+                    <div className="p-4">
+                      {/* Header Row */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <code className="text-sm font-mono font-bold text-gray-900">
+                              {request.request_number}
+                            </code>
+                            {request.priority === 'urgent' && (
+                              <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded uppercase">
+                                Urgent
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {request.client_project_name}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">{request.company_firm_name}</p>
                         </div>
-                        {isRequesterUser && isDraft && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/requests/edit/${request.id}`);
-                              }}
-                              className="h-9 w-9 p-0"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDraftToDelete({ id: request.id, number: request.request_number });
-                              }}
-                              className="h-9 w-9 p-0"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Status and Priority Badges */}
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {getStatusBadge(request.status)}
-                      {getPriorityBadge(request.priority)}
-                    </div>
-
-                    {/* Details Grid */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Items:</span>
-                        {(() => {
-                          const summary = getItemSummary(request);
-                          return (
-                            <span
-                              className={`ml-1 font-medium ${summary.isMulti ? 'text-primary' : ''}`}
-                              title={summary.tooltip}
-                            >
-                              {summary.isMulti && <Package className="inline h-3 w-3 mr-1" />}
-                              {summary.text}
-                            </span>
-                          );
-                        })()}
+                        {/* Action Buttons */}
+                        <div className="flex gap-1 ml-2 flex-shrink-0">
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <TrackingDialog
+                              request={request}
+                              trigger={
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MapPin className="h-4 w-4 text-gray-500" />
+                                </Button>
+                              }
+                            />
+                          </div>
+                          {isRequesterUser && isDraft && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/requests/edit/${request.id}`);
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-4 w-4 text-blue-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDraftToDelete({ id: request.id, number: request.request_number });
+                                }}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-gray-500">Created:</span>
-                        <span className="ml-1 font-medium">{formatDate(request.created_at)}</span>
-                      </div>
-                    </div>
 
-                    {/* Creator Info */}
-                    {request.creator && (
-                      <p className="text-xs text-gray-400 mt-2 pt-2 border-t">
-                        Requested by {request.creator.full_name}
-                      </p>
-                    )}
+                      {/* Status Badge - More prominent */}
+                      <div className="mb-3">
+                        {getStatusBadge(request.status)}
+                      </div>
+
+                      {/* Details Row - Cleaner layout */}
+                      <div className="flex items-center justify-between text-xs bg-gray-50 -mx-4 px-4 py-2">
+                        <div className="flex items-center gap-1 text-gray-600">
+                          <Package className="h-3.5 w-3.5" />
+                          <span className={summary.isMulti ? 'font-medium text-primary' : ''}>
+                            {summary.text}
+                          </span>
+                        </div>
+                        <span className="text-gray-500">{formatDate(request.created_at)}</span>
+                      </div>
+
+                      {/* Creator Info - Subtle footer */}
+                      {request.creator && (
+                        <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-dashed">
+                          by {request.creator.full_name}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}

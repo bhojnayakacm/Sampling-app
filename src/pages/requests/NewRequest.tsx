@@ -19,7 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package } from 'lucide-react';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
 import type {
@@ -668,6 +668,57 @@ export default function NewRequest() {
   };
 
   // ============================================================
+  // SECTION COMPLETION TRACKING (for visual progress indicators)
+  // ============================================================
+
+  // Section 1: Requester Details - check if essential fields are filled
+  const isSection1Complete = Boolean(
+    profile?.department &&
+    profile?.phone &&
+    pickupResponsibility &&
+    watch('required_by') &&
+    watch('priority') &&
+    (pickupResponsibility === 'self_pickup' || watch('delivery_address')) &&
+    (pickupResponsibility !== 'other' || watch('pickup_remarks'))
+  );
+
+  // Section 2: Client Project Details - check required fields
+  const clientProjectName = watch('client_project_name');
+  const companyFirmName = watch('company_firm_name');
+  const siteLocation = watch('site_location');
+  const isSection2Complete = Boolean(
+    clientType &&
+    clientProjectName &&
+    companyFirmName &&
+    siteLocation &&
+    (clientType !== 'others' || watch('client_type_remarks'))
+  );
+
+  // Section 3: Products - check if all products are valid and shared details filled
+  const purpose = watch('purpose');
+  const isSection3Complete = Boolean(
+    products.length > 0 &&
+    products.every(product => {
+      const hasFinish = product.product_type && PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
+      return (
+        product.product_type &&
+        product.quality &&
+        (product.quality !== 'Custom' || product.quality_custom) &&
+        product.sample_size &&
+        (product.sample_size !== 'Custom' || product.sample_size_remarks) &&
+        product.thickness &&
+        (product.thickness !== 'Custom' || product.thickness_remarks) &&
+        (!hasFinish || product.finish) &&
+        ((product.finish !== 'Custom' && product.finish !== 'Customize') || product.finish_remarks) &&
+        product.quantity > 0
+      );
+    }) &&
+    purpose &&
+    packingDetails &&
+    (packingDetails !== 'custom' || watch('packing_remarks'))
+  );
+
+  // ============================================================
   // LOADING STATES
   // ============================================================
 
@@ -733,8 +784,12 @@ export default function NewRequest() {
           <AccordionItem value="section-1" className="border rounded-lg bg-white">
             <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
               <div className="flex items-center gap-3 text-left">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-semibold text-sm flex-shrink-0">
-                  1
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm flex-shrink-0 transition-colors ${
+                  isSection1Complete
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {isSection1Complete ? <Check className="h-5 w-5" /> : '1'}
                 </div>
                 <span className="font-semibold text-base sm:text-lg">Requester Details</span>
               </div>
@@ -841,8 +896,12 @@ export default function NewRequest() {
           <AccordionItem value="section-2" className="border rounded-lg bg-white">
             <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
               <div className="flex items-center gap-3 text-left">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600 font-semibold text-sm flex-shrink-0">
-                  2
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm flex-shrink-0 transition-colors ${
+                  isSection2Complete
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-purple-100 text-purple-600'
+                }`}>
+                  {isSection2Complete ? <Check className="h-5 w-5" /> : '2'}
                 </div>
                 <span className="font-semibold text-base sm:text-lg">Client Project Details</span>
               </div>
@@ -949,12 +1008,20 @@ export default function NewRequest() {
           <AccordionItem value="section-3" className="border rounded-lg bg-white">
             <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline">
               <div className="flex items-center gap-3 text-left">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600 font-semibold text-sm flex-shrink-0">
-                  3
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold text-sm flex-shrink-0 transition-colors ${
+                  isSection3Complete
+                    ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-green-100 text-green-600'
+                }`}>
+                  {isSection3Complete ? <Check className="h-5 w-5" /> : '3'}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-base sm:text-lg">Products</span>
-                  <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    isSection3Complete
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-green-100 text-green-700'
+                  }`}>
                     {products.length} {products.length === 1 ? 'item' : 'items'}
                   </span>
                 </div>
