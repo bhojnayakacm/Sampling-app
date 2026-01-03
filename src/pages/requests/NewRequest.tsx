@@ -744,17 +744,18 @@ export default function NewRequest() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile-Optimized Header */}
+      {/* Mobile-Optimized Header with improved touch targets */}
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/requests')}
-              className="md:hidden"
+              className="md:hidden h-11 px-2 gap-1 min-w-[70px]"
             >
               <ChevronLeft className="h-5 w-5" />
+              <span className="text-sm font-medium">Back</span>
             </Button>
             <div className="flex-1 min-w-0">
               <h1 className="text-lg sm:text-2xl md:text-3xl font-bold truncate">
@@ -765,11 +766,12 @@ export default function NewRequest() {
               </p>
             </div>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => navigate('/requests')}
-              className="hidden md:flex"
+              className="hidden md:flex h-11 gap-1 font-medium"
             >
+              <ChevronLeft className="h-4 w-4" />
               Cancel
             </Button>
           </div>

@@ -70,12 +70,12 @@ export default function RequesterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5">
-        {/* Action Buttons - Prominent placement at top */}
+        {/* Action Buttons - Prominent placement at top with improved touch targets */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             size="lg"
             onClick={() => navigate('/requests/new')}
-            className="h-12 sm:h-11 gap-2 text-base font-semibold flex-1 sm:flex-none"
+            className="h-14 sm:h-12 gap-2 text-base font-bold flex-1 sm:flex-none shadow-sm"
           >
             <Plus className="h-5 w-5" />
             Create New Request
@@ -84,7 +84,7 @@ export default function RequesterDashboard() {
             variant="outline"
             size="lg"
             onClick={() => navigate('/requests')}
-            className="h-11 flex-1 sm:flex-none"
+            className="h-12 sm:h-11 font-semibold flex-1 sm:flex-none"
           >
             View All Requests
           </Button>
@@ -253,7 +253,7 @@ export default function RequesterDashboard() {
               <Button
                 size="lg"
                 onClick={() => navigate('/requests/new')}
-                className="gap-2"
+                className="h-14 gap-2 font-bold shadow-sm"
               >
                 <Plus className="h-5 w-5" />
                 Create Your First Request
@@ -279,7 +279,7 @@ export default function RequesterDashboard() {
                 size="sm"
                 variant="outline"
                 onClick={() => navigate('/requests?filter=drafts')}
-                className="border-amber-300 text-amber-900 hover:bg-amber-100 flex-shrink-0"
+                className="border-amber-300 text-amber-900 hover:bg-amber-100 flex-shrink-0 h-10 min-w-[100px] font-medium"
               >
                 View Drafts
               </Button>

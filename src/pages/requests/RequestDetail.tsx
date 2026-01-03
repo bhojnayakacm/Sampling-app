@@ -290,18 +290,19 @@ export default function RequestDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile-Optimized Header */}
+      {/* Mobile-Optimized Header with improved touch targets */}
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/')}
-                className="md:hidden h-9 w-9 p-0"
+                onClick={() => navigate('/requests')}
+                className="md:hidden h-11 px-2 gap-1 min-w-[70px]"
               >
                 <ChevronLeft className="h-5 w-5" />
+                <span className="text-sm font-medium">Back</span>
               </Button>
               <div>
                 <h1 className="text-lg sm:text-xl font-bold">Request Details</h1>
@@ -312,22 +313,22 @@ export default function RequestDetail() {
               <TrackingDialog
                 request={request}
                 trigger={
-                  <Button variant="outline" size="sm" className="h-9 gap-1">
+                  <Button variant="outline" size="sm" className="h-11 gap-1 font-medium">
                     <MapPin className="h-4 w-4" />
-                    <span className="hidden sm:inline">Track</span>
+                    <span className="hidden xs:inline">Track</span>
                   </Button>
                 }
               />
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate('/')}
-                className="hidden md:flex h-9"
+                onClick={() => navigate('/requests')}
+                className="hidden md:flex h-11 gap-1 font-medium"
               >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Dashboard
+                <ChevronLeft className="h-4 w-4" />
+                Back to List
               </Button>
-              <Button variant="ghost" size="sm" onClick={signOut} className="hidden sm:flex h-9">
+              <Button variant="ghost" size="sm" onClick={signOut} className="hidden sm:flex h-11">
                 Sign Out
               </Button>
             </div>

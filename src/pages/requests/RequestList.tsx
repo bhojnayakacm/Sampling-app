@@ -198,14 +198,15 @@ export default function RequestList() {
       <header className="bg-white border-b sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate('/')}
-                className="md:hidden h-9 w-9 p-0"
+                className="md:hidden h-11 px-2 gap-1 min-w-[70px]"
               >
                 <ChevronLeft className="h-5 w-5" />
+                <span className="text-sm font-medium">Back</span>
               </Button>
               <div>
                 <h1 className="text-lg sm:text-2xl font-bold">{getPageTitle()}</h1>
@@ -231,7 +232,7 @@ export default function RequestList() {
             <Button
               onClick={() => navigate('/requests/new')}
               size="lg"
-              className="w-full h-12 gap-2 font-semibold"
+              className="w-full h-14 gap-2 font-bold text-base shadow-sm"
             >
               <Plus className="h-5 w-5" />
               New Request
@@ -275,16 +276,16 @@ export default function RequestList() {
               onClick={() => navigate('/')}
               variant="outline"
               size="sm"
-              className="h-10"
+              className="h-11 gap-1 font-medium"
             >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Dashboard
+              <ChevronLeft className="h-4 w-4" />
+              Back to Dashboard
             </Button>
             {isRequesterUser && (
               <Button
                 onClick={() => navigate('/requests/new')}
                 size="sm"
-                className="h-10 gap-2"
+                className="h-11 gap-2 font-semibold"
               >
                 <Plus className="h-4 w-4" />
                 New Request
@@ -366,14 +367,14 @@ export default function RequestList() {
                           <p className="text-xs text-gray-500 truncate">{request.company_firm_name}</p>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-1 ml-2 flex-shrink-0">
+                        {/* Action Buttons - Min 44x44px touch targets */}
+                        <div className="flex gap-0.5 ml-2 flex-shrink-0">
                           <div onClick={(e) => e.stopPropagation()}>
                             <TrackingDialog
                               request={request}
                               trigger={
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <MapPin className="h-4 w-4 text-gray-500" />
+                                <Button variant="ghost" size="sm" className="h-11 w-11 p-0">
+                                  <MapPin className="h-5 w-5 text-gray-500" />
                                 </Button>
                               }
                             />
@@ -387,9 +388,9 @@ export default function RequestList() {
                                   e.stopPropagation();
                                   navigate(`/requests/edit/${request.id}`);
                                 }}
-                                className="h-8 w-8 p-0"
+                                className="h-11 w-11 p-0"
                               >
-                                <Edit className="h-4 w-4 text-blue-600" />
+                                <Edit className="h-5 w-5 text-blue-600" />
                               </Button>
                               <Button
                                 size="sm"
@@ -398,9 +399,9 @@ export default function RequestList() {
                                   e.stopPropagation();
                                   setDraftToDelete({ id: request.id, number: request.request_number });
                                 }}
-                                className="h-8 w-8 p-0"
+                                className="h-11 w-11 p-0"
                               >
-                                <Trash2 className="h-4 w-4 text-red-600" />
+                                <Trash2 className="h-5 w-5 text-red-600" />
                               </Button>
                             </>
                           )}
