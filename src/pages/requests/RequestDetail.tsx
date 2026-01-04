@@ -30,6 +30,11 @@ export default function RequestDetail() {
   // Use the new hook that fetches request WITH items
   const { data: request, isLoading, error } = useRequestWithItems(id);
 
+  // Dynamic back navigation based on user role
+  const isCoordinator = profile?.role === 'coordinator';
+  const backDestination = isCoordinator ? '/' : '/requests';
+  const backButtonText = isCoordinator ? 'Back to Dashboard' : 'Back to List';
+
   // Premium status badge with gradient styling
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
@@ -279,10 +284,10 @@ export default function RequestDetail() {
             <p className="text-red-600 font-semibold mb-2 text-lg">Failed to load request</p>
             <p className="text-slate-500 mb-6">The request details could not be loaded. Please try again.</p>
             <Button
-              onClick={() => navigate('/requests')}
+              onClick={() => navigate(backDestination)}
               className="min-h-[60px] py-5 px-8 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25"
             >
-              Back to Requests
+              {backButtonText}
             </Button>
           </CardContent>
         </Card>
@@ -319,7 +324,7 @@ export default function RequestDetail() {
             <div className="flex items-center gap-2 sm:gap-3">
               <Button
                 variant="ghost"
-                onClick={() => navigate('/requests')}
+                onClick={() => navigate(backDestination)}
                 className="md:hidden min-h-[56px] py-4 px-3 gap-2 text-white hover:bg-white/20 hover:text-white"
               >
                 <ChevronLeft className="h-5 w-5" />
@@ -350,11 +355,11 @@ export default function RequestDetail() {
               />
               <Button
                 variant="ghost"
-                onClick={() => navigate('/requests')}
+                onClick={() => navigate(backDestination)}
                 className="hidden md:flex min-h-[56px] py-4 px-4 gap-2 text-white hover:bg-white/20 hover:text-white font-semibold"
               >
                 <ChevronLeft className="h-4 w-4" />
-                Back to List
+                {backButtonText}
               </Button>
               <Button
                 variant="ghost"
