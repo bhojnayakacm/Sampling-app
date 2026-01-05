@@ -401,12 +401,19 @@ export function useUpdateRequestStatus() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Invalidate all relevant caches for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['request'] });
+      queryClient.invalidateQueries({ queryKey: ['request', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-timeline'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['maker-stats'] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     },
   });
@@ -431,10 +438,17 @@ export function useAssignRequest() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Invalidate all relevant caches for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['request'] });
+      queryClient.invalidateQueries({ queryKey: ['request', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-timeline'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['maker-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     },
   });
 }
@@ -571,16 +585,24 @@ export function useMarkAsReceived() {
         .single();
 
       if (error) throw error;
-      return data;
+      return { data, requestId };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      const requestId = result.requestId;
+      // Invalidate all relevant caches for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['request'] });
+      queryClient.invalidateQueries({ queryKey: ['request', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
       queryClient.invalidateQueries({ queryKey: ['request-timeline'] });
+      queryClient.invalidateQueries({ queryKey: ['request-timeline', requestId] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['maker-stats'] });
     },
   });
 }
