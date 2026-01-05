@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -38,7 +37,11 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  MapPin
+  MapPin,
+  Loader2,
+  AlertCircle,
+  Truck,
+  Eye
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 
@@ -47,7 +50,6 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
   const itemCount = request.item_count || 1;
   const totalQuantity = request.quantity || 0;
 
-  // Single item (or legacy request without item_count)
   if (itemCount === 1) {
     const productType = request.product_type || 'Unknown';
     const capitalizedType = productType.charAt(0).toUpperCase() + productType.slice(1);
@@ -58,12 +60,62 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
     };
   }
 
-  // Multi-item request
   return {
     text: `${itemCount} Products`,
     tooltip: 'Click to view all products in this request',
     isMulti: true,
   };
+}
+
+// Premium status badge with gradient styling
+function getStatusBadge(status: string) {
+  const statusMap: Record<string, { label: string; className: string }> = {
+    draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+    pending_approval: { label: 'Pending', className: 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 border-amber-200' },
+    approved: { label: 'Approved', className: 'bg-gradient-to-r from-sky-100 to-blue-100 text-sky-800 border-sky-200' },
+    assigned: { label: 'Assigned', className: 'bg-gradient-to-r from-indigo-100 to-violet-100 text-indigo-800 border-indigo-200' },
+    in_production: { label: 'In Production', className: 'bg-gradient-to-r from-violet-100 to-purple-100 text-violet-800 border-violet-200' },
+    ready: { label: 'Ready', className: 'bg-gradient-to-r from-teal-100 to-cyan-100 text-teal-800 border-teal-200' },
+    dispatched: { label: 'Dispatched', className: 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 border-emerald-200' },
+    received: { label: 'Received', className: 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-200' },
+    rejected: { label: 'Rejected', className: 'bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border-red-200' },
+  };
+
+  const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-700' };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${className}`}>
+      {label}
+    </span>
+  );
+}
+
+function getPriorityBadge(priority: string) {
+  const isUrgent = priority === 'urgent';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${
+      isUrgent
+        ? 'bg-gradient-to-r from-red-100 to-rose-100 text-red-700 border-red-200'
+        : 'bg-gradient-to-r from-slate-100 to-gray-100 text-slate-600 border-slate-200'
+    }`}>
+      {priority}
+    </span>
+  );
+}
+
+// Get status gradient bar color for mobile cards
+function getStatusBarColor(status: string) {
+  const colors: Record<string, string> = {
+    draft: 'bg-slate-300',
+    pending_approval: 'bg-gradient-to-r from-amber-400 to-orange-400',
+    approved: 'bg-gradient-to-r from-sky-400 to-blue-400',
+    assigned: 'bg-gradient-to-r from-indigo-400 to-violet-400',
+    in_production: 'bg-gradient-to-r from-violet-400 to-purple-400',
+    ready: 'bg-gradient-to-r from-teal-400 to-cyan-400',
+    dispatched: 'bg-gradient-to-r from-emerald-400 to-green-400',
+    received: 'bg-gradient-to-r from-green-400 to-emerald-400',
+    rejected: 'bg-gradient-to-r from-red-400 to-rose-400',
+  };
+  return colors[status] || 'bg-slate-300';
 }
 
 export default function CoordinatorDashboard() {
@@ -72,13 +124,11 @@ export default function CoordinatorDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: stats, isLoading: statsLoading } = useAllRequestsStats();
 
-  // Tab state from URL - persists across page refresh
   const activeTab = searchParams.get('tab') || 'sample-requests';
   const setActiveTab = (tab: string) => {
     setSearchParams({ tab });
   };
 
-  // Filter and pagination state
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<RequestStatus | null>(null);
@@ -87,7 +137,6 @@ export default function CoordinatorDashboard() {
 
   const deleteDraft = useDeleteDraft();
 
-  // Fetch paginated requests with filters
   const { data: result, isLoading: requestsLoading } = usePaginatedRequests({
     page,
     pageSize: 15,
@@ -105,38 +154,6 @@ export default function CoordinatorDashboard() {
   const isRequesterUser = profile?.role === 'requester';
   const isStaffUser = profile?.role === 'admin' || profile?.role === 'coordinator' || profile?.role === 'maker';
 
-  // Badge helpers
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-      draft: { label: 'Draft', variant: 'outline' },
-      pending_approval: { label: 'Pending Approval', variant: 'outline' },
-      approved: { label: 'Approved', variant: 'secondary' },
-      assigned: { label: 'Assigned', variant: 'secondary' },
-      in_production: { label: 'In Production', variant: 'default' },
-      ready: { label: 'Ready', variant: 'default' },
-      dispatched: { label: 'Dispatched', variant: 'default' },
-      received: { label: 'Received', variant: 'secondary' },
-      rejected: { label: 'Rejected', variant: 'destructive' },
-    };
-
-    const { label, variant } = statusMap[status] || { label: status, variant: 'outline' };
-    return <Badge variant={variant}>{label}</Badge>;
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    const priorityMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' }> = {
-      urgent: { variant: 'destructive' },
-      normal: { variant: 'default' },
-    };
-
-    return (
-      <Badge variant={priorityMap[priority]?.variant || 'default'}>
-        {priority.toUpperCase()}
-      </Badge>
-    );
-  };
-
-  // Filter handlers
   const handleSearchChange = (value: string) => {
     setSearch(value);
     setPage(1);
@@ -159,7 +176,6 @@ export default function CoordinatorDashboard() {
     setPage(1);
   };
 
-  // Delete draft handler
   const handleDeleteDraft = async () => {
     if (!draftToDelete) return;
     try {
@@ -171,403 +187,445 @@ export default function CoordinatorDashboard() {
     }
   };
 
-  // Render content based on active tab
   const renderContent = () => {
     if (activeTab === 'sample-requests') {
       return (
-        <div className="p-6 space-y-6">
-          {/* ZONE A: Stats Overview (Read-Only) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* Command Center - Premium KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Requests */}
-            <Card className="border-l-4 border-l-blue-500">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                  <Inbox className="h-4 w-4" />
-                  Total Requests
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-blue-600">
-                  {statsLoading ? '...' : stats?.total || 0}
-                </p>
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">Total</p>
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
+                      {statsLoading ? '...' : stats?.total || 0}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Inbox className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            {/* Pending */}
-            <Card className="border-l-4 border-l-yellow-500">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Pending
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-yellow-600">
-                  {statsLoading ? '...' : stats?.pending || 0}
-                </p>
+            {/* Pending Approval */}
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="h-1.5 bg-gradient-to-r from-amber-400 to-orange-500" />
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">Pending</p>
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
+                      {statsLoading ? '...' : stats?.pending || 0}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Clock className="h-6 w-6 text-amber-600" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             {/* In Production */}
-            <Card className="border-l-4 border-l-purple-500">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                  <Cog className="h-4 w-4" />
-                  In Production
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-purple-600">
-                  {statsLoading ? '...' : stats?.in_production || 0}
-                </p>
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="h-1.5 bg-gradient-to-r from-violet-500 to-purple-500" />
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-violet-600 uppercase tracking-wide">Production</p>
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
+                      {statsLoading ? '...' : stats?.in_production || 0}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Cog className="h-6 w-6 text-violet-600" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             {/* Dispatched */}
-            <Card className="border-l-4 border-l-green-500">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  Dispatched
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-green-600">
-                  {statsLoading ? '...' : stats?.dispatched || 0}
-                </p>
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <div className="h-1.5 bg-gradient-to-r from-emerald-500 to-green-500" />
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Dispatched</p>
+                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
+                      {statsLoading ? '...' : stats?.dispatched || 0}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Truck className="h-6 w-6 text-emerald-600" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* ZONE B: Toolbar (Search & Filters) */}
-          <RequestToolbar
-            search={search}
-            status={status}
-            priority={priority}
-            onSearchChange={handleSearchChange}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onReset={handleReset}
-          />
+          {/* Toolbar with filters */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-4 border border-white/50">
+            <RequestToolbar
+              search={search}
+              status={status}
+              priority={priority}
+              onSearchChange={handleSearchChange}
+              onStatusChange={handleStatusChange}
+              onPriorityChange={handlePriorityChange}
+              onReset={handleReset}
+            />
+          </div>
 
           {/* Request Count Header */}
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-xl font-bold text-slate-800">
                 {requestsLoading ? 'Loading...' : `${totalCount} Request${totalCount !== 1 ? 's' : ''}`}
               </h2>
               {!requestsLoading && totalPages > 0 && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-slate-500 mt-0.5">
                   Page {page} of {totalPages}
                 </p>
               )}
             </div>
           </div>
 
-          {/* ZONE C: Request Table/Data */}
+          {/* Request Data */}
           {requestsLoading ? (
-            <div className="bg-white rounded-lg border p-12 text-center">
-              <div className="animate-pulse space-y-4">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
-                <div className="h-4 bg-gray-200 rounded w-2/3 mx-auto"></div>
-              </div>
-              <p className="text-gray-500 mt-4">Loading requests...</p>
-            </div>
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-12 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
+                <p className="text-slate-500 font-medium">Loading requests...</p>
+              </CardContent>
+            </Card>
           ) : requests.length === 0 ? (
-            <div className="bg-white rounded-lg border p-12 text-center">
-              <p className="text-gray-500 text-lg">
-                {search || status || priority
-                  ? 'No requests found matching your filters.'
-                  : 'No requests found in the system.'}
-              </p>
-              {(search || status || priority) && (
-                <Button variant="outline" onClick={handleReset} className="mt-4">
-                  Clear Filters
-                </Button>
-              )}
-            </div>
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="h-8 w-8 text-slate-400" />
+                </div>
+                <p className="text-slate-600 text-lg font-medium">
+                  {search || status || priority
+                    ? 'No requests found matching your filters.'
+                    : 'No requests found in the system.'}
+                </p>
+                {(search || status || priority) && (
+                  <Button
+                    variant="outline"
+                    onClick={handleReset}
+                    className="mt-4 min-h-[48px]"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           ) : (
             <>
-              {/* Mobile Card View */}
+              {/* Mobile Card Stack View */}
               <div className="md:hidden space-y-3">
                 {requests.map((request) => {
                   const isDraft = request.status === 'draft';
                   return (
-                    <div
+                    <Card
                       key={request.id}
                       onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
-                      className={`bg-white rounded-lg border shadow-sm p-4 ${
-                        !isDraft ? 'cursor-pointer active:bg-gray-50' : ''
+                      className={`border-0 shadow-md bg-white/80 backdrop-blur-sm overflow-hidden ${
+                        !isDraft ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''
                       }`}
                     >
-                      {/* Header Row */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <code className="text-sm font-mono font-semibold text-gray-900 block">
-                            {request.request_number}
-                          </code>
-                          <p className="text-sm font-medium text-gray-700 mt-1 truncate">
-                            {request.client_project_name}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">{request.company_firm_name}</p>
-                        </div>
-                        <div className="flex gap-2 ml-2 flex-shrink-0">
-                          <TrackingDialog
-                            request={request}
-                            trigger={
-                              <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
-                                <MapPin className="h-4 w-4" />
-                              </Button>
-                            }
-                          />
-                          {isRequesterUser && isDraft && (
-                            <>
+                      {/* Status gradient bar */}
+                      <div className={`h-1.5 ${getStatusBarColor(request.status)}`} />
+
+                      <CardContent className="p-4">
+                        {/* Header Row */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <code className="text-sm font-mono font-bold text-indigo-600 block">
+                              {request.request_number}
+                            </code>
+                            <p className="text-sm font-semibold text-slate-800 mt-1 truncate">
+                              {request.client_project_name}
+                            </p>
+                            <p className="text-xs text-slate-500 truncate">{request.company_firm_name}</p>
+                          </div>
+                          <div className="flex gap-1 ml-2 flex-shrink-0">
+                            <TrackingDialog
+                              request={request}
+                              trigger={
+                                <Button variant="ghost" size="sm" className="h-10 w-10 p-0 hover:bg-indigo-50">
+                                  <MapPin className="h-4 w-4 text-indigo-500" />
+                                </Button>
+                              }
+                            />
+                            {!isDraft && (
                               <Button
-                                size="sm"
                                 variant="ghost"
+                                size="sm"
+                                className="h-10 w-10 p-0 hover:bg-indigo-50"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  navigate(`/requests/edit/${request.id}`);
+                                  navigate(`/requests/${request.id}`);
                                 }}
-                                className="h-9 w-9 p-0"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Eye className="h-4 w-4 text-indigo-500" />
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDraftToDelete({ id: request.id, number: request.request_number });
-                                }}
-                                className="h-9 w-9 p-0"
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </>
-                          )}
+                            )}
+                            {isRequesterUser && isDraft && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/requests/edit/${request.id}`);
+                                  }}
+                                  className="h-10 w-10 p-0"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDraftToDelete({ id: request.id, number: request.request_number });
+                                  }}
+                                  className="h-10 w-10 p-0"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Status and Priority Badges */}
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {getStatusBadge(request.status)}
-                        {getPriorityBadge(request.priority)}
-                      </div>
-
-                      {/* Details Grid */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="col-span-2">
-                          <span className="text-gray-500">Items:</span>
-                          {(() => {
-                            const summary = getItemSummary(request);
-                            return (
-                              <span
-                                className={`ml-1 font-medium ${summary.isMulti ? 'text-primary' : ''}`}
-                                title={summary.tooltip}
-                              >
-                                {summary.isMulti && <Package className="inline h-3 w-3 mr-1" />}
-                                {summary.text}
-                              </span>
-                            );
-                          })()}
+                        {/* Status and Priority Badges */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {getStatusBadge(request.status)}
+                          {getPriorityBadge(request.priority)}
                         </div>
-                        <div>
-                          <span className="text-gray-500">Created:</span>
-                          <span className="ml-1 font-medium">{formatDate(request.created_at)}</span>
-                        </div>
-                      </div>
 
-                      {/* Creator Info - Highlighted for Staff */}
-                      {request.creator && (
-                        <div className="mt-2 pt-2 border-t">
-                          <span className="text-xs text-gray-500">Requester: </span>
-                          <span className="text-xs font-semibold text-blue-600">
-                            {request.creator.full_name}
-                          </span>
-                          {request.creator.department && (
-                            <span className="text-xs text-gray-400 ml-1 capitalize">
-                              ({request.creator.department})
+                        {/* Details */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="col-span-2 bg-slate-50 rounded-lg p-2">
+                            <span className="text-slate-500">Items:</span>
+                            {(() => {
+                              const summary = getItemSummary(request);
+                              return (
+                                <span
+                                  className={`ml-1 font-semibold ${summary.isMulti ? 'text-indigo-600' : 'text-slate-700'}`}
+                                  title={summary.tooltip}
+                                >
+                                  {summary.isMulti && <Package className="inline h-3 w-3 mr-1" />}
+                                  {summary.text}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Created:</span>
+                            <span className="ml-1 font-semibold text-slate-700">{formatDate(request.created_at)}</span>
+                          </div>
+                        </div>
+
+                        {/* Creator Info */}
+                        {request.creator && (
+                          <div className="mt-3 pt-3 border-t border-slate-100">
+                            <span className="text-xs text-slate-500">Requester: </span>
+                            <span className="text-xs font-bold text-indigo-600">
+                              {request.creator.full_name}
                             </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                            {request.creator.department && (
+                              <span className="text-xs text-slate-400 ml-1 capitalize">
+                                ({request.creator.department})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
 
               {/* Desktop Table View */}
-              <div className="hidden md:block bg-white rounded-lg border shadow-sm overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Request #</TableHead>
-                      {isStaffUser && <TableHead>Requester</TableHead>}
-                      <TableHead>Client / Project</TableHead>
-                      <TableHead>Items</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead className="text-center">Track</TableHead>
-                      {isRequesterUser && <TableHead className="text-right">Actions</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {requests.map((request) => {
-                      const isDraft = request.status === 'draft';
-                      return (
-                        <TableRow
-                          key={request.id}
-                          className={!isDraft ? 'cursor-pointer hover:bg-gray-50' : ''}
-                          onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
-                        >
-                          <TableCell className="font-medium font-mono text-sm">{request.request_number}</TableCell>
-                          {isStaffUser && (
+              <div className="hidden md:block">
+                <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-slate-50 to-indigo-50/30 hover:bg-slate-50">
+                        <TableHead className="font-bold text-slate-700">Request #</TableHead>
+                        {isStaffUser && <TableHead className="font-bold text-slate-700">Requester</TableHead>}
+                        <TableHead className="font-bold text-slate-700">Client / Project</TableHead>
+                        <TableHead className="font-bold text-slate-700">Items</TableHead>
+                        <TableHead className="font-bold text-slate-700">Priority</TableHead>
+                        <TableHead className="font-bold text-slate-700">Status</TableHead>
+                        <TableHead className="font-bold text-slate-700">Created</TableHead>
+                        <TableHead className="font-bold text-slate-700 text-center">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {requests.map((request, index) => {
+                        const isDraft = request.status === 'draft';
+                        return (
+                          <TableRow
+                            key={request.id}
+                            className={`${!isDraft ? 'cursor-pointer' : ''} ${
+                              index % 2 === 0 ? 'bg-white/50' : 'bg-slate-50/50'
+                            } hover:bg-indigo-50/50 transition-colors`}
+                            onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
+                          >
+                            <TableCell className="font-mono font-bold text-indigo-600">
+                              {request.request_number}
+                            </TableCell>
+                            {isStaffUser && (
+                              <TableCell>
+                                <p className="font-semibold text-sm text-slate-800">
+                                  {request.creator?.full_name || 'Unknown'}
+                                </p>
+                                {request.creator?.department && (
+                                  <p className="text-xs text-slate-500 capitalize">
+                                    {request.creator.department}
+                                  </p>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell>
-                              <p className="font-medium text-sm">
-                                {request.creator?.full_name || 'Unknown'}
-                              </p>
-                              {request.creator?.department && (
-                                <p className="text-xs text-gray-500 capitalize">
-                                  {request.creator.department}
-                                </p>
-                              )}
+                              <div>
+                                <p className="font-semibold text-sm text-slate-800">{request.client_project_name}</p>
+                                <p className="text-xs text-slate-500">{request.company_firm_name}</p>
+                              </div>
                             </TableCell>
-                          )}
-                          <TableCell>
-                            <div>
-                              <p className="font-medium text-sm">{request.client_project_name}</p>
-                              <p className="text-xs text-gray-500">{request.company_firm_name}</p>
-                              {!isStaffUser && request.creator && (
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                  by {request.creator.full_name}
-                                </p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {(() => {
-                              const summary = getItemSummary(request);
-                              return (
-                                <div
-                                  className={`flex items-center gap-1.5 ${summary.isMulti ? 'text-primary font-medium' : ''}`}
-                                  title={summary.tooltip}
-                                >
-                                  {summary.isMulti && <Package className="h-4 w-4" />}
-                                  <span>{summary.text}</span>
-                                </div>
-                              );
-                            })()}
-                          </TableCell>
-                          <TableCell>{getPriorityBadge(request.priority)}</TableCell>
-                          <TableCell>{getStatusBadge(request.status)}</TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {formatDate(request.created_at)}
-                          </TableCell>
-                          <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                            <TrackingDialog
-                              request={request}
-                              trigger={
-                                <Button variant="ghost" size="sm">
-                                  <MapPin className="h-4 w-4" />
-                                </Button>
-                              }
-                            />
-                          </TableCell>
-                          {isRequesterUser && (
-                            <TableCell className="text-right">
-                              {isDraft && (
-                                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(`/requests/edit/${request.id}`);
-                                    }}
+                            <TableCell>
+                              {(() => {
+                                const summary = getItemSummary(request);
+                                return (
+                                  <div
+                                    className={`flex items-center gap-1.5 ${summary.isMulti ? 'text-indigo-600 font-semibold' : 'text-slate-700'}`}
+                                    title={summary.tooltip}
                                   >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setDraftToDelete({ id: request.id, number: request.request_number });
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-600" />
-                                  </Button>
-                                </div>
-                              )}
+                                    {summary.isMulti && <Package className="h-4 w-4" />}
+                                    <span className="text-sm">{summary.text}</span>
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
-                          )}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            <TableCell>{getPriorityBadge(request.priority)}</TableCell>
+                            <TableCell>{getStatusBadge(request.status)}</TableCell>
+                            <TableCell className="text-sm text-slate-600">
+                              {formatDate(request.created_at)}
+                            </TableCell>
+                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-center gap-1">
+                                <TrackingDialog
+                                  request={request}
+                                  trigger={
+                                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-indigo-50">
+                                      <MapPin className="h-4 w-4 text-indigo-500" />
+                                    </Button>
+                                  }
+                                />
+                                {!isDraft && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 w-9 p-0 hover:bg-indigo-50"
+                                    onClick={() => navigate(`/requests/${request.id}`)}
+                                  >
+                                    <Eye className="h-4 w-4 text-indigo-500" />
+                                  </Button>
+                                )}
+                                {isRequesterUser && isDraft && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => navigate(`/requests/edit/${request.id}`)}
+                                      className="h-9 w-9 p-0"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDraftToDelete({ id: request.id, number: request.request_number })}
+                                      className="h-9 w-9 p-0"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-600" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Card>
               </div>
             </>
           )}
 
           {/* Pagination Controls */}
           {!requestsLoading && totalPages > 1 && (
-            <div className="bg-white px-3 sm:px-4 py-3 rounded-lg border">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
-                  <span className="hidden sm:inline">
-                    Showing <span className="font-medium">{(page - 1) * 15 + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(page * 15, totalCount)}</span> of{' '}
-                    <span className="font-medium">{totalCount}</span> results
-                  </span>
-                  <span className="sm:hidden">
-                    Page <span className="font-medium">{page}</span> of <span className="font-medium">{totalPages}</span>
-                  </span>
+            <Card className="border-0 shadow-md bg-white/80 backdrop-blur-sm">
+              <CardContent className="px-4 py-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-sm text-slate-600 text-center sm:text-left">
+                    <span className="hidden sm:inline">
+                      Showing <span className="font-bold text-slate-800">{(page - 1) * 15 + 1}</span> to{' '}
+                      <span className="font-bold text-slate-800">{Math.min(page * 15, totalCount)}</span> of{' '}
+                      <span className="font-bold text-slate-800">{totalCount}</span> results
+                    </span>
+                    <span className="sm:hidden">
+                      Page <span className="font-bold">{page}</span> of <span className="font-bold">{totalPages}</span>
+                    </span>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage(page - 1)}
+                      disabled={page === 1}
+                      className="flex-1 sm:flex-none min-h-[48px] gap-2 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Previous</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage(page + 1)}
+                      disabled={page === totalPages}
+                      className="flex-1 sm:flex-none min-h-[48px] gap-2 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200"
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(page - 1)}
-                    disabled={page === 1}
-                    className="flex-1 sm:flex-none h-10 sm:h-9"
-                  >
-                    <ChevronLeft className="h-4 w-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Previous</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(page + 1)}
-                    disabled={page === totalPages}
-                    className="flex-1 sm:flex-none h-10 sm:h-9"
-                  >
-                    <span className="hidden sm:inline">Next</span>
-                    <ChevronRight className="h-4 w-4 sm:ml-1" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Delete Confirmation Dialog */}
           <AlertDialog open={!!draftToDelete} onOpenChange={() => setDraftToDelete(null)}>
-            <AlertDialogContent>
+            <AlertDialogContent className="bg-white/95 backdrop-blur-sm">
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Draft?</AlertDialogTitle>
+                <AlertDialogTitle className="text-red-600">Delete Draft?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Are you sure you want to delete draft <strong>{draftToDelete?.number}</strong>?
                   This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel className="min-h-[48px]">Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDeleteDraft}
-                  className="bg-red-600 hover:bg-red-700"
+                  className="min-h-[48px] bg-red-600 hover:bg-red-700"
                 >
                   Delete Draft
                 </AlertDialogAction>
@@ -578,20 +636,20 @@ export default function CoordinatorDashboard() {
       );
     }
 
-    // Reports & Analytics Tab
     if (activeTab === 'reports') {
       return <ReportsView />;
     }
 
-    // Placeholder for other tabs
     return (
       <div className="p-6">
-        <div className="bg-white rounded-lg border p-12 text-center">
-          <h2 className="text-2xl font-semibold text-gray-700 mb-2">Coming Soon</h2>
-          <p className="text-gray-500">
-            This feature is under development and will be available soon.
-          </p>
-        </div>
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardContent className="p-12 text-center">
+            <h2 className="text-2xl font-bold text-slate-700 mb-2">Coming Soon</h2>
+            <p className="text-slate-500">
+              This feature is under development and will be available soon.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   };
