@@ -108,27 +108,27 @@ export default function RequestList() {
     return 'All Requests';
   };
 
-  // Premium status badge styling
+  // Clean status badge styling (matching dashboard)
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; bg: string; text: string }> = {
-      draft: { label: 'Draft', bg: 'bg-slate-100', text: 'text-slate-700' },
-      pending_approval: { label: 'Pending', bg: 'bg-amber-100', text: 'text-amber-700' },
-      approved: { label: 'Approved', bg: 'bg-sky-100', text: 'text-sky-700' },
-      assigned: { label: 'Assigned', bg: 'bg-indigo-100', text: 'text-indigo-700' },
-      in_production: { label: 'In Production', bg: 'bg-violet-100', text: 'text-violet-700' },
-      ready: { label: 'Ready', bg: 'bg-teal-100', text: 'text-teal-700' },
-      dispatched: { label: 'Dispatched', bg: 'bg-emerald-100', text: 'text-emerald-700' },
-      received: { label: 'Received', bg: 'bg-green-100', text: 'text-green-700' },
-      rejected: { label: 'Rejected', bg: 'bg-red-100', text: 'text-red-700' },
+    const statusMap: Record<string, { label: string; className: string }> = {
+      draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700' },
+      pending_approval: { label: 'Pending', className: 'bg-amber-50 text-amber-700' },
+      approved: { label: 'Approved', className: 'bg-sky-50 text-sky-700' },
+      assigned: { label: 'Assigned', className: 'bg-indigo-50 text-indigo-700' },
+      in_production: { label: 'In Production', className: 'bg-violet-50 text-violet-700' },
+      ready: { label: 'Ready', className: 'bg-teal-50 text-teal-700' },
+      dispatched: { label: 'Dispatched', className: 'bg-emerald-50 text-emerald-700' },
+      received: { label: 'Received', className: 'bg-green-50 text-green-700' },
+      rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700' },
     };
 
-    const { label, bg, text } = statusMap[status] || { label: status, bg: 'bg-slate-100', text: 'text-slate-700' };
-    return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${bg} ${text}`}>{label}</span>;
+    const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-700' };
+    return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${className}`}>{label}</span>;
   };
 
   const getPriorityBadge = (priority: string) => {
     if (priority === 'urgent') {
-      return <span className="px-2 py-0.5 bg-gradient-to-r from-red-500 to-rose-500 text-white text-xs font-bold rounded uppercase">Urgent</span>;
+      return <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded uppercase">Urgent</span>;
     }
     return <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-medium rounded uppercase">Normal</span>;
   };
@@ -169,20 +169,23 @@ export default function RequestList() {
   // Get status bar color for mobile cards
   const getStatusBarColor = (status: string) => {
     const colors: Record<string, string> = {
-      draft: 'bg-slate-300',
-      pending_approval: 'bg-gradient-to-r from-amber-400 to-orange-400',
-      approved: 'bg-gradient-to-r from-sky-400 to-blue-400',
-      in_production: 'bg-gradient-to-r from-violet-400 to-purple-400',
-      dispatched: 'bg-gradient-to-r from-emerald-400 to-green-400',
-      rejected: 'bg-gradient-to-r from-red-400 to-rose-400',
+      draft: 'bg-slate-400',
+      pending_approval: 'bg-amber-500',
+      approved: 'bg-sky-500',
+      assigned: 'bg-indigo-500',
+      in_production: 'bg-violet-500',
+      ready: 'bg-teal-500',
+      dispatched: 'bg-emerald-500',
+      received: 'bg-green-500',
+      rejected: 'bg-red-500',
     };
-    return colors[status] || 'bg-slate-300';
+    return colors[status] || 'bg-slate-400';
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
-      {/* Premium Gradient Header */}
-      <header className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white shadow-lg sticky top-0 z-40">
+    <div className="min-h-screen bg-slate-50">
+      {/* Clean White Header */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -190,28 +193,28 @@ export default function RequestList() {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate('/')}
-                className="md:hidden h-11 px-2 gap-1 min-w-[70px] text-white/90 hover:text-white hover:bg-white/10"
+                className="md:hidden h-11 px-2 gap-1 min-w-[70px] text-slate-600 hover:bg-slate-100"
               >
                 <ChevronLeft className="h-5 w-5" />
                 <span className="text-sm font-medium">Back</span>
               </Button>
+              <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center">
+                <List className="h-5 w-5 text-white" />
+              </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <List className="h-5 w-5 text-indigo-200" />
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight">{getPageTitle()}</h1>
-                </div>
-                <p className="text-xs text-indigo-200 sm:hidden">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900">{getPageTitle()}</h1>
+                <p className="text-xs text-slate-500 sm:hidden">
                   {isLoading ? 'Loading...' : `${totalCount} request${totalCount !== 1 ? 's' : ''}`}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
-              <span className="text-sm text-indigo-100 hidden sm:block">{profile?.full_name}</span>
+              <span className="text-sm text-slate-600 hidden sm:block">{profile?.full_name}</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={signOut}
-                className="hidden sm:flex text-white/90 hover:text-white hover:bg-white/10 gap-2"
+                className="hidden sm:flex text-slate-600 hover:bg-slate-100 gap-2"
               >
                 <LogOut className="h-4 w-4" />
                 Sign Out
@@ -227,7 +230,7 @@ export default function RequestList() {
           <div className="md:hidden">
             <Button
               onClick={() => navigate('/requests/new')}
-              className="w-full min-h-[60px] py-5 gap-3 font-bold text-base bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25"
+              className="w-full min-h-[52px] gap-3 font-semibold text-base bg-indigo-600 hover:bg-indigo-700"
             >
               <Plus className="h-5 w-5" />
               New Request
@@ -236,7 +239,7 @@ export default function RequestList() {
         )}
 
         {/* Toolbar with Search and Filters */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md border-0 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <RequestToolbar
             search={search}
             status={Array.isArray(status) ? null : status}
@@ -270,7 +273,7 @@ export default function RequestList() {
             <Button
               onClick={() => navigate('/')}
               variant="outline"
-              className="h-11 gap-2 font-medium border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300"
+              className="h-11 gap-2 font-medium border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               <ChevronLeft className="h-4 w-4" />
               Dashboard
@@ -278,7 +281,7 @@ export default function RequestList() {
             {isRequesterUser && (
               <Button
                 onClick={() => navigate('/requests/new')}
-                className="h-11 gap-2 font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-md"
+                className="h-11 gap-2 font-semibold bg-indigo-600 hover:bg-indigo-700"
               >
                 <Plus className="h-4 w-4" />
                 New Request
@@ -289,18 +292,18 @@ export default function RequestList() {
 
         {/* Data Display */}
         {isLoading ? (
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-12 text-center">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
             <div className="animate-pulse space-y-4">
-              <div className="h-4 bg-indigo-100 rounded w-3/4 mx-auto"></div>
-              <div className="h-4 bg-indigo-100 rounded w-1/2 mx-auto"></div>
-              <div className="h-4 bg-indigo-100 rounded w-2/3 mx-auto"></div>
+              <div className="h-4 bg-slate-100 rounded w-3/4 mx-auto"></div>
+              <div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div>
+              <div className="h-4 bg-slate-100 rounded w-2/3 mx-auto"></div>
             </div>
             <p className="text-slate-500 mt-4 font-medium">Loading requests...</p>
           </div>
         ) : requests.length === 0 ? (
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-md p-12 text-center">
-            <div className="rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-100 p-5 w-fit mx-auto mb-4">
-              <Package className="h-10 w-10 text-indigo-600" />
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+            <div className="rounded-xl bg-slate-100 p-5 w-fit mx-auto mb-4">
+              <Package className="h-10 w-10 text-slate-400" />
             </div>
             <p className="text-slate-600 text-lg font-medium">
               {search || status || priority
@@ -315,7 +318,7 @@ export default function RequestList() {
               <Button
                 variant="outline"
                 onClick={handleReset}
-                className="mt-4 border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                className="mt-4 border-slate-200 text-slate-600 hover:bg-slate-50"
               >
                 Clear Filters
               </Button>
@@ -323,7 +326,7 @@ export default function RequestList() {
           </div>
         ) : (
           <>
-            {/* Mobile Card View - Premium */}
+            {/* Mobile Card View */}
             <div className="md:hidden space-y-3">
               {requests.map((request) => {
                 const isDraft = request.status === 'draft';
@@ -332,11 +335,11 @@ export default function RequestList() {
                   <div
                     key={request.id}
                     onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
-                    className={`bg-white/90 backdrop-blur-sm rounded-xl shadow-md overflow-hidden transition-all duration-200 ${
-                      !isDraft ? 'cursor-pointer hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99]' : ''
+                    className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-200 ${
+                      !isDraft ? 'cursor-pointer hover:shadow-md active:scale-[0.99]' : ''
                     }`}
                   >
-                    {/* Status Bar - Gradient */}
+                    {/* Status Bar */}
                     <div className={`h-1.5 ${getStatusBarColor(request.status)}`} />
 
                     <div className="p-4">
@@ -406,9 +409,9 @@ export default function RequestList() {
                       </div>
 
                       {/* Details Row */}
-                      <div className="flex items-center justify-between text-xs bg-gradient-to-r from-slate-50 to-indigo-50/50 -mx-4 px-4 py-2.5 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs bg-slate-50 -mx-4 px-4 py-2.5 border-t border-slate-100">
                         <div className="flex items-center gap-1.5 text-slate-600">
-                          <Package className="h-3.5 w-3.5 text-indigo-500" />
+                          <Package className="h-3.5 w-3.5 text-slate-400" />
                           <span className={summary.isMulti ? 'font-semibold text-indigo-600' : ''}>
                             {summary.text}
                           </span>
@@ -428,11 +431,11 @@ export default function RequestList() {
               })}
             </div>
 
-            {/* Desktop Table View - Premium */}
-            <div className="hidden md:block bg-white/90 backdrop-blur-sm rounded-xl shadow-md overflow-hidden">
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200">
+                  <TableRow className="bg-slate-50 border-b border-slate-200">
                     <TableHead className="font-bold text-slate-700">Request #</TableHead>
                     {isStaffUser && <TableHead className="font-bold text-slate-700">Requester</TableHead>}
                     <TableHead className="font-bold text-slate-700">Client / Project</TableHead>
@@ -450,7 +453,7 @@ export default function RequestList() {
                     return (
                       <TableRow
                         key={request.id}
-                        className={`${!isDraft ? 'cursor-pointer hover:bg-indigo-50/50' : ''} border-b border-slate-100 transition-colors`}
+                        className={`${!isDraft ? 'cursor-pointer hover:bg-slate-50' : ''} border-b border-slate-100 transition-colors`}
                         onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
                       >
                         <TableCell className="font-bold font-mono text-sm text-slate-800">{request.request_number}</TableCell>
@@ -528,9 +531,9 @@ export default function RequestList() {
           </>
         )}
 
-        {/* Pagination Controls - Premium */}
+        {/* Pagination Controls */}
         {!isLoading && totalPages > 1 && (
-          <div className="bg-white/80 backdrop-blur-sm px-4 py-3 rounded-xl shadow-md">
+          <div className="bg-white px-4 py-3 rounded-xl shadow-sm border border-slate-200">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="text-sm text-slate-600 text-center sm:text-left">
                 <span className="hidden sm:inline">
@@ -547,7 +550,7 @@ export default function RequestList() {
                   variant="outline"
                   onClick={() => setPage(page - 1)}
                   disabled={page === 1}
-                  className="flex-1 sm:flex-none h-11 border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                  className="flex-1 sm:flex-none h-11 border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <ChevronLeft className="h-4 w-4 sm:mr-1" />
                   <span className="hidden sm:inline">Previous</span>
@@ -556,7 +559,7 @@ export default function RequestList() {
                   variant="outline"
                   onClick={() => setPage(page + 1)}
                   disabled={page === totalPages}
-                  className="flex-1 sm:flex-none h-11 border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+                  className="flex-1 sm:flex-none h-11 border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <span className="hidden sm:inline">Next</span>
                   <ChevronRight className="h-4 w-4 sm:ml-1" />
@@ -568,19 +571,19 @@ export default function RequestList() {
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!draftToDelete} onOpenChange={() => setDraftToDelete(null)}>
-          <AlertDialogContent className="border-0 shadow-2xl">
+          <AlertDialogContent className="border border-slate-200 shadow-lg">
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-slate-800">Delete Draft?</AlertDialogTitle>
-              <AlertDialogDescription className="text-slate-600">
-                Are you sure you want to delete draft <strong className="text-slate-800">{draftToDelete?.number}</strong>?
+              <AlertDialogTitle className="text-slate-900">Delete Draft?</AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-500">
+                Are you sure you want to delete draft <strong className="text-slate-700">{draftToDelete?.number}</strong>?
                 This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-2">Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="border-slate-200">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDeleteDraft}
-                className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600"
+                className="bg-red-600 hover:bg-red-700"
               >
                 Delete Draft
               </AlertDialogAction>

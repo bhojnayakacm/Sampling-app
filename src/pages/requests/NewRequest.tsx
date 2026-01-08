@@ -724,7 +724,7 @@ export default function NewRequest() {
 
   if (!profile || (draftId && isDraftLoading)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
           <p className="text-slate-600 font-medium">Loading...</p>
@@ -735,14 +735,14 @@ export default function NewRequest() {
 
   if (draftId && existingDraft && existingDraft.status !== 'draft') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
+      <div className="min-h-screen bg-slate-50">
         <div className="container mx-auto p-6 max-w-4xl">
-          <div className="text-center py-12 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50">
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Cannot Edit Submitted Request</h2>
             <p className="text-slate-600 mb-6">This request has already been submitted and cannot be edited.</p>
             <Button
               onClick={() => navigate('/requests')}
-              className="min-h-[60px] py-5 px-8 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25"
+              className="min-h-[48px] px-6 text-base font-semibold bg-indigo-600 hover:bg-indigo-700"
             >
               Back to Requests
             </Button>
@@ -757,34 +757,34 @@ export default function NewRequest() {
   // ============================================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
-      {/* Premium Gradient Header */}
-      <header className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white shadow-lg">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+    <div className="min-h-screen bg-slate-50">
+      {/* Clean White Header */}
+      <header className="bg-white border-b border-slate-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-3 sm:gap-4">
             <Button
               variant="ghost"
               onClick={() => navigate('/requests')}
-              className="md:hidden min-h-[56px] py-4 px-3 gap-2 text-white hover:bg-white/20 hover:text-white"
+              className="md:hidden min-h-[44px] px-3 gap-2 text-slate-600 hover:bg-slate-100"
             >
               <ChevronLeft className="h-5 w-5" />
-              <span className="text-sm font-semibold">Back</span>
+              <span className="text-sm font-medium">Back</span>
             </Button>
+            <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-amber-300" />
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">
-                  {isEditMode ? 'Edit Draft' : 'New Request'}
-                </h1>
-              </div>
-              <p className="text-sm text-white/80 hidden sm:block mt-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
+                {isEditMode ? 'Edit Draft' : 'New Request'}
+              </h1>
+              <p className="text-sm text-slate-500 hidden sm:block">
                 {profile.full_name} | {profile.department}
               </p>
             </div>
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={() => navigate('/requests')}
-              className="hidden md:flex min-h-[56px] py-4 px-4 gap-2 text-white hover:bg-white/20 hover:text-white font-semibold"
+              className="hidden md:flex min-h-[44px] px-4 gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               <ChevronLeft className="h-4 w-4" />
               Cancel
@@ -798,13 +798,13 @@ export default function NewRequest() {
           {/* ============================================================ */}
           {/* SECTION 1: REQUESTER DETAILS */}
           {/* ============================================================ */}
-          <AccordionItem value="section-1" className="border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-md overflow-hidden">
-            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
+          <AccordionItem value="section-1" className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-3 text-left">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm flex-shrink-0 transition-all duration-300 ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg font-bold text-sm flex-shrink-0 transition-all duration-300 ${
                   isSection1Complete
-                    ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-lg shadow-emerald-500/30'
-                    : 'bg-gradient-to-br from-indigo-400 to-violet-500 text-white shadow-lg shadow-indigo-500/30'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-indigo-600 text-white'
                 }`}>
                   {isSection1Complete ? <Check className="h-5 w-5" /> : '1'}
                 </div>
@@ -813,22 +813,22 @@ export default function NewRequest() {
             </AccordionTrigger>
             <AccordionContent className="px-4 sm:px-6 pb-5">
               {/* Read-only profile info */}
-              <div className="bg-gradient-to-br from-indigo-50 to-violet-50 border border-indigo-200/50 rounded-xl p-4 mb-5">
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 mb-5">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <Label className="text-indigo-700 font-medium text-xs uppercase tracking-wide">Name</Label>
+                    <Label className="text-indigo-600 font-medium text-xs uppercase tracking-wide">Name</Label>
                     <p className="text-base font-semibold mt-1 text-slate-800">{profile.full_name}</p>
                   </div>
                   <div>
-                    <Label className="text-indigo-700 font-medium text-xs uppercase tracking-wide">Department</Label>
+                    <Label className="text-indigo-600 font-medium text-xs uppercase tracking-wide">Department</Label>
                     <p className="text-base font-semibold mt-1 capitalize text-slate-800">{profile.department || 'Not Set'}</p>
                   </div>
                   <div>
-                    <Label className="text-indigo-700 font-medium text-xs uppercase tracking-wide">Mobile No</Label>
+                    <Label className="text-indigo-600 font-medium text-xs uppercase tracking-wide">Mobile No</Label>
                     <p className="text-base font-semibold mt-1 text-slate-800">{profile.phone || 'Not Set'}</p>
                   </div>
                 </div>
-                <p className="text-xs text-indigo-600/70 mt-3">
+                <p className="text-xs text-indigo-600 mt-3">
                   These details were captured during signup and cannot be changed here.
                 </p>
               </div>
@@ -913,13 +913,13 @@ export default function NewRequest() {
           {/* ============================================================ */}
           {/* SECTION 2: CLIENT PROJECT DETAILS */}
           {/* ============================================================ */}
-          <AccordionItem value="section-2" className="border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-md overflow-hidden">
-            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
+          <AccordionItem value="section-2" className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-3 text-left">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm flex-shrink-0 transition-all duration-300 ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg font-bold text-sm flex-shrink-0 transition-all duration-300 ${
                   isSection2Complete
-                    ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-lg shadow-emerald-500/30'
-                    : 'bg-gradient-to-br from-violet-400 to-purple-500 text-white shadow-lg shadow-violet-500/30'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-violet-600 text-white'
                 }`}>
                   {isSection2Complete ? <Check className="h-5 w-5" /> : '2'}
                 </div>
@@ -1031,22 +1031,22 @@ export default function NewRequest() {
           {/* ============================================================ */}
           {/* SECTION 3: PRODUCT ITEMS (MULTI-PRODUCT) */}
           {/* ============================================================ */}
-          <AccordionItem value="section-3" className="border-0 rounded-xl bg-white/80 backdrop-blur-sm shadow-md overflow-hidden">
-            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors">
+          <AccordionItem value="section-3" className="border border-slate-200 rounded-xl bg-white shadow-sm overflow-hidden">
+            <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50 transition-colors">
               <div className="flex items-center gap-3 text-left">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm flex-shrink-0 transition-all duration-300 ${
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg font-bold text-sm flex-shrink-0 transition-all duration-300 ${
                   isSection3Complete
-                    ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white shadow-lg shadow-emerald-500/30'
-                    : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-amber-600 text-white'
                 }`}>
                   {isSection3Complete ? <Check className="h-5 w-5" /> : '3'}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-base sm:text-lg text-slate-800">Products</span>
-                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${
+                  <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
                     isSection3Complete
-                      ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700'
-                      : 'bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-amber-50 text-amber-700'
                   }`}>
                     {products.length} {products.length === 1 ? 'item' : 'items'}
                   </span>
@@ -1139,8 +1139,8 @@ export default function NewRequest() {
           </AccordionItem>
         </Accordion>
 
-        {/* Form Actions - Premium Card at bottom */}
-        <div className="mt-8 bg-white/80 backdrop-blur-sm border border-white/50 rounded-xl shadow-lg p-5">
+        {/* Form Actions - Clean Card at bottom */}
+        <div className="mt-8 bg-white border border-slate-200 rounded-xl shadow-sm p-5">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end">
             {/* Cancel Button */}
             <Button
@@ -1148,7 +1148,7 @@ export default function NewRequest() {
               variant="outline"
               onClick={() => navigate('/requests')}
               disabled={isSubmitting}
-              className="w-full sm:w-auto min-h-[60px] py-5 px-6 text-base font-semibold border-slate-300 hover:bg-slate-50 transition-all"
+              className="w-full sm:w-auto min-h-[48px] px-6 text-base font-medium border-slate-200 hover:bg-slate-50 transition-all"
             >
               Cancel
             </Button>
@@ -1159,7 +1159,7 @@ export default function NewRequest() {
               variant="outline"
               onClick={handleSaveDraft}
               disabled={isSubmitting}
-              className="w-full sm:w-auto min-h-[60px] py-5 px-6 gap-2 text-base font-semibold border-indigo-300 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-400 transition-all"
+              className="w-full sm:w-auto min-h-[48px] px-6 gap-2 text-base font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-all"
             >
               {isSubmitting ? (
                 <>
@@ -1174,12 +1174,12 @@ export default function NewRequest() {
               )}
             </Button>
 
-            {/* Submit Button - Primary Gradient */}
+            {/* Submit Button - Primary */}
             <Button
               type="button"
               onClick={handleSubmit(handleSubmitRequest)}
               disabled={isSubmitting}
-              className="w-full sm:w-auto min-h-[60px] py-5 px-8 gap-2 text-base font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5"
+              className="w-full sm:w-auto min-h-[48px] px-8 gap-2 text-base font-semibold bg-indigo-600 hover:bg-indigo-700 transition-all"
             >
               {isSubmitting ? (
                 <>

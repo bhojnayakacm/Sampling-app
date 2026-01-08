@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, ShieldCheck, Loader2 } from 'lucide-react';
 
 export default function UpdatePassword() {
   const navigate = useNavigate();
@@ -70,33 +70,33 @@ export default function UpdatePassword() {
   // Show loading while validating session
   if (validatingSession) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Validating reset link...</p>
+          <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto" />
+          <p className="mt-4 text-slate-600 font-medium">Validating reset link...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-center mb-2">
-            <div className="rounded-full bg-blue-100 p-3">
-              <ShieldCheck className="h-6 w-6 text-blue-600" />
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 px-4">
+      <Card className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl">
+        <CardHeader className="space-y-1 text-center pb-2">
+          <div className="flex justify-center mb-4">
+            <div className="h-14 w-14 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <ShieldCheck className="h-7 w-7 text-indigo-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center">Set New Password</CardTitle>
-          <CardDescription className="text-center">
+          <CardTitle className="text-2xl font-bold text-slate-900">Set New Password</CardTitle>
+          <CardDescription className="text-slate-500">
             Enter your new password below. Make sure it's at least 6 characters.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form onSubmit={handleUpdatePassword} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password">New Password</Label>
+              <Label htmlFor="password" className="text-slate-700 font-medium">New Password</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -106,13 +106,13 @@ export default function UpdatePassword() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  className="pl-10 pr-10"
+                  className="pl-10 pr-10 h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
                 />
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -121,7 +121,7 @@ export default function UpdatePassword() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Label htmlFor="confirmPassword" className="text-slate-700 font-medium">Confirm New Password</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -131,13 +131,13 @@ export default function UpdatePassword() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  className="pl-10 pr-10"
+                  className="pl-10 pr-10 h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
                 />
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -146,15 +146,19 @@ export default function UpdatePassword() {
             </div>
 
             {/* Password requirements hint */}
-            <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-3">
-              <p className="font-medium mb-1">Password requirements:</p>
-              <ul className="list-disc list-inside space-y-0.5">
+            <div className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <p className="font-semibold mb-1">Password requirements:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-slate-500">
                 <li>At least 6 characters long</li>
                 <li>Both passwords must match</li>
               </ul>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full min-h-[48px] text-base font-semibold bg-indigo-600 hover:bg-indigo-700"
+              disabled={loading}
+            >
               {loading ? 'Updating...' : 'Update Password'}
             </Button>
           </form>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LayoutDashboard } from 'lucide-react';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -104,16 +104,22 @@ export default function Signup() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
-          <CardDescription>Enter your details to create a new account</CardDescription>
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 px-4 py-8">
+      <Card className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl">
+        <CardHeader className="space-y-1 text-center pb-2">
+          {/* Logo */}
+          <div className="flex justify-center mb-4">
+            <div className="h-14 w-14 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+              <LayoutDashboard className="h-7 w-7 text-white" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-slate-900">Create an Account</CardTitle>
+          <CardDescription className="text-slate-500">Enter your details to get started</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name *</Label>
+              <Label htmlFor="fullName" className="text-slate-700 font-medium">Full Name *</Label>
               <Input
                 id="fullName"
                 name="fullName"
@@ -123,11 +129,12 @@ export default function Signup() {
                 onChange={handleChange}
                 required
                 autoComplete="name"
+                className="h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email" className="text-slate-700 font-medium">Email *</Label>
               <Input
                 id="email"
                 name="email"
@@ -137,11 +144,12 @@ export default function Signup() {
                 onChange={handleChange}
                 required
                 autoComplete="email"
+                className="h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="role">Role *</Label>
+              <Label htmlFor="role" className="text-slate-700 font-medium">Role *</Label>
               <Select
                 value={formData.role}
                 onValueChange={(value) => {
@@ -149,7 +157,7 @@ export default function Signup() {
                   setFormData({ ...formData, role: value, department: '' });
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 border-slate-200 focus:ring-indigo-500">
                   <SelectValue placeholder="Select your role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -159,18 +167,18 @@ export default function Signup() {
                   <SelectItem value="coordinator">Coordinator</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">Admin access is granted manually by existing admins</p>
+              <p className="text-xs text-slate-500">Admin access is granted manually by existing admins</p>
             </div>
 
             {/* Department - Only visible if role is Requester */}
             {formData.role === 'requester' && (
               <div className="space-y-2">
-                <Label htmlFor="department">Department *</Label>
+                <Label htmlFor="department" className="text-slate-700 font-medium">Department *</Label>
                 <Select
                   value={formData.department}
                   onValueChange={(value) => setFormData({ ...formData, department: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 border-slate-200 focus:ring-indigo-500">
                     <SelectValue placeholder="Select your department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -184,7 +192,7 @@ export default function Signup() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number *</Label>
+              <Label htmlFor="phone" className="text-slate-700 font-medium">Phone Number *</Label>
               <Input
                 id="phone"
                 name="phone"
@@ -195,12 +203,13 @@ export default function Signup() {
                 required
                 autoComplete="tel"
                 maxLength={10}
+                className="h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
               />
-              <p className="text-xs text-gray-500">Enter 10-digit mobile number without country code</p>
+              <p className="text-xs text-slate-500">Enter 10-digit mobile number without country code</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
+              <Label htmlFor="password" className="text-slate-700 font-medium">Password *</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -211,12 +220,12 @@ export default function Signup() {
                   onChange={handleChange}
                   required
                   autoComplete="new-password"
-                  className="pr-10"
+                  className="pr-10 h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -225,7 +234,7 @@ export default function Signup() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password *</Label>
+              <Label htmlFor="confirmPassword" className="text-slate-700 font-medium">Confirm Password *</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
@@ -236,12 +245,12 @@ export default function Signup() {
                   onChange={handleChange}
                   required
                   autoComplete="new-password"
-                  className="pr-10"
+                  className="pr-10 h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -249,13 +258,17 @@ export default function Signup() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full min-h-[48px] text-base font-semibold bg-indigo-600 hover:bg-indigo-700"
+              disabled={loading}
+            >
               {loading ? 'Creating Account...' : 'Sign Up'}
             </Button>
 
-            <div className="text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-slate-500 pt-2">
               Already have an account?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+              <Link to="/login" className="text-indigo-600 hover:text-indigo-700 font-medium">
                 Sign in
               </Link>
             </div>

@@ -5,49 +5,62 @@
 @layer base {
   :root {
     /* ===================================
-       PREMIUM MARBLE SAMPLING APP THEME
-       Modern • Professional • Trustworthy
+       SAMPLEHUB UNIFIED DESIGN SYSTEM
+       "One App, One Identity"
+       Clean • Professional • Premium SaaS
        =================================== */
 
-    /* Background & Surface Colors */
-    --background: 215 25% 97%;        /* Soft slate-50 - main app background */
-    --foreground: 222 47% 11%;        /* Deep slate-900 - primary text */
+    /* ========== CORE BACKGROUNDS ========== */
+    /* App background: Soft premium grey - NEVER pure white */
+    --background: 220 14% 96%;           /* #F4F5F7 - Premium off-white */
+    --foreground: 222 47% 11%;           /* Deep slate - primary text */
 
-    /* Card & Elevated Surfaces */
-    --card: 0 0% 100%;                /* Pure white - content cards */
-    --card-foreground: 222 47% 11%;   /* Deep slate-900 */
+    /* Card surfaces: Pure white for elevation contrast */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
     /* Popover & Dropdown */
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* Primary Brand Color - Deep Indigo (Premium, Trustworthy) */
-    --primary: 239 84% 57%;           /* Indigo-600 - primary actions */
-    --primary-foreground: 0 0% 100%;  /* White text on primary */
+    /* ========== BRAND COLORS ========== */
+    /* Primary: Deep Indigo - Trust, Premium, Professional */
+    --primary: 239 84% 57%;              /* Indigo-600 */
+    --primary-foreground: 0 0% 100%;
 
-    /* Secondary - Soft Slate */
-    --secondary: 215 20% 95%;         /* Slate-100 - subtle backgrounds */
+    /* Secondary: Neutral slate for subtle backgrounds */
+    --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
 
-    /* Muted - For disabled states and subtle elements */
-    --muted: 215 20% 95%;             /* Slate-100 */
-    --muted-foreground: 215 16% 47%;  /* Slate-500 */
+    /* ========== SEMANTIC STATES ========== */
+    /* Muted: Disabled states, subtle elements */
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    /* Accent - Subtle Gold (Marble Veining Reference) */
-    --accent: 43 96% 90%;             /* Amber-100 - subtle highlights */
-    --accent-foreground: 38 92% 30%;  /* Amber-900 - for text on accent */
+    /* Accent: Subtle highlight (warm touch) */
+    --accent: 43 96% 95%;
+    --accent-foreground: 38 92% 30%;
 
-    /* Destructive - Modern Red */
+    /* Destructive: Error states */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders & Inputs */
-    --border: 215 20% 88%;            /* Slate-200 - subtle borders */
-    --input: 215 20% 88%;             /* Slate-200 */
-    --ring: 239 84% 57%;              /* Indigo-600 - focus rings */
+    /* ========== BORDERS & INPUTS ========== */
+    --border: 220 13% 91%;               /* Slate-200 */
+    --input: 220 13% 91%;
+    --ring: 239 84% 57%;                 /* Indigo focus ring */
 
-    /* Border Radius - Softer, More Modern */
-    --radius: 0.75rem;                /* 12px - more rounded */
+    /* ========== DESIGN TOKENS ========== */
+    --radius: 0.75rem;                   /* 12px - modern rounded */
+
+    /* Sidebar specific (Light mode) */
+    --sidebar-bg: 0 0% 100%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-text: 222 47% 11%;
+    --sidebar-text-muted: 215 16% 47%;
+    --sidebar-hover: 220 14% 96%;
+    --sidebar-active: 239 84% 97%;
+    --sidebar-active-text: 239 84% 47%;
   }
 }
 
@@ -68,29 +81,75 @@
     @apply font-semibold tracking-tight;
   }
 
-  /* Smooth Transitions for Interactive Elements */
+  /* Smooth Transitions */
   button, a, input, select, textarea {
     @apply transition-all duration-200 ease-in-out;
   }
 }
 
 @layer components {
-  /* Premium Shadow System */
+  /* ========== UNIFIED CARD SYSTEM ========== */
+  /* Base card with left accent border */
+  .card-accent-blue {
+    @apply border-l-4 border-l-blue-500;
+  }
+  .card-accent-amber {
+    @apply border-l-4 border-l-amber-500;
+  }
+  .card-accent-violet {
+    @apply border-l-4 border-l-violet-500;
+  }
+  .card-accent-emerald {
+    @apply border-l-4 border-l-emerald-500;
+  }
+  .card-accent-indigo {
+    @apply border-l-4 border-l-indigo-500;
+  }
+
+  /* Premium stat card base */
+  .stat-card {
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  /* ========== PREMIUM SHADOWS ========== */
   .shadow-premium-sm {
     box-shadow:
       0 1px 2px 0 rgb(0 0 0 / 0.03),
-      0 1px 3px 0 rgb(0 0 0 / 0.06);
+      0 1px 3px 0 rgb(0 0 0 / 0.05);
   }
 
   .shadow-premium {
     box-shadow:
-      0 2px 4px 0 rgb(0 0 0 / 0.04),
-      0 4px 8px 0 rgb(0 0 0 / 0.08);
+      0 1px 3px 0 rgb(0 0 0 / 0.04),
+      0 4px 6px 0 rgb(0 0 0 / 0.06);
   }
 
   .shadow-premium-lg {
     box-shadow:
-      0 4px 6px 0 rgb(0 0 0 / 0.05),
-      0 10px 15px 0 rgb(0 0 0 / 0.10);
+      0 4px 6px 0 rgb(0 0 0 / 0.03),
+      0 10px 20px 0 rgb(0 0 0 / 0.08);
+  }
+
+  /* ========== SIDEBAR STYLES (Light) ========== */
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors;
+  }
+
+  .sidebar-nav-item-active {
+    @apply bg-indigo-50 text-indigo-700 hover:bg-indigo-100;
+  }
+
+  /* ========== UNIFIED HEADER ========== */
+  .page-header {
+    @apply bg-white border-b border-slate-200 shadow-sm;
+  }
+
+  /* ========== CONSISTENT BUTTON HEIGHTS ========== */
+  .btn-touch {
+    @apply min-h-[48px];
+  }
+
+  .btn-touch-lg {
+    @apply min-h-[56px];
   }
 }

@@ -14,8 +14,8 @@ import {
   Users,
   Settings,
   BarChart3,
-  Sparkles,
-  Truck
+  Truck,
+  LayoutDashboard
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -24,143 +24,114 @@ export default function AdminDashboard() {
   const { data: stats, isLoading } = useAllRequestsStats();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
-      {/* Premium Gradient Header */}
-      <header className="bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 text-white shadow-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+    <div className="min-h-screen bg-slate-50">
+      {/* Clean White Header */}
+      <header className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Shield className="h-6 w-6 text-white" />
+              <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center">
+                <LayoutDashboard className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-black">Admin Dashboard</h1>
-                <p className="text-sm text-slate-400">{profile?.full_name} | System Administrator</p>
+                <h1 className="text-xl font-bold text-slate-900">Admin Dashboard</h1>
+                <p className="text-sm text-slate-500">{profile?.full_name}</p>
               </div>
             </div>
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={signOut}
-              className="min-h-[56px] py-4 px-4 gap-2 text-white hover:bg-white/10 hover:text-white font-semibold"
+              className="min-h-[44px] gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
             >
-              <LogOut className="h-5 w-5" />
+              <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sign Out</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* System Overview Stats */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-              <BarChart3 className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">System Overview</h2>
-              <p className="text-sm text-slate-500">Real-time request statistics</p>
-            </div>
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-5 w-5 text-slate-400" />
+            <h2 className="text-lg font-semibold text-slate-900">System Overview</h2>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Requests */}
             <Card
-              className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden cursor-pointer group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
               onClick={() => navigate('/requests')}
             >
-              <div className="h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">Total</p>
-                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
-                      {isLoading ? '...' : stats?.total || 0}
-                    </p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <Inbox className="h-5 w-5 text-blue-600" />
                   </div>
-                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Inbox className="h-6 w-6 text-blue-600" />
-                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                 </div>
-                <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
-                  <ArrowRight className="h-3 w-3" />
-                  <span>View all requests</span>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.total || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Total Requests</p>
               </CardContent>
             </Card>
 
             {/* Pending */}
             <Card
-              className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden cursor-pointer group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
               onClick={() => navigate('/requests?status=pending_approval')}
             >
-              <div className="h-1.5 bg-gradient-to-r from-amber-400 to-orange-500" />
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">Pending</p>
-                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
-                      {isLoading ? '...' : stats?.pending || 0}
-                    </p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-amber-600" />
                   </div>
-                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Clock className="h-6 w-6 text-amber-600" />
-                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
                 </div>
-                <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
-                  <ArrowRight className="h-3 w-3" />
-                  <span>Needs attention</span>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.pending || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Pending</p>
               </CardContent>
             </Card>
 
             {/* In Production */}
             <Card
-              className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden cursor-pointer group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
               onClick={() => navigate('/requests?status=in_production')}
             >
-              <div className="h-1.5 bg-gradient-to-r from-violet-500 to-purple-500" />
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-violet-600 uppercase tracking-wide">Production</p>
-                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
-                      {isLoading ? '...' : stats?.in_production || 0}
-                    </p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
+                    <Cog className="h-5 w-5 text-violet-600" />
                   </div>
-                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Cog className="h-6 w-6 text-violet-600" />
-                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-violet-500 transition-colors" />
                 </div>
-                <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
-                  <ArrowRight className="h-3 w-3" />
-                  <span>Being processed</span>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.in_production || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">In Production</p>
               </CardContent>
             </Card>
 
             {/* Dispatched */}
             <Card
-              className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden cursor-pointer group hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
               onClick={() => navigate('/requests?status=dispatched')}
             >
-              <div className="h-1.5 bg-gradient-to-r from-emerald-500 to-green-500" />
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">Dispatched</p>
-                    <p className="text-2xl sm:text-3xl font-black text-slate-800 mt-1">
-                      {isLoading ? '...' : stats?.dispatched || 0}
-                    </p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <Truck className="h-5 w-5 text-emerald-600" />
                   </div>
-                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Truck className="h-6 w-6 text-emerald-600" />
-                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
                 </div>
-                <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
-                  <ArrowRight className="h-3 w-3" />
-                  <span>Sent out</span>
-                </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.dispatched || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Dispatched</p>
               </CardContent>
             </Card>
           </div>
@@ -169,124 +140,110 @@ export default function AdminDashboard() {
         {/* Management Hub */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* User Management Section */}
-          <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-indigo-500 to-blue-500" />
+          <Card className="bg-white border border-slate-200 shadow-sm">
             <CardContent className="p-6">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                  <Users className="h-7 w-7 text-white" />
+              <div className="flex items-center gap-3 mb-5">
+                <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-indigo-600" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">User Management</h3>
+                  <h3 className="text-base font-semibold text-slate-900">User Management</h3>
                   <p className="text-sm text-slate-500">Manage system users and roles</p>
                 </div>
               </div>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-indigo-50/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Shield className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">Coordinators</p>
-                      <p className="text-xs text-slate-500">Approve and manage requests</p>
-                    </div>
+              <div className="space-y-3 mb-5">
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="h-8 w-8 rounded-md bg-blue-100 flex items-center justify-center">
+                    <Shield className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Coordinators</p>
+                    <p className="text-xs text-slate-500">Approve and manage requests</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-emerald-50/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                      <Cog className="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">Makers</p>
-                      <p className="text-xs text-slate-500">Production floor staff</p>
-                    </div>
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="h-8 w-8 rounded-md bg-emerald-100 flex items-center justify-center">
+                    <Cog className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Makers</p>
+                    <p className="text-xs text-slate-500">Production floor staff</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-violet-50/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center">
-                      <Package className="h-5 w-5 text-violet-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">Requesters</p>
-                      <p className="text-xs text-slate-500">Submit sample requests</p>
-                    </div>
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="h-8 w-8 rounded-md bg-violet-100 flex items-center justify-center">
+                    <Package className="h-4 w-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Requesters</p>
+                    <p className="text-xs text-slate-500">Submit sample requests</p>
                   </div>
                 </div>
               </div>
 
               <Button
                 onClick={() => navigate('/admin/users')}
-                className="w-full min-h-[56px] text-base font-bold gap-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-lg shadow-indigo-500/25 transition-all hover:shadow-xl"
+                className="w-full min-h-[48px] gap-2 bg-indigo-600 hover:bg-indigo-700"
               >
-                <Users className="h-5 w-5" />
+                <Users className="h-4 w-4" />
                 Manage Users
-                <ArrowRight className="h-5 w-5" />
+                <ArrowRight className="h-4 w-4" />
               </Button>
             </CardContent>
           </Card>
 
           {/* System Settings Section */}
-          <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-violet-500 to-purple-500" />
+          <Card className="bg-white border border-slate-200 shadow-sm">
             <CardContent className="p-6">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
-                  <Settings className="h-7 w-7 text-white" />
+              <div className="flex items-center gap-3 mb-5">
+                <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
+                  <Settings className="h-5 w-5 text-violet-600" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">Product Management</h3>
+                  <h3 className="text-base font-semibold text-slate-900">Product Management</h3>
                   <p className="text-sm text-slate-500">Configure products and options</p>
                 </div>
               </div>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-violet-50/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-violet-100 flex items-center justify-center">
-                      <Package className="h-5 w-5 text-violet-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">Product Types</p>
-                      <p className="text-xs text-slate-500">Marble, Tile, Terrazzo, Quartz</p>
-                    </div>
+              <div className="space-y-3 mb-5">
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="h-8 w-8 rounded-md bg-violet-100 flex items-center justify-center">
+                    <Package className="h-4 w-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Product Types</p>
+                    <p className="text-xs text-slate-500">Marble, Tile, Terrazzo, Quartz</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-amber-50/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                      <Sparkles className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">Quality Options</p>
-                      <p className="text-xs text-slate-500">228 marble qualities available</p>
-                    </div>
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="h-8 w-8 rounded-md bg-amber-100 flex items-center justify-center">
+                    <BarChart3 className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Quality Options</p>
+                    <p className="text-xs text-slate-500">228 marble qualities available</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-teal-50/30 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-teal-100 flex items-center justify-center">
-                      <Settings className="h-5 w-5 text-teal-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800">Finish & Size Options</p>
-                      <p className="text-xs text-slate-500">Customize available options</p>
-                    </div>
+                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                  <div className="h-8 w-8 rounded-md bg-teal-100 flex items-center justify-center">
+                    <Settings className="h-4 w-4 text-teal-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Finish & Size Options</p>
+                    <p className="text-xs text-slate-500">Customize available options</p>
                   </div>
                 </div>
               </div>
 
               <Button
                 variant="outline"
-                className="w-full min-h-[56px] text-base font-bold gap-3 border-violet-200 text-violet-700 hover:bg-violet-50 hover:border-violet-300 transition-all"
+                className="w-full min-h-[48px] gap-2 border-slate-200 text-slate-600"
                 disabled
               >
-                <Settings className="h-5 w-5" />
+                <Settings className="h-4 w-4" />
                 Product Settings
-                <span className="text-xs bg-violet-100 px-2 py-0.5 rounded-full">Coming Soon</span>
+                <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-auto">Coming Soon</span>
               </Button>
             </CardContent>
           </Card>
@@ -294,38 +251,36 @@ export default function AdminDashboard() {
 
         {/* Quick Actions */}
         <div className="mt-8">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Quick Actions</h2>
-              <p className="text-sm text-slate-500">Common administrative tasks</p>
-            </div>
+          <div className="flex items-center gap-2 mb-4">
+            <ArrowRight className="h-5 w-5 text-slate-400" />
+            <h2 className="text-lg font-semibold text-slate-900">Quick Actions</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Button
+              variant="outline"
               onClick={() => navigate('/requests')}
-              className="min-h-[64px] text-base font-bold gap-3 bg-white/80 hover:bg-white text-slate-700 border border-slate-200 shadow-md hover:shadow-lg transition-all"
+              className="min-h-[52px] gap-2 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 justify-start px-4"
             >
-              <Inbox className="h-5 w-5 text-indigo-600" />
+              <Inbox className="h-5 w-5 text-indigo-500" />
               View All Requests
             </Button>
             <Button
+              variant="outline"
               onClick={() => navigate('/admin/users')}
-              className="min-h-[64px] text-base font-bold gap-3 bg-white/80 hover:bg-white text-slate-700 border border-slate-200 shadow-md hover:shadow-lg transition-all"
+              className="min-h-[52px] gap-2 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 justify-start px-4"
             >
-              <Users className="h-5 w-5 text-blue-600" />
+              <Users className="h-5 w-5 text-blue-500" />
               Manage Users
             </Button>
             <Button
-              className="min-h-[64px] text-base font-bold gap-3 bg-white/80 hover:bg-white text-slate-700 border border-slate-200 shadow-md hover:shadow-lg transition-all"
+              variant="outline"
+              className="min-h-[52px] gap-2 bg-white border-slate-200 text-slate-400 justify-start px-4"
               disabled
             >
-              <BarChart3 className="h-5 w-5 text-violet-600" />
+              <BarChart3 className="h-5 w-5" />
               View Reports
-              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full">Soon</span>
+              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-auto">Soon</span>
             </Button>
           </div>
         </div>
