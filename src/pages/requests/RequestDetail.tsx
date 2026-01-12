@@ -843,8 +843,8 @@ export default function RequestDetail() {
                     <p className="text-sm whitespace-pre-line text-slate-700">{displayAddress}</p>
                   )}
 
-                  {/* Audit Trail Note */}
-                  {addressModified && !isEditingAddress && (
+                  {/* Audit Trail Note - Visible to ALL users when address was edited */}
+                  {(request.is_address_edited || addressModified) && !isEditingAddress && (
                     <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md">
                       <p className="text-xs font-medium text-amber-700 flex items-center gap-1.5">
                         <Pencil className="h-3 w-3" />

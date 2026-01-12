@@ -561,13 +561,18 @@ export function useMarkAsReceived() {
   return useMutation({
     mutationFn: async (requestId: string) => {
       // First, verify the request is in 'dispatched' status
+      // Use maybeSingle() to avoid 406 errors if RLS prevents SELECT
       const { data: currentRequest, error: fetchError } = await supabase
         .from('requests')
         .select('status, created_by')
         .eq('id', requestId)
-        .single();
+        .maybeSingle();
 
       if (fetchError) throw fetchError;
+
+      if (!currentRequest) {
+        throw new Error('Request not found or you do not have permission to access it');
+      }
 
       if (currentRequest.status !== 'dispatched') {
         throw new Error('Request must be in "dispatched" status to mark as received');
@@ -581,11 +586,33 @@ export function useMarkAsReceived() {
           received_at: new Date().toISOString(),
         })
         .eq('id', requestId)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-      return { data, requestId };
+
+      // CRITICAL: Check if update was actually performed
+      // If data is empty, RLS silently blocked the UPDATE (no rows modified)
+      if (!data || data.length === 0) {
+        // Verify by re-fetching to see if status actually changed
+        const { data: verifyData } = await supabase
+          .from('requests')
+          .select('status')
+          .eq('id', requestId)
+          .maybeSingle();
+
+        if (verifyData?.status !== 'received') {
+          // Update was silently blocked by RLS
+          throw new Error(
+            'Permission denied: You do not have permission to update this request. ' +
+            'Please contact your administrator if you believe this is an error.'
+          );
+        }
+
+        // Status changed but SELECT after UPDATE was blocked - this is OK
+        return { data: verifyData, requestId };
+      }
+
+      return { data: data[0], requestId };
     },
     onSuccess: (result) => {
       const requestId = result.requestId;
