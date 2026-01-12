@@ -1,9 +1,28 @@
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRequestWithItems } from '@/lib/api/requests';
+import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
@@ -19,6 +38,10 @@ import {
   Truck,
   Loader2,
   FileText,
+  Pencil,
+  Printer,
+  Check,
+  X,
 } from 'lucide-react';
 import type { RequestItemDB } from '@/types';
 
@@ -26,6 +49,7 @@ export default function RequestDetail() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams();
+  const queryClient = useQueryClient();
 
   // Use the new hook that fetches request WITH items
   const { data: request, isLoading, error } = useRequestWithItems(id);
@@ -34,6 +58,206 @@ export default function RequestDetail() {
   const isCoordinator = profile?.role === 'coordinator';
   const backDestination = isCoordinator ? '/' : '/requests';
   const backButtonText = isCoordinator ? 'Back to Dashboard' : 'Back to List';
+
+  // Logistics Label State (Coordinator only)
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editedAddress, setEditedAddress] = useState('');
+  const [addressModified, setAddressModified] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [labelFontSize, setLabelFontSize] = useState<'small' | 'medium' | 'large' | 'xlarge'>('medium');
+  const [labelUnderline, setLabelUnderline] = useState(false);
+
+  // Initialize addressModified from request data (for persisted edits)
+  useEffect(() => {
+    if (request?.is_address_edited) {
+      setAddressModified(true);
+      setEditedAddress(request.delivery_address || '');
+    }
+  }, [request?.is_address_edited, request?.delivery_address]);
+
+  // Get the display address (edited or original)
+  const displayAddress = addressModified ? editedAddress : (request?.delivery_address || '');
+
+  // Font size mapping for label preview and print
+  const fontSizeMap = {
+    small: 'text-sm',
+    medium: 'text-lg',
+    large: 'text-2xl',
+    xlarge: 'text-4xl',
+  };
+
+  // Start editing address
+  const handleStartEditAddress = () => {
+    setEditedAddress(request?.delivery_address || '');
+    setIsEditingAddress(true);
+  };
+
+  // Save edited address to Supabase
+  const handleSaveAddress = async () => {
+    if (!id || !request) return;
+
+    const originalAddress = request.delivery_address || '';
+    const hasChanges = editedAddress.trim() !== originalAddress.trim();
+
+    if (!hasChanges) {
+      setIsEditingAddress(false);
+      return;
+    }
+
+    setIsSavingAddress(true);
+
+    try {
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update({
+          delivery_address: editedAddress.trim(),
+          is_address_edited: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('Failed to save address:', updateError);
+        alert('Failed to save address. Please try again.');
+        return;
+      }
+
+      // Update local state
+      setAddressModified(true);
+      setIsEditingAddress(false);
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['request', id] });
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+
+    } catch (err) {
+      console.error('Error saving address:', err);
+      alert('An error occurred while saving. Please try again.');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditingAddress(false);
+    // Reset to current persisted address
+    setEditedAddress(request?.delivery_address || '');
+  };
+
+  // Handle print using isolated iframe technique
+  const handlePrint = () => {
+    // Map Tailwind classes to actual CSS font sizes
+    const fontSizePixelMap: Record<string, string> = {
+      small: '14px',
+      medium: '18px',
+      large: '24px',
+      xlarge: '36px',
+    };
+
+    const fontSize = fontSizePixelMap[labelFontSize] || '18px';
+    const textDecoration = labelUnderline ? 'underline' : 'none';
+    const addressContent = displayAddress || 'No address available';
+
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    // Get the iframe's document
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) {
+      console.error('Could not access iframe document');
+      document.body.removeChild(iframe);
+      return;
+    }
+
+    // Write clean HTML to the iframe
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Shipping Label</title>
+          <style>
+            /* Remove browser headers/footers */
+            @page {
+              size: auto;
+              margin: 0mm;
+            }
+
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+
+            html, body {
+              width: 100%;
+              height: 100%;
+              margin: 0;
+              padding: 0;
+            }
+
+            body {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              padding: 20mm;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              background: white;
+            }
+
+            .label-container {
+              text-align: center;
+              max-width: 100%;
+            }
+
+            .label-text {
+              font-size: ${fontSize};
+              text-decoration: ${textDecoration};
+              line-height: 1.6;
+              color: black;
+              white-space: pre-line;
+              word-wrap: break-word;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label-container">
+            <div class="label-text">${addressContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          </div>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+
+    // Wait for content to render, then print
+    iframe.contentWindow?.focus();
+
+    // Use setTimeout to ensure content is fully rendered
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error('Print failed:', err);
+      }
+
+      // Cleanup: Remove iframe after a delay (to allow print dialog to complete)
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 250);
+  };
 
   // Clean status badge styling (matching dashboard)
   const getStatusBadge = (status: string) => {
@@ -487,12 +711,6 @@ export default function RequestDetail() {
                     <p className="text-sm font-semibold mt-0.5 capitalize text-slate-800">{request.pickup_responsibility?.replace('_', ' ')}</p>
                   </div>
                 </div>
-                {request.delivery_address && (
-                  <div className="pt-3 border-t border-slate-100">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Delivery Address</span>
-                    <p className="text-sm mt-0.5 whitespace-pre-line text-slate-700">{request.delivery_address}</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -538,6 +756,106 @@ export default function RequestDetail() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Section 2: Shipping Details - ONLY visible when NOT Self Pickup */}
+          {request.pickup_responsibility !== 'self_pickup' && request.delivery_address && (
+            <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden print:hidden" id="shipping-details-card">
+              <div className="h-1 bg-teal-600" />
+              <CardHeader className="pb-3 bg-slate-50 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base sm:text-lg text-slate-900 font-bold flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-teal-600" />
+                    Shipping Details
+                  </CardTitle>
+                  {isCoordinator && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPrintModal(true)}
+                      className="gap-2 border-teal-200 text-teal-700 hover:bg-teal-50"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Print Label
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <span className="text-xs font-semibold text-teal-600 uppercase tracking-wide">Pickup Method</span>
+                  <p className="text-sm font-semibold mt-0.5 capitalize text-slate-800">{request.pickup_responsibility?.replace('_', ' ')}</p>
+                </div>
+
+                {/* Delivery Address - Editable for Coordinators */}
+                <div className="border border-slate-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5 text-teal-600" />
+                      Delivery Address
+                    </span>
+                    {isCoordinator && !isEditingAddress && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleStartEditAddress}
+                        className="h-7 px-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+
+                  {isEditingAddress ? (
+                    <div className="space-y-3">
+                      <Textarea
+                        value={editedAddress}
+                        onChange={(e) => setEditedAddress(e.target.value)}
+                        className="min-h-[100px] border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Enter delivery address..."
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCancelEdit}
+                          disabled={isSavingAddress}
+                          className="gap-1 text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveAddress}
+                          disabled={isSavingAddress}
+                          className="gap-1 bg-indigo-600 hover:bg-indigo-700"
+                        >
+                          {isSavingAddress ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )}
+                          {isSavingAddress ? 'Saving...' : 'Save'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-line text-slate-700">{displayAddress}</p>
+                  )}
+
+                  {/* Audit Trail Note */}
+                  {addressModified && !isEditingAddress && (
+                    <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md">
+                      <p className="text-xs font-medium text-amber-700 flex items-center gap-1.5">
+                        <Pencil className="h-3 w-3" />
+                        Note: Address modified by Coordinator
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Section 4: Product Items (NEW - Multi-Product Support) */}
           <div className="space-y-4">
@@ -639,6 +957,98 @@ export default function RequestDetail() {
         {/* Maker Actions - for makers */}
         <MakerActions request={request} userRole={profile?.role || ''} userId={profile?.id || ''} />
       </main>
+
+      {/* Print Label Modal - Coordinator Only */}
+      <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
+        <DialogContent className="sm:max-w-lg print:hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <Printer className="h-5 w-5 text-teal-600" />
+              Print Shipping Label
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-4">
+            {/* Print Settings */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Font Size Control */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">Font Size</Label>
+                <Select value={labelFontSize} onValueChange={(value: 'small' | 'medium' | 'large' | 'xlarge') => setLabelFontSize(value)}>
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                    <SelectItem value="xlarge">Extra Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Underline Control */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700">Style</Label>
+                <button
+                  onClick={() => setLabelUnderline(!labelUnderline)}
+                  className={`w-full h-10 px-3 border rounded-md flex items-center justify-between transition-colors ${
+                    labelUnderline
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`text-sm ${labelUnderline ? 'underline' : ''}`}>Underline Text</span>
+                  {labelUnderline && <Check className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Live Preview */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Preview</Label>
+              <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 bg-white min-h-[150px] flex items-center justify-center">
+                <div
+                  className={`text-center ${fontSizeMap[labelFontSize]} ${labelUnderline ? 'underline' : ''} text-slate-900 whitespace-pre-line leading-relaxed`}
+                >
+                  {displayAddress || 'No address available'}
+                </div>
+              </div>
+            </div>
+
+            {/* Request Info (for reference) */}
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-slate-500">Request:</span>
+                  <span className="ml-1 font-mono font-semibold text-slate-700">{request.request_number}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Project:</span>
+                  <span className="ml-1 font-semibold text-slate-700">{request.client_project_name}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPrintModal(false)}
+              className="border-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePrint}
+              className="gap-2 bg-teal-600 hover:bg-teal-700"
+            >
+              <Printer className="h-4 w-4" />
+              Print Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

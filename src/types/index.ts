@@ -155,6 +155,7 @@ export interface Request {
   pickup_responsibility: string;  // PickupResponsibility type
   pickup_remarks: string | null;
   delivery_address: string | null;  // Not required if self_pickup
+  is_address_edited: boolean | null;  // True if coordinator modified the address
   required_by: string;  // ISO timestamp
   priority: Priority;
 
