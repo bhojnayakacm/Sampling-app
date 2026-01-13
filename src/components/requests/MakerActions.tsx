@@ -18,7 +18,6 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
     try {
       await updateStatus.mutateAsync({ requestId: request.id, status: newStatus });
 
-      // Show appropriate success message
       if (newStatus === 'in_production') {
         toast.success(
           <div>
@@ -44,29 +43,54 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
     return null;
   }
 
-  // Don't show if the request is already ready, dispatched, or received
+  // Completed states - show simple status card
   if (['ready', 'dispatched', 'received'].includes(request.status)) {
+    const statusConfig = {
+      ready: {
+        icon: CheckCircle,
+        title: 'Ready for Dispatch',
+        subtitle: 'Waiting for coordinator to dispatch',
+        bgColor: 'bg-emerald-50',
+        borderColor: 'border-emerald-200',
+        iconBg: 'bg-emerald-100',
+        iconColor: 'text-emerald-600',
+        textColor: 'text-emerald-700',
+      },
+      dispatched: {
+        icon: Truck,
+        title: 'Dispatched',
+        subtitle: 'Sample has been sent out',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        iconBg: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+        textColor: 'text-blue-700',
+      },
+      received: {
+        icon: CheckCircle,
+        title: 'Delivered',
+        subtitle: 'Sample confirmed received',
+        bgColor: 'bg-green-50',
+        borderColor: 'border-green-200',
+        iconBg: 'bg-green-100',
+        iconColor: 'text-green-600',
+        textColor: 'text-green-700',
+      },
+    };
+
+    const config = statusConfig[request.status as keyof typeof statusConfig];
+    const Icon = config.icon;
+
     return (
-      <Card className="mt-6 border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-green-50 overflow-hidden">
-        <div className="h-1.5 bg-gradient-to-r from-emerald-500 to-green-500" />
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              {request.status === 'ready' && <CheckCircle className="h-7 w-7 text-white" />}
-              {request.status === 'dispatched' && <Truck className="h-7 w-7 text-white" />}
-              {request.status === 'received' && <CheckCircle className="h-7 w-7 text-white" />}
+      <Card className={`mt-5 ${config.bgColor} border ${config.borderColor} shadow-sm`}>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded-lg ${config.iconBg} flex items-center justify-center`}>
+              <Icon className={`h-5 w-5 ${config.iconColor}`} />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-emerald-800">
-                {request.status === 'ready' && 'Sample Ready for Dispatch'}
-                {request.status === 'dispatched' && 'Sample Dispatched'}
-                {request.status === 'received' && 'Sample Delivered'}
-              </h3>
-              <p className="text-emerald-600">
-                {request.status === 'ready' && 'Great work! Waiting for coordinator to dispatch.'}
-                {request.status === 'dispatched' && 'This sample has been sent out.'}
-                {request.status === 'received' && 'This sample has been delivered and confirmed.'}
-              </p>
+              <p className={`text-sm font-semibold ${config.textColor}`}>{config.title}</p>
+              <p className="text-xs text-slate-500">{config.subtitle}</p>
             </div>
           </div>
         </CardContent>
@@ -74,106 +98,72 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
     );
   }
 
+  // Active states - show action card
+  const isAssigned = request.status === 'assigned';
+  const isInProduction = request.status === 'in_production';
+
   return (
-    <Card className="mt-6 border-0 shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
-      {/* Status-based accent bar */}
-      <div className={`h-1.5 ${
-        request.status === 'assigned'
-          ? 'bg-gradient-to-r from-emerald-500 to-green-500'
-          : 'bg-gradient-to-r from-blue-500 to-indigo-500'
-      }`} />
-
-      <CardContent className="p-6">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className={`h-14 w-14 rounded-xl flex items-center justify-center shadow-lg ${
-            request.status === 'assigned'
-              ? 'bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-500/30'
-              : 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/30'
-          }`}>
-            <Hammer className="h-7 w-7 text-white" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-slate-800">Production Actions</h3>
-            <p className="text-slate-500">
-              {request.status === 'assigned' && 'Ready to start working on this sample'}
-              {request.status === 'in_production' && 'Currently in production'}
-            </p>
-          </div>
-        </div>
-
-        {/* Current Status Indicator */}
-        <div className={`flex items-center gap-3 p-4 rounded-xl mb-6 ${
-          request.status === 'assigned'
-            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200'
-            : 'bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200'
-        }`}>
-          <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-            request.status === 'assigned' ? 'bg-blue-100' : 'bg-amber-100'
-          }`}>
-            {request.status === 'assigned' && <Clock className="h-5 w-5 text-blue-600" />}
-            {request.status === 'in_production' && <Hammer className="h-5 w-5 text-amber-600" />}
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Current Status</p>
-            <p className={`font-bold ${
-              request.status === 'assigned' ? 'text-blue-700' : 'text-amber-700'
+    <Card className="mt-5 bg-white border border-slate-200 shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: Status indicator */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+              isAssigned ? 'bg-blue-100' : 'bg-amber-100'
             }`}>
-              {request.status === 'assigned' ? 'Assigned - Not Started' : 'In Production'}
-            </p>
+              {isAssigned ? (
+                <Clock className="h-5 w-5 text-blue-600" />
+              ) : (
+                <Hammer className="h-5 w-5 text-amber-600" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                {isAssigned ? 'Ready to Start' : 'In Production'}
+              </p>
+              <p className="text-xs text-slate-500 truncate">
+                {isAssigned ? 'Click to begin work' : 'Mark ready when done'}
+              </p>
+            </div>
           </div>
+
+          {/* Right: Action button */}
+          {isAssigned && (
+            <Button
+              onClick={() => handleStatusUpdate('in_production')}
+              disabled={updateStatus.isPending}
+              size="sm"
+              className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shrink-0"
+            >
+              {updateStatus.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  <span className="hidden sm:inline">Start</span>
+                </>
+              )}
+            </Button>
+          )}
+
+          {isInProduction && (
+            <Button
+              onClick={() => handleStatusUpdate('ready')}
+              disabled={updateStatus.isPending}
+              size="sm"
+              className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shrink-0"
+            >
+              {updateStatus.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">Mark Ready</span>
+                </>
+              )}
+            </Button>
+          )}
         </div>
-
-        {/* Action Buttons */}
-        {request.status === 'assigned' && (
-          <Button
-            onClick={() => handleStatusUpdate('in_production')}
-            disabled={updateStatus.isPending}
-            className="w-full min-h-[80px] text-xl font-black gap-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-xl shadow-emerald-500/30 transition-all duration-200 hover:scale-[1.02] hover:shadow-2xl"
-          >
-            {updateStatus.isPending ? (
-              <>
-                <Loader2 className="h-7 w-7 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <Play className="h-7 w-7" />
-                START PRODUCTION
-              </>
-            )}
-          </Button>
-        )}
-
-        {request.status === 'in_production' && (
-          <Button
-            onClick={() => handleStatusUpdate('ready')}
-            disabled={updateStatus.isPending}
-            className="w-full min-h-[80px] text-xl font-black gap-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-xl shadow-blue-500/30 transition-all duration-200 hover:scale-[1.02] hover:shadow-2xl"
-          >
-            {updateStatus.isPending ? (
-              <>
-                <Loader2 className="h-7 w-7 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-7 w-7" />
-                MARK AS READY
-              </>
-            )}
-          </Button>
-        )}
-
-        {/* Help Text */}
-        <p className="text-sm text-slate-500 text-center mt-4">
-          {request.status === 'assigned' && (
-            <>Click <strong>Start Production</strong> when you begin working on this sample.</>
-          )}
-          {request.status === 'in_production' && (
-            <>Click <strong>Mark as Ready</strong> when the sample is complete and ready for dispatch.</>
-          )}
-        </p>
       </CardContent>
     </Card>
   );

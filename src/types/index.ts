@@ -34,6 +34,7 @@ export type PickupResponsibility =
   | 'self_pickup'
   | 'courier'
   | 'company_vehicle'
+  | 'field_boy'
   | '3rd_party'
   | 'other';
 
@@ -154,8 +155,11 @@ export interface Request {
   mobile_no: string;
   pickup_responsibility: string;  // PickupResponsibility type
   pickup_remarks: string | null;
+  delivery_method_remark: string | null;  // Coordinator's remark when changing delivery method
+  is_delivery_method_edited: boolean | null;  // True if coordinator modified the pickup method
   delivery_address: string | null;  // Not required if self_pickup
   is_address_edited: boolean | null;  // True if coordinator modified the address
+  address_edit_remark: string | null;  // Coordinator's remark when changing address
   required_by: string;  // ISO timestamp
   priority: Priority;
 

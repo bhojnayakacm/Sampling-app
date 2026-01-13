@@ -123,7 +123,7 @@ export default function MakerDashboard() {
           {/* Completed */}
           <Card
             className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?status=ready')}
+            onClick={() => navigate('/requests?status=completed')}
           >
             <CardContent className="p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
@@ -205,14 +205,15 @@ export default function MakerDashboard() {
                           e.stopPropagation();
                           navigate(`/requests/${task.id}`);
                         }}
-                        className="w-full min-h-[52px] text-base font-semibold gap-2 bg-indigo-600 hover:bg-indigo-700"
+                        size="sm"
+                        className="w-full h-10 text-sm font-medium gap-2 bg-indigo-600 hover:bg-indigo-700"
                       >
-                        <Eye className="h-5 w-5" />
-                        VIEW DETAILS
-                        <ArrowRight className="h-5 w-5" />
+                        <Eye className="h-4 w-4" />
+                        View Details
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
 
-                      <p className="text-xs text-slate-500 text-center mt-3">
+                      <p className="text-xs text-slate-500 text-center mt-2">
                         Review specs before starting work
                       </p>
                     </CardContent>
@@ -289,14 +290,15 @@ export default function MakerDashboard() {
                           e.stopPropagation();
                           navigate(`/requests/${task.id}`);
                         }}
-                        className="w-full min-h-[52px] text-base font-semibold gap-2 bg-amber-600 hover:bg-amber-700"
+                        size="sm"
+                        className="w-full h-10 text-sm font-medium gap-2 bg-amber-600 hover:bg-amber-700"
                       >
-                        <Eye className="h-5 w-5" />
-                        VIEW DETAILS
-                        <ArrowRight className="h-5 w-5" />
+                        <Eye className="h-4 w-4" />
+                        View Details
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
 
-                      <p className="text-xs text-slate-500 text-center mt-3">
+                      <p className="text-xs text-slate-500 text-center mt-2">
                         Mark as ready when complete
                       </p>
                     </CardContent>

@@ -346,7 +346,7 @@ export function useMakerStats(userId: string | undefined) {
       // Calculate stats
       const assigned = data.filter((r) => r.status === 'assigned').length;
       const in_progress = data.filter((r) => r.status === 'in_production').length;
-      const completed = data.filter((r) => ['ready', 'dispatched'].includes(r.status)).length;
+      const completed = data.filter((r) => ['ready', 'dispatched', 'received', 'closed'].includes(r.status)).length;
 
       return { assigned, in_progress, completed };
     },

@@ -31,7 +31,7 @@ import TrackingDialog from '@/components/requests/TrackingDialog';
 // Status filter mapping for dashboard navigation
 const STATUS_FILTERS: Record<string, RequestStatus[]> = {
   pending: ['pending_approval', 'approved', 'assigned'],
-  completed: ['ready', 'dispatched'],
+  completed: ['ready', 'dispatched', 'received'],
 };
 
 // Helper function to generate smart item summary for table display

@@ -863,7 +863,7 @@ export default function NewRequest() {
                   {errors.required_by && <p className="text-red-500 text-xs mt-1">{errors.required_by.message}</p>}
                 </div>
 
-                {/* Pickup Responsibility */}
+                {/* Pickup Responsibility - Restricted options for Requesters */}
                 <div>
                   <Label htmlFor="pickup_responsibility" className="text-slate-700 font-semibold">Pickup Responsibility *</Label>
                   <Select onValueChange={(value) => setValue('pickup_responsibility', value as PickupResponsibility)}>
@@ -874,8 +874,8 @@ export default function NewRequest() {
                       <SelectItem value="self_pickup">Self Pickup</SelectItem>
                       <SelectItem value="courier">Courier</SelectItem>
                       <SelectItem value="company_vehicle">Company Vehicle</SelectItem>
-                      <SelectItem value="3rd_party">3rd Party</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      <SelectItem value="field_boy">Field Boy</SelectItem>
+                      {/* Note: "3rd Party" and "Other" are restricted to Coordinator only */}
                     </SelectContent>
                   </Select>
                 </div>

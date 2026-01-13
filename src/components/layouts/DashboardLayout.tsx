@@ -28,7 +28,7 @@ interface DashboardLayoutProps {
 const navItems: NavItem[] = [
   {
     id: 'sample-requests',
-    label: 'Sample Requests',
+    label: 'Dashboard',
     icon: Package,
   },
   {
