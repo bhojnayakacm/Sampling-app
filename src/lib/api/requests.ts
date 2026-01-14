@@ -266,9 +266,10 @@ export function useDashboardStats(userId: string | undefined) {
         return {
           total: 0,
           drafts: 0,
-          pending: 0,
-          in_production: 0,
+          inProgress: 0,
           dispatched: 0,
+          rejected: 0,
+          received: 0,
         };
       }
 
@@ -283,13 +284,18 @@ export function useDashboardStats(userId: string | undefined) {
       // Calculate stats (exclude drafts from total count)
       const drafts = data.filter((r) => r.status === 'draft').length;
       const total = data.length - drafts; // Total submitted requests (excluding drafts)
-      const pending = data.filter((r) =>
-        ['pending_approval', 'approved', 'assigned'].includes(r.status)
-      ).length;
-      const in_production = data.filter((r) => r.status === 'in_production').length;
-      const dispatched = data.filter((r) => r.status === 'dispatched').length;
 
-      return { total, drafts, pending, in_production, dispatched };
+      // In Progress: All active statuses before dispatch
+      // Includes: pending_approval, approved, assigned, in_production, ready
+      const inProgress = data.filter((r) =>
+        ['pending_approval', 'approved', 'assigned', 'in_production', 'ready'].includes(r.status)
+      ).length;
+
+      const dispatched = data.filter((r) => r.status === 'dispatched').length;
+      const rejected = data.filter((r) => r.status === 'rejected').length;
+      const received = data.filter((r) => r.status === 'received').length;
+
+      return { total, drafts, inProgress, dispatched, rejected, received };
     },
     enabled: !!userId,
   });

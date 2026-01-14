@@ -15,8 +15,23 @@ import {
   AlertCircle,
   LogOut,
   LayoutDashboard,
+  XCircle,
+  PackageCheck,
+  Truck,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+
+// Compact stat card configuration
+interface StatConfig {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  hoverColor: string;
+  getValue: (stats: any) => number;
+  onClick: () => void;
+}
 
 export default function RequesterDashboard() {
   const { profile, signOut } = useAuth();
@@ -31,14 +46,81 @@ export default function RequesterDashboard() {
     userRole: profile?.role,
   });
 
+  // Define all 6 stat cards with their configurations
+  const statCards: StatConfig[] = [
+    {
+      key: 'drafts',
+      label: 'Drafts',
+      icon: FileText,
+      iconBg: 'bg-slate-100',
+      iconColor: 'text-slate-600',
+      hoverColor: 'group-hover:text-slate-600',
+      getValue: (s) => s?.drafts || 0,
+      onClick: () => navigate('/requests?filter=drafts'),
+    },
+    {
+      key: 'submitted',
+      label: 'Submitted',
+      icon: Send,
+      iconBg: 'bg-indigo-50',
+      iconColor: 'text-indigo-600',
+      hoverColor: 'group-hover:text-indigo-600',
+      getValue: (s) => s?.total || 0,
+      onClick: () => navigate('/requests?filter=submitted'),
+    },
+    {
+      key: 'inProgress',
+      label: 'In Progress',
+      icon: Clock,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      hoverColor: 'group-hover:text-amber-600',
+      getValue: (s) => s?.inProgress || 0,
+      onClick: () => navigate('/requests?status=in_progress'),
+    },
+    {
+      key: 'dispatched',
+      label: 'Dispatched',
+      icon: Truck,
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      hoverColor: 'group-hover:text-blue-600',
+      getValue: (s) => s?.dispatched || 0,
+      onClick: () => navigate('/requests?status=dispatched'),
+    },
+    {
+      key: 'received',
+      label: 'Received',
+      icon: PackageCheck,
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+      hoverColor: 'group-hover:text-emerald-600',
+      getValue: (s) => s?.received || 0,
+      onClick: () => navigate('/requests?status=received'),
+    },
+    {
+      key: 'rejected',
+      label: 'Rejected',
+      icon: XCircle,
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+      hoverColor: 'group-hover:text-rose-600',
+      getValue: (s) => s?.rejected || 0,
+      onClick: () => navigate('/requests?status=rejected'),
+    },
+  ];
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
       draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
       pending_approval: { label: 'Pending', className: 'bg-amber-50 text-amber-700' },
       approved: { label: 'Approved', className: 'bg-sky-50 text-sky-700' },
+      assigned: { label: 'Assigned', className: 'bg-indigo-50 text-indigo-700' },
       in_production: { label: 'In Production', className: 'bg-violet-50 text-violet-700' },
-      dispatched: { label: 'Dispatched', className: 'bg-emerald-50 text-emerald-700' },
-      received: { label: 'Received', className: 'bg-green-50 text-green-700' },
+      ready: { label: 'Ready', className: 'bg-teal-50 text-teal-700' },
+      dispatched: { label: 'Dispatched', className: 'bg-blue-50 text-blue-700' },
+      received: { label: 'Received', className: 'bg-emerald-50 text-emerald-700' },
+      rejected: { label: 'Rejected', className: 'bg-rose-50 text-rose-700' },
     };
     const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-600' };
     return <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${className}`}>{label}</span>;
@@ -76,7 +158,7 @@ export default function RequesterDashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
@@ -95,83 +177,38 @@ export default function RequesterDashboard() {
           </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Drafts Card */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?filter=drafts')}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-slate-600" />
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900">
-                {isLoading ? '...' : stats?.drafts || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">Drafts</p>
-            </CardContent>
-          </Card>
+        {/* Stats Cards - Compact 6-card Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {statCards.map((stat) => {
+            const Icon = stat.icon;
+            const value = stat.getValue(stats);
 
-          {/* Submitted Card */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?filter=submitted')}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-                  <Send className="h-5 w-5 text-indigo-600" />
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900">
-                {isLoading ? '...' : stats?.total || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">Submitted</p>
-            </CardContent>
-          </Card>
+            return (
+              <Card
+                key={stat.key}
+                className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                onClick={stat.onClick}
+              >
+                <CardContent className="p-3 sm:p-4">
+                  {/* Compact layout: Icon + Arrow row */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`h-8 w-8 rounded-lg ${stat.iconBg} flex items-center justify-center`}>
+                      <Icon className={`h-4 w-4 ${stat.iconColor}`} />
+                    </div>
+                    <ArrowRight className={`h-3.5 w-3.5 text-slate-300 ${stat.hoverColor} transition-colors`} />
+                  </div>
 
-          {/* Pending Card */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?status=pending')}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900">
-                {isLoading ? '...' : stats?.pending || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">Pending</p>
-            </CardContent>
-          </Card>
+                  {/* Value */}
+                  <p className="text-xl sm:text-2xl font-bold text-slate-900">
+                    {isLoading ? '—' : value}
+                  </p>
 
-          {/* Dispatched Card */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?status=dispatched')}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-emerald-600" />
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900">
-                {isLoading ? '...' : stats?.dispatched || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">Dispatched</p>
-            </CardContent>
-          </Card>
+                  {/* Label */}
+                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{stat.label}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Recent Activity Section */}

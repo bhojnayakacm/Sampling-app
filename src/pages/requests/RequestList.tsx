@@ -32,6 +32,8 @@ import TrackingDialog from '@/components/requests/TrackingDialog';
 const STATUS_FILTERS: Record<string, RequestStatus[]> = {
   pending: ['pending_approval', 'approved', 'assigned'],
   completed: ['ready', 'dispatched', 'received'],
+  // In Progress: All active statuses before dispatch (for Requester Dashboard)
+  in_progress: ['pending_approval', 'approved', 'assigned', 'in_production', 'ready'],
 };
 
 // Helper function to generate smart item summary for table display
