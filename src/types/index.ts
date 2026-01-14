@@ -172,6 +172,13 @@ export interface Request {
   company_firm_name: string;  // Was firm_name
   site_location: string;
 
+  // Dynamic fields based on client_type
+  supporting_architect_name: string | null;  // For Retail clients
+  architect_firm_name: string | null;  // For Retail clients
+  project_type: string | null;  // For Project clients (Hotel, Resort, Hospital, Other)
+  project_type_custom: string | null;  // For Project clients when "Other" is selected
+  project_placeholder: string | null;  // For Project clients
+
   // Section 3: Sample Request Details (DEPRECATED - kept for backward compatibility)
   // New requests store product data in request_items table
   product_type: string;  // ProductType
