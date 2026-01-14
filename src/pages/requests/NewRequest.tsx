@@ -19,7 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles } from 'lucide-react';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
 import { LocationAutocomplete } from '@/components/ui/location-autocomplete';
@@ -66,6 +66,9 @@ interface RequestFormData {
   purpose: Purpose;
   packing_details: PackingType;
   packing_remarks?: string;
+
+  // Optional message to coordinator
+  requester_message?: string;
 }
 
 // ============================================================
@@ -301,6 +304,7 @@ export default function NewRequest() {
       setValue('purpose', existingDraft.purpose as Purpose);
       setValue('packing_details', existingDraft.packing_details as PackingType);
       setValue('packing_remarks', existingDraft.packing_remarks || '');
+      setValue('requester_message', existingDraft.requester_message || '');
 
       // Load items from request_items table (new structure)
       if (existingDraft.items && existingDraft.items.length > 0) {
@@ -526,6 +530,9 @@ export default function NewRequest() {
         packing_details: formValues.packing_details || null,
         packing_remarks: formValues.packing_remarks || null,
 
+        // Requester message (optional)
+        requester_message: formValues.requester_message || null,
+
         // Legacy columns (set to first product for backward compatibility)
         product_type: products[0]?.product_type || null,
         quality: products[0]?.quality === 'Custom' ? products[0]?.quality_custom : products[0]?.quality || null,
@@ -657,6 +664,9 @@ export default function NewRequest() {
         purpose: data.purpose,
         packing_details: data.packing_details,
         packing_remarks: data.packing_details === 'custom' ? data.packing_remarks : null,
+
+        // Requester message (optional)
+        requester_message: data.requester_message || null,
 
         // Legacy columns (set to first product for backward compatibility)
         product_type: products[0]?.product_type || null,
@@ -1270,6 +1280,32 @@ export default function NewRequest() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
+
+        {/* ============================================================ */}
+        {/* OPTIONAL: Message to Coordinator */}
+        {/* ============================================================ */}
+        <div className="mt-4 bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="h-4 w-4 text-blue-600" />
+            </div>
+            <div>
+              <Label htmlFor="requester_message" className="text-slate-800 font-semibold text-base">
+                Message to Coordinator
+              </Label>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Add any special instructions or notes for the coordinator (optional)
+              </p>
+            </div>
+          </div>
+          <Textarea
+            id="requester_message"
+            {...register('requester_message')}
+            placeholder="e.g., Please pack urgently, Call me before dispatch, Handle with extra care..."
+            rows={3}
+            className="border-slate-200 focus:ring-indigo-500 resize-none"
+          />
+        </div>
 
         {/* Form Actions - Clean Card at bottom */}
         <div className="mt-8 bg-white border border-slate-200 rounded-xl shadow-sm p-5">

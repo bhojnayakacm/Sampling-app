@@ -576,6 +576,20 @@ export default function RequestDetail() {
         {/* =========================================== */}
         {/* ALERTS */}
         {/* =========================================== */}
+
+        {/* Requester Special Instructions */}
+        {request.requester_message && (
+          <Alert className="mb-4 border border-violet-200 bg-violet-50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <MessageSquare className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <AlertTitle className="text-sm font-medium text-violet-900">Special Instructions from Requester</AlertTitle>
+                <AlertDescription className="text-sm text-violet-700 mt-1">{request.requester_message}</AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
         {request.coordinator_message && (
           <Alert
             className={`mb-4 border rounded-lg ${

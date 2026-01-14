@@ -201,6 +201,9 @@ export interface Request {
   item_count: number;  // Number of items in this request
   items?: RequestItemDB[];  // Populated via join with request_items
 
+  // Requester message (special instructions from requester)
+  requester_message: string | null;
+
   // Coordinator message (for approval/rejection notes)
   coordinator_message: string | null;
 
