@@ -315,15 +315,25 @@ export function useAllRequestsStats() {
       // Exclude drafts from coordinator/admin view (drafts are not submitted)
       const submittedRequests = data.filter((r) => r.status !== 'draft');
       const total = submittedRequests.length;
-      const pending = submittedRequests.filter((r) =>
-        ['pending_approval', 'approved'].includes(r.status)
-      ).length;
+
+      // Pending: ONLY pending_approval (strictly awaiting coordinator action)
+      const pending = submittedRequests.filter((r) => r.status === 'pending_approval').length;
+
+      // In Production: assigned + in_production
       const in_production = submittedRequests.filter((r) =>
         ['assigned', 'in_production'].includes(r.status)
       ).length;
+
+      // Ready: sample completed, awaiting dispatch
+      const ready = submittedRequests.filter((r) => r.status === 'ready').length;
+
+      // Dispatched: shipped out
       const dispatched = submittedRequests.filter((r) => r.status === 'dispatched').length;
 
-      return { total, pending, in_production, dispatched };
+      // Received: delivered and confirmed
+      const received = submittedRequests.filter((r) => r.status === 'received').length;
+
+      return { total, pending, in_production, ready, dispatched, received };
     },
   });
 }

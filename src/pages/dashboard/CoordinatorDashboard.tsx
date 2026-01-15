@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,9 +42,23 @@ import {
   AlertCircle,
   Truck,
   Eye,
-  ArrowRight
+  ArrowRight,
+  CheckCircle,
+  PackageCheck,
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
+
+// Stat card configuration type
+interface StatCardConfig {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  hoverColor: string;
+  getValue: (stats: any) => number;
+  filterStatus: RequestStatus | null; // null means "show all"
+}
 
 // Helper function to generate smart item summary for table display
 function getItemSummary(request: Request): { text: string; tooltip: string; isMulti: boolean } {
@@ -122,6 +136,7 @@ export default function CoordinatorDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: stats, isLoading: statsLoading } = useAllRequestsStats();
+  const listSectionRef = useRef<HTMLDivElement>(null);
 
   const activeTab = searchParams.get('tab') || 'sample-requests';
   const setActiveTab = (tab: string) => {
@@ -133,6 +148,7 @@ export default function CoordinatorDashboard() {
   const [status, setStatus] = useState<RequestStatus | null>(null);
   const [priority, setPriority] = useState<Priority | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
+  const [activeCard, setActiveCard] = useState<string | null>(null);
 
   const deleteDraft = useDeleteDraft();
 
@@ -153,6 +169,70 @@ export default function CoordinatorDashboard() {
   const isRequesterUser = profile?.role === 'requester';
   const isStaffUser = profile?.role === 'admin' || profile?.role === 'coordinator' || profile?.role === 'maker';
 
+  // Define all 6 stat cards
+  const statCards: StatCardConfig[] = [
+    {
+      key: 'total',
+      label: 'Total Requests',
+      icon: Inbox,
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      hoverColor: 'group-hover:text-blue-500',
+      getValue: (s) => s?.total || 0,
+      filterStatus: null,
+    },
+    {
+      key: 'pending',
+      label: 'Pending',
+      icon: Clock,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      hoverColor: 'group-hover:text-amber-500',
+      getValue: (s) => s?.pending || 0,
+      filterStatus: 'pending_approval',
+    },
+    {
+      key: 'in_production',
+      label: 'In Production',
+      icon: Cog,
+      iconBg: 'bg-violet-50',
+      iconColor: 'text-violet-600',
+      hoverColor: 'group-hover:text-violet-500',
+      getValue: (s) => s?.in_production || 0,
+      filterStatus: 'in_production',
+    },
+    {
+      key: 'ready',
+      label: 'Ready',
+      icon: CheckCircle,
+      iconBg: 'bg-teal-50',
+      iconColor: 'text-teal-600',
+      hoverColor: 'group-hover:text-teal-500',
+      getValue: (s) => s?.ready || 0,
+      filterStatus: 'ready',
+    },
+    {
+      key: 'dispatched',
+      label: 'Dispatched',
+      icon: Truck,
+      iconBg: 'bg-emerald-50',
+      iconColor: 'text-emerald-600',
+      hoverColor: 'group-hover:text-emerald-500',
+      getValue: (s) => s?.dispatched || 0,
+      filterStatus: 'dispatched',
+    },
+    {
+      key: 'received',
+      label: 'Received',
+      icon: PackageCheck,
+      iconBg: 'bg-green-50',
+      iconColor: 'text-green-600',
+      hoverColor: 'group-hover:text-green-500',
+      getValue: (s) => s?.received || 0,
+      filterStatus: 'received',
+    },
+  ];
+
   const handleSearchChange = (value: string) => {
     setSearch(value);
     setPage(1);
@@ -161,6 +241,8 @@ export default function CoordinatorDashboard() {
   const handleStatusChange = (value: RequestStatus | null) => {
     setStatus(value);
     setPage(1);
+    // Clear active card highlight when manually changing status
+    setActiveCard(null);
   };
 
   const handlePriorityChange = (value: Priority | null) => {
@@ -173,6 +255,19 @@ export default function CoordinatorDashboard() {
     setStatus(null);
     setPriority(null);
     setPage(1);
+    setActiveCard(null);
+  };
+
+  // Handle stat card click - filters list and scrolls
+  const handleCardClick = (card: StatCardConfig) => {
+    setStatus(card.filterStatus);
+    setPage(1);
+    setActiveCard(card.key);
+
+    // Smooth scroll to list section
+    setTimeout(() => {
+      listSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleDeleteDraft = async () => {
@@ -190,87 +285,56 @@ export default function CoordinatorDashboard() {
     if (activeTab === 'sample-requests') {
       return (
         <div className="p-4 sm:p-6 space-y-6">
-          {/* Stats Cards - Clean Design */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Requests */}
-            <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <Inbox className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {statsLoading ? '...' : stats?.total || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Total Requests</p>
-              </CardContent>
-            </Card>
+          {/* Stats Cards - 6 Card Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {statCards.map((card) => {
+              const Icon = card.icon;
+              const value = card.getValue(stats);
+              const isActive = activeCard === card.key;
 
-            {/* Pending Approval */}
-            <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {statsLoading ? '...' : stats?.pending || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Pending</p>
-              </CardContent>
-            </Card>
-
-            {/* In Production */}
-            <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
-                    <Cog className="h-5 w-5 text-violet-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-violet-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {statsLoading ? '...' : stats?.in_production || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">In Production</p>
-              </CardContent>
-            </Card>
-
-            {/* Dispatched */}
-            <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <Truck className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {statsLoading ? '...' : stats?.dispatched || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Dispatched</p>
-              </CardContent>
-            </Card>
+              return (
+                <Card
+                  key={card.key}
+                  onClick={() => handleCardClick(card)}
+                  className={`bg-white border shadow-sm hover:shadow-md transition-all cursor-pointer group ${
+                    isActive
+                      ? 'border-indigo-500 ring-2 ring-indigo-200'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg ${card.iconBg} flex items-center justify-center`}>
+                        <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${card.iconColor}`} />
+                      </div>
+                      <ArrowRight className={`h-3.5 w-3.5 text-slate-300 ${card.hoverColor} transition-colors`} />
+                    </div>
+                    <p className="text-xl sm:text-2xl font-bold text-slate-900">
+                      {statsLoading ? '...' : value}
+                    </p>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{card.label}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Toolbar with filters */}
-          <Card className="bg-white border border-slate-200 shadow-sm">
-            <CardContent className="p-4">
-              <RequestToolbar
-                search={search}
-                status={status}
-                priority={priority}
-                onSearchChange={handleSearchChange}
-                onStatusChange={handleStatusChange}
-                onPriorityChange={handlePriorityChange}
-                onReset={handleReset}
-              />
-            </CardContent>
-          </Card>
+          <div ref={listSectionRef}>
+            <Card className="bg-white border border-slate-200 shadow-sm">
+              <CardContent className="p-4">
+                <RequestToolbar
+                  search={search}
+                  status={status}
+                  priority={priority}
+                  onSearchChange={handleSearchChange}
+                  onStatusChange={handleStatusChange}
+                  onPriorityChange={handlePriorityChange}
+                  onReset={handleReset}
+                />
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Request Count Header */}
           <div className="flex justify-between items-center">
@@ -284,6 +348,16 @@ export default function CoordinatorDashboard() {
                 </p>
               )}
             </div>
+            {activeCard && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReset}
+                className="text-xs h-8"
+              >
+                Clear Filter
+              </Button>
+            )}
           </div>
 
           {/* Request Data */}
