@@ -107,6 +107,9 @@ export default function RequestActions({ request, userRole, isCompact = false }:
     return null;
   }
 
+  // Check if self pickup - coordinator doesn't need to dispatch
+  const isSelfPickup = request.pickup_responsibility === 'self_pickup';
+
   // Compact mode for sticky action bar
   if (isCompact) {
     return (
@@ -145,7 +148,8 @@ export default function RequestActions({ request, userRole, isCompact = false }:
             </Button>
           )}
 
-          {request.status === 'ready' && (
+          {/* Hide Dispatch button for Self Pickup - requester will mark as received directly */}
+          {request.status === 'ready' && !isSelfPickup && (
             <Button
               onClick={() => setDispatchDialogOpen(true)}
               size="sm"
@@ -154,6 +158,13 @@ export default function RequestActions({ request, userRole, isCompact = false }:
               <Truck className="h-4 w-4" />
               Dispatch
             </Button>
+          )}
+
+          {/* Self Pickup at Ready: Show informational message */}
+          {request.status === 'ready' && isSelfPickup && (
+            <span className="text-sm text-slate-500">
+              Awaiting Self Pickup
+            </span>
           )}
 
           {!['pending_approval', 'approved', 'ready'].includes(request.status) && (
@@ -494,7 +505,8 @@ export default function RequestActions({ request, userRole, isCompact = false }:
           </>
         )}
 
-        {request.status === 'ready' && (
+        {/* Hide Dispatch button for Self Pickup */}
+        {request.status === 'ready' && !isSelfPickup && (
           <Button
             onClick={() => setDispatchDialogOpen(true)}
             size="sm"
@@ -512,7 +524,8 @@ export default function RequestActions({ request, userRole, isCompact = false }:
         {request.status === 'approved' && 'Assign this request to a maker to begin production.'}
         {request.status === 'assigned' && 'Waiting for maker to start work.'}
         {request.status === 'in_production' && 'Maker is currently working on this request.'}
-        {request.status === 'ready' && 'Sample is ready. Mark as dispatched when sent.'}
+        {request.status === 'ready' && isSelfPickup && 'Sample is ready for self pickup by requester.'}
+        {request.status === 'ready' && !isSelfPickup && 'Sample is ready. Mark as dispatched when sent.'}
         {request.status === 'dispatched' && 'This request has been dispatched.'}
       </p>
 

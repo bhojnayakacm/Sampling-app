@@ -102,9 +102,21 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
   const { data: history, isLoading } = useRequestTimeline(request.id);
   const markAsReceived = useMarkAsReceived();
 
+  // Check if self pickup - skip dispatched step
+  const isSelfPickup = request.pickup_responsibility === 'self_pickup';
+
   // Check if user is the requester (only they can mark as received)
   const isRequester = profile?.id === request.created_by;
-  const canMarkReceived = isRequester && request.status === 'dispatched';
+  // For self pickup, requester can mark as received directly from "ready" status
+  const canMarkReceived = isRequester && (
+    request.status === 'dispatched' ||
+    (request.status === 'ready' && isSelfPickup)
+  );
+
+  // Dynamic timeline steps - filter out "Dispatched" for self pickup
+  const timelineSteps = isSelfPickup
+    ? TIMELINE_STEPS.filter((step) => step.status !== 'dispatched')
+    : TIMELINE_STEPS;
 
   // Find the timestamp for each step
   const getStepTimestamp = (status: RequestStatus) => {
@@ -112,9 +124,9 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
     return historyItem?.changed_at;
   };
 
-  // Get current step index
+  // Get current step index (using filtered timeline for self pickup)
   const getCurrentStepIndex = () => {
-    const currentStepIndex = TIMELINE_STEPS.findIndex((step) => step.status === request.status);
+    const currentStepIndex = timelineSteps.findIndex((step) => step.status === request.status);
     return currentStepIndex >= 0 ? currentStepIndex : 0;
   };
 
@@ -185,7 +197,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
           {!isLoading && !isDraft && !isRejected && (
             <div className="py-6">
               <div className="relative">
-                {TIMELINE_STEPS.map((step, index) => {
+                {timelineSteps.map((step, index) => {
                   const timestamp = getStepTimestamp(step.status);
                   const isCompleted = !!timestamp;
                   const isCurrent = index === currentStepIndex && !timestamp;
@@ -196,7 +208,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
                   return (
                     <div key={step.status} className="relative pb-8 last:pb-0">
                       {/* Vertical Line */}
-                      {index < TIMELINE_STEPS.length - 1 && (
+                      {index < timelineSteps.length - 1 && (
                         <div
                           className={`absolute left-5 top-10 h-full w-0.5 ${
                             isCompleted ? 'bg-green-500' : 'bg-gray-200'

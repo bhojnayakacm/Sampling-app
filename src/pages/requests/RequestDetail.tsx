@@ -497,6 +497,10 @@ export default function RequestDetail() {
   const hasItems = request.items && request.items.length > 0;
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
+  // Statuses where shipping details can still be edited
+  const EDITABLE_STATUSES = ['pending_approval', 'approved', 'assigned', 'in_production', 'ready'];
+  const canEditShipping = isCoordinator && EDITABLE_STATUSES.includes(request.status);
+
   return (
     <div className="min-h-screen bg-slate-50 pb-32 md:pb-24">
       {/* =========================================== */}
@@ -798,7 +802,7 @@ export default function RequestDetail() {
                     <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                       Pickup Method
                     </label>
-                    {isCoordinator && !isEditingDeliveryMethod && (
+                    {canEditShipping && !isEditingDeliveryMethod && (
                       <button
                         onClick={handleStartEditDeliveryMethod}
                         className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
@@ -875,7 +879,7 @@ export default function RequestDetail() {
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                         Delivery Address
                       </label>
-                      {isCoordinator && !isEditingAddress && (
+                      {canEditShipping && !isEditingAddress && (
                         <button
                           onClick={handleStartEditAddress}
                           className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
@@ -932,7 +936,7 @@ export default function RequestDetail() {
                                 <p className="text-xs text-amber-600">Add delivery address for shipment.</p>
                               </div>
                             </div>
-                            {isCoordinator && (
+                            {canEditShipping && (
                               <Button
                                 size="sm"
                                 onClick={handleStartEditAddress}
