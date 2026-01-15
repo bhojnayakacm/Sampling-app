@@ -41,7 +41,7 @@ export default function MarketingDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {isLoading ? '...' : stats?.pending || 0}
+                {isLoading ? '...' : stats?.inProgress || 0}
               </p>
             </CardContent>
           </Card>

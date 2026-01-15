@@ -7,7 +7,6 @@ import {
   FileText,
   Send,
   Clock,
-  CheckCircle,
   ArrowRight,
   Plus,
   Package,
