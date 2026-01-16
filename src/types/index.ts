@@ -217,6 +217,9 @@ export interface Request {
   dispatched_at: string | null;
   received_at: string | null;
 
+  // Deadline history (audit trail for required_by changes)
+  required_by_history: RequiredByHistoryEntry[] | null;
+
   // Related data (populated via joins)
   creator?: {
     id: string;
@@ -346,4 +349,16 @@ export interface RequestTimeline {
     changed_by: string | null;
     changer_name: string | null;
   }>;
+}
+
+// ============================================================
+// REQUIRED BY (DEADLINE) HISTORY
+// ============================================================
+
+export interface RequiredByHistoryEntry {
+  old_date: string;      // ISO timestamp of the previous deadline
+  new_date: string;      // ISO timestamp of the new deadline
+  reason: string;        // Mandatory reason for the change
+  changed_by_name: string;  // Name of the coordinator who made the change
+  timestamp: string;     // ISO timestamp when the change was made
 }

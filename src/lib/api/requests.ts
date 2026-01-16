@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput } from '@/types';
+import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput, RequiredByHistoryEntry } from '@/types';
 
 // Pagination and filtering parameters
 export interface RequestFilters {
@@ -974,6 +974,74 @@ export function useUpdateRequestWithItems() {
       queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    },
+  });
+}
+
+// ============================================================
+// REQUIRED BY (DEADLINE) MANAGEMENT
+// ============================================================
+
+// Hook for updating required_by date with audit trail
+export function useUpdateRequiredBy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      newDate,
+      reason,
+      changedByName,
+    }: {
+      requestId: string;
+      newDate: string;
+      reason: string;
+      changedByName: string;
+    }) => {
+      // First, fetch the current request to get existing history and old date
+      const { data: currentRequest, error: fetchError } = await supabase
+        .from('requests')
+        .select('required_by, required_by_history')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Create new history entry
+      const historyEntry: RequiredByHistoryEntry = {
+        old_date: currentRequest.required_by,
+        new_date: newDate,
+        reason: reason,
+        changed_by_name: changedByName,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Append to existing history (or create new array)
+      const existingHistory: RequiredByHistoryEntry[] = currentRequest.required_by_history || [];
+      const newHistory = [...existingHistory, historyEntry];
+
+      // Update the request with new date and history
+      const { data, error } = await supabase
+        .from('requests')
+        .update({
+          required_by: newDate,
+          required_by_history: newHistory,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate all relevant caches
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['request', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     },
   });
 }

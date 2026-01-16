@@ -35,6 +35,8 @@ import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
+import EditRequiredByModal from '@/components/requests/EditRequiredByModal';
+import RequiredByHistory from '@/components/requests/RequiredByHistory';
 import {
   MapPin,
   MessageSquare,
@@ -89,6 +91,9 @@ export default function RequestDetail() {
 
   // Image preview state
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Edit Required By modal state
+  const [isEditRequiredByOpen, setIsEditRequiredByOpen] = useState(false);
 
   // Track previous pickup method
   const previousPickupMethod = useRef<string | null>(null);
@@ -1009,6 +1014,46 @@ export default function RequestDetail() {
           {/* RIGHT COLUMN - Sidebar */}
           {/* =========================================== */}
           <div className="space-y-4 sm:space-y-5">
+            {/* Deadline / Required By */}
+            <Card className="bg-white border border-slate-200 shadow-sm">
+              <CardHeader className="py-3 px-4 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-amber-500" />
+                    Required By
+                  </CardTitle>
+                  {isCoordinator && (
+                    <button
+                      onClick={() => setIsEditRequiredByOpen(true)}
+                      className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                      title="Edit deadline"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                {/* Current Deadline */}
+                <div>
+                  <p className="text-lg font-semibold text-slate-900">
+                    {formatDateTime(request.required_by)}
+                  </p>
+                  {request.priority === 'urgent' && (
+                    <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Urgent
+                    </span>
+                  )}
+                </div>
+
+                {/* Deadline History */}
+                {request.required_by_history && request.required_by_history.length > 0 && (
+                  <RequiredByHistory history={request.required_by_history} />
+                )}
+              </CardContent>
+            </Card>
+
             {/* Assigned Maker */}
             {request.maker && (
               <Card className="bg-white border border-slate-200 shadow-sm">
@@ -1222,6 +1267,15 @@ export default function RequestDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* =========================================== */}
+      {/* EDIT REQUIRED BY MODAL */}
+      {/* =========================================== */}
+      <EditRequiredByModal
+        request={request}
+        open={isEditRequiredByOpen}
+        onOpenChange={setIsEditRequiredByOpen}
+      />
     </div>
   );
 }

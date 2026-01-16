@@ -4,6 +4,25 @@ import { Input } from '@/components/ui/input';
 import { MapPin, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+interface NominatimAddress {
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  hamlet?: string;
+  suburb?: string;
+  state?: string;
+  country?: string;
+}
+
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  address: NominatimAddress;
+}
+
 interface LocationSuggestion {
   place_id: number;
   display_name: string;
@@ -104,6 +123,29 @@ export function LocationAutocomplete({
     }
   }, [showDropdown]);
 
+  // Extract city name from address using priority logic
+  const extractCityName = (address: NominatimAddress): string | null => {
+    // Priority order for city name
+    return (
+      address.city ||
+      address.town ||
+      address.village ||
+      address.municipality ||
+      address.hamlet ||
+      address.suburb ||
+      null
+    );
+  };
+
+  // Format location as "City, State" or just "City" if no state
+  const formatLocation = (address: NominatimAddress): string | null => {
+    const cityName = extractCityName(address);
+    if (!cityName) return null;
+
+    const stateName = address.state;
+    return stateName ? `${cityName}, ${stateName}` : cityName;
+  };
+
   // Fetch suggestions from Nominatim API
   const fetchSuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
@@ -115,7 +157,7 @@ export function LocationAutocomplete({
     try {
       // Add India bias for better results
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&countrycodes=in&addressdetails=1`,
         {
           headers: {
             'Accept-Language': 'en',
@@ -125,31 +167,31 @@ export function LocationAutocomplete({
 
       if (!response.ok) throw new Error('Failed to fetch');
 
-      const data: LocationSuggestion[] = await response.json();
+      const data: NominatimResult[] = await response.json();
 
-      // Format the suggestions to show city, state format
-      const formattedSuggestions = data.map((item) => {
-        // Parse display_name to extract city and state
-        const parts = item.display_name.split(', ');
-        let formatted = item.display_name;
+      // Format suggestions and deduplicate
+      const seenLocations = new Set<string>();
+      const formattedSuggestions: LocationSuggestion[] = [];
 
-        // Try to create a cleaner "City, State" format
-        if (parts.length >= 2) {
-          // Take the first part (usually city) and find state
-          const city = parts[0];
-          // Look for state in the parts (usually 2nd or 3rd from end, before country)
-          const stateIndex = parts.length >= 3 ? parts.length - 2 : 1;
-          const state = parts[stateIndex];
-          if (city && state && state !== 'India') {
-            formatted = `${city}, ${state}`;
-          }
+      for (const item of data) {
+        const formattedName = formatLocation(item.address);
+
+        // Skip if we couldn't format the location or if it's a duplicate
+        if (!formattedName || seenLocations.has(formattedName.toLowerCase())) {
+          continue;
         }
 
-        return {
-          ...item,
-          display_name: formatted,
-        };
-      });
+        seenLocations.add(formattedName.toLowerCase());
+        formattedSuggestions.push({
+          place_id: item.place_id,
+          display_name: formattedName,
+          lat: item.lat,
+          lon: item.lon,
+        });
+
+        // Stop after 5 unique suggestions
+        if (formattedSuggestions.length >= 5) break;
+      }
 
       setSuggestions(formattedSuggestions);
       if (formattedSuggestions.length > 0) {

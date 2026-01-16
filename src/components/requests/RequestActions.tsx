@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,11 +16,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useMakers } from '@/lib/api/users';
-import { useAssignRequest, useUpdateRequestStatus } from '@/lib/api/requests';
+import { useAssignRequest, useUpdateRequestStatus, useUpdateRequiredBy } from '@/lib/api/requests';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Request } from '@/types';
-import { CheckCircle, XCircle, Loader2, Truck, UserPlus } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle } from 'lucide-react';
+import { formatDateTime } from '@/lib/utils';
 
 interface RequestActionsProps {
   request: Request;
@@ -29,9 +33,11 @@ interface RequestActionsProps {
 }
 
 export default function RequestActions({ request, userRole, isCompact = false }: RequestActionsProps) {
+  const { profile } = useAuth();
   const { data: makers } = useMakers();
   const assignRequest = useAssignRequest();
   const updateStatus = useUpdateRequestStatus();
+  const updateRequiredBy = useUpdateRequiredBy();
 
   // Dialog states
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -41,6 +47,32 @@ export default function RequestActions({ request, userRole, isCompact = false }:
   const [selectedMaker, setSelectedMaker] = useState('');
   const [message, setMessage] = useState('');
   const [dispatchNotes, setDispatchNotes] = useState('');
+
+  // Required By date editing state (for approval dialog)
+  const [editedRequiredBy, setEditedRequiredBy] = useState('');
+  const originalRequiredBy = request.required_by;
+
+  // Convert ISO date to datetime-local format for input
+  const toDateTimeLocal = (isoDate: string) => {
+    const date = new Date(isoDate);
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 16);
+  };
+
+  // Initialize editedRequiredBy when dialog opens
+  useEffect(() => {
+    if (approveDialogOpen && request.required_by) {
+      setEditedRequiredBy(toDateTimeLocal(request.required_by));
+    }
+  }, [approveDialogOpen, request.required_by]);
+
+  // Check if required_by date was modified
+  const isRequiredByModified = () => {
+    if (!editedRequiredBy) return false;
+    const editedDate = new Date(editedRequiredBy).toISOString();
+    return editedDate !== originalRequiredBy;
+  };
 
   const handleAssign = async () => {
     if (!selectedMaker) {
@@ -59,6 +91,18 @@ export default function RequestActions({ request, userRole, isCompact = false }:
 
   const handleApprove = async () => {
     try {
+      // If required_by date was modified, update it with history log
+      if (isRequiredByModified()) {
+        const newDate = new Date(editedRequiredBy).toISOString();
+        await updateRequiredBy.mutateAsync({
+          requestId: request.id,
+          newDate: newDate,
+          reason: 'Changed during approval',
+          changedByName: profile?.full_name || 'Coordinator',
+        });
+      }
+
+      // Then approve the request
       await updateStatus.mutateAsync({
         requestId: request.id,
         status: 'approved',
@@ -67,6 +111,7 @@ export default function RequestActions({ request, userRole, isCompact = false }:
       toast.success('Request approved successfully!');
       setApproveDialogOpen(false);
       setMessage('');
+      setEditedRequiredBy('');
     } catch (error: any) {
       toast.error(error.message || 'Failed to approve request');
     }
@@ -198,21 +243,55 @@ export default function RequestActions({ request, userRole, isCompact = false }:
               </DialogDescription>
             </DialogHeader>
 
-            <div className="py-4">
-              <label htmlFor="approve-message" className="text-sm font-medium text-gray-700 mb-2 block">
-                Message to Requester <span className="text-gray-500 font-normal">(Optional)</span>
-              </label>
-              <Textarea
-                id="approve-message"
-                placeholder="E.g., Estimated delivery: 1 week"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={3}
-                className="resize-none"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                This message will be visible to the requester in the request details.
-              </p>
+            <div className="py-4 space-y-4">
+              {/* Required By Date Editor */}
+              <div className="space-y-2">
+                <Label htmlFor="required-by-date" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-slate-500" />
+                  Required By Date
+                </Label>
+                <div className="space-y-2">
+                  <Input
+                    id="required-by-date"
+                    type="datetime-local"
+                    value={editedRequiredBy}
+                    onChange={(e) => setEditedRequiredBy(e.target.value)}
+                    className="h-10 border-slate-200"
+                  />
+                  {isRequiredByModified() && (
+                    <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-md">
+                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div className="text-xs text-amber-700">
+                        <span className="font-medium">Date will be changed</span>
+                        <span className="block text-amber-600 mt-0.5">
+                          Original: {formatDateTime(originalRequiredBy)}
+                        </span>
+                        <span className="block text-amber-600 mt-0.5">
+                          This change will be logged in the deadline history.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Message to Requester */}
+              <div className="space-y-2">
+                <Label htmlFor="approve-message" className="text-sm font-medium text-gray-700">
+                  Message to Requester <span className="text-gray-500 font-normal">(Optional)</span>
+                </Label>
+                <Textarea
+                  id="approve-message"
+                  placeholder="E.g., Estimated delivery: 1 week"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                />
+                <p className="text-xs text-gray-500">
+                  This message will be visible to the requester in the request details.
+                </p>
+              </div>
             </div>
 
             <DialogFooter>
@@ -221,17 +300,18 @@ export default function RequestActions({ request, userRole, isCompact = false }:
                 onClick={() => {
                   setApproveDialogOpen(false);
                   setMessage('');
+                  setEditedRequiredBy('');
                 }}
-                disabled={updateStatus.isPending}
+                disabled={updateStatus.isPending || updateRequiredBy.isPending}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleApprove}
-                disabled={updateStatus.isPending}
+                disabled={updateStatus.isPending || updateRequiredBy.isPending}
                 className="bg-green-600 hover:bg-green-700"
               >
-                {updateStatus.isPending ? (
+                {(updateStatus.isPending || updateRequiredBy.isPending) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Approving...
