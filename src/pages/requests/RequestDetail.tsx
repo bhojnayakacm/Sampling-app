@@ -502,6 +502,34 @@ export default function RequestDetail() {
   const hasItems = request.items && request.items.length > 0;
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
+  // Helper to determine deadline status for consistent styling
+  const getDeadlineStatus = () => {
+    if (!request.required_by) return { status: 'normal', className: '', label: '' };
+
+    const now = new Date();
+    const deadline = new Date(request.required_by);
+    const hoursUntilDeadline = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    // Already received - no urgency styling needed
+    if (request.status === 'received') {
+      return { status: 'completed', className: 'text-green-600', label: '' };
+    }
+
+    // Overdue
+    if (hoursUntilDeadline < 0) {
+      return { status: 'overdue', className: 'text-red-600', label: 'Overdue' };
+    }
+
+    // Due within 24 hours OR marked as urgent priority
+    if (hoursUntilDeadline <= 24 || request.priority === 'urgent') {
+      return { status: 'urgent', className: 'text-amber-600', label: request.priority === 'urgent' ? 'Urgent' : 'Due Soon' };
+    }
+
+    return { status: 'normal', className: 'text-slate-600', label: '' };
+  };
+
+  const deadlineStatus = getDeadlineStatus();
+
   // Statuses where shipping details can still be edited
   const EDITABLE_STATUSES = ['pending_approval', 'approved', 'assigned', 'in_production', 'ready'];
   const canEditShipping = isCoordinator && EDITABLE_STATUSES.includes(request.status);
@@ -536,17 +564,34 @@ export default function RequestDetail() {
                     </span>
                   )}
                 </div>
-                {/* Mobile: Show only due date */}
-                <p className="text-xs text-slate-500 mt-0.5 truncate">
-                  <span className="sm:hidden">Due: {formatDateTime(request.required_by)}</span>
-                  <span className="hidden sm:inline-flex items-center gap-4">
+                {/* Mobile: Show only due date with urgency styling */}
+                <p className="text-xs mt-0.5 truncate">
+                  <span className={`sm:hidden flex items-center gap-1 ${deadlineStatus.className || 'text-slate-500'}`}>
+                    <Calendar className="h-3 w-3" />
+                    Due: {formatDateTime(request.required_by)}
+                    {deadlineStatus.label && (
+                      <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-medium ${
+                        deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {deadlineStatus.label}
+                      </span>
+                    )}
+                  </span>
+                  <span className="hidden sm:inline-flex items-center gap-4 text-slate-500">
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       Created {formatDateTime(request.created_at)}
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className={`flex items-center gap-1 ${deadlineStatus.className || ''}`}>
                       <Calendar className="h-3 w-3" />
                       Due {formatDateTime(request.required_by)}
+                      {deadlineStatus.label && (
+                        <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-medium ${
+                          deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {deadlineStatus.label}
+                        </span>
+                      )}
                     </span>
                   </span>
                 </p>
@@ -1022,7 +1067,8 @@ export default function RequestDetail() {
                     <Calendar className="h-4 w-4 text-amber-500" />
                     Required By
                   </CardTitle>
-                  {isCoordinator && (
+                  {/* Hide pencil for pending_approval - coordinator should use the Approval Dialog instead */}
+                  {isCoordinator && request.status !== 'pending_approval' && (
                     <button
                       onClick={() => setIsEditRequiredByOpen(true)}
                       className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
@@ -1034,15 +1080,27 @@ export default function RequestDetail() {
                 </div>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
-                {/* Current Deadline */}
-                <div>
-                  <p className="text-lg font-semibold text-slate-900">
+                {/* Current Deadline - Primary Display */}
+                <div className={`p-3 rounded-lg ${
+                  deadlineStatus.status === 'overdue' ? 'bg-red-50 border border-red-200' :
+                  deadlineStatus.status === 'urgent' ? 'bg-amber-50 border border-amber-200' :
+                  deadlineStatus.status === 'completed' ? 'bg-green-50 border border-green-200' :
+                  'bg-slate-50 border border-slate-200'
+                }`}>
+                  <p className={`text-xl font-bold ${
+                    deadlineStatus.status === 'overdue' ? 'text-red-700' :
+                    deadlineStatus.status === 'urgent' ? 'text-amber-700' :
+                    deadlineStatus.status === 'completed' ? 'text-green-700' :
+                    'text-slate-900'
+                  }`}>
                     {formatDateTime(request.required_by)}
                   </p>
-                  {request.priority === 'urgent' && (
-                    <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+                  {deadlineStatus.label && (
+                    <span className={`inline-flex items-center mt-2 px-2 py-0.5 rounded text-xs font-medium ${
+                      deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
                       <AlertCircle className="h-3 w-3 mr-1" />
-                      Urgent
+                      {deadlineStatus.label}
                     </span>
                   )}
                 </div>

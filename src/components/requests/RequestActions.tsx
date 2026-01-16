@@ -67,11 +67,16 @@ export default function RequestActions({ request, userRole, isCompact = false }:
     }
   }, [approveDialogOpen, request.required_by]);
 
-  // Check if required_by date was modified
+  // Check if required_by date was modified (compare at minute precision)
   const isRequiredByModified = () => {
-    if (!editedRequiredBy) return false;
-    const editedDate = new Date(editedRequiredBy).toISOString();
-    return editedDate !== originalRequiredBy;
+    if (!editedRequiredBy || !originalRequiredBy) return false;
+    // Compare at minute precision since datetime-local input truncates seconds
+    const editedMinutes = new Date(editedRequiredBy).getTime();
+    const originalMinutes = new Date(originalRequiredBy).getTime();
+    // Round both to nearest minute for fair comparison
+    const editedRounded = Math.floor(editedMinutes / 60000) * 60000;
+    const originalRounded = Math.floor(originalMinutes / 60000) * 60000;
+    return editedRounded !== originalRounded;
   };
 
   const handleAssign = async () => {

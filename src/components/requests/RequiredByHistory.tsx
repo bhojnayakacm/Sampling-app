@@ -53,7 +53,7 @@ export default function RequiredByHistory({ history, className = '' }: RequiredB
           <p className="text-xs text-slate-600">
             <span className="font-medium">{formatDate(latestChange.timestamp)}:</span>{' '}
             <span className="text-slate-500">
-              Changed from {formatDate(latestChange.old_date)} to {formatDate(latestChange.new_date)}
+              Changed from {formatDateTime(latestChange.old_date)} to {formatDateTime(latestChange.new_date)}
             </span>
           </p>
         </div>
@@ -66,14 +66,14 @@ export default function RequiredByHistory({ history, className = '' }: RequiredB
             {sortedHistory.map((entry, index) => (
               <div key={index} className="px-3 py-3">
                 {/* Date Change Row */}
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 text-sm">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm">
                     <span className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-xs">
-                      {formatDate(entry.old_date)}
+                      {formatDateTime(entry.old_date)}
                     </span>
-                    <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                    <ArrowRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="font-mono text-slate-900 bg-indigo-50 px-1.5 py-0.5 rounded text-xs font-medium">
-                      {formatDate(entry.new_date)}
+                      {formatDateTime(entry.new_date)}
                     </span>
                   </div>
                 </div>
