@@ -319,10 +319,11 @@ export function useAllRequestsStats() {
       // Pending: ONLY pending_approval (strictly awaiting coordinator action)
       const pending = submittedRequests.filter((r) => r.status === 'pending_approval').length;
 
-      // In Production: assigned + in_production
-      const in_production = submittedRequests.filter((r) =>
-        ['assigned', 'in_production'].includes(r.status)
-      ).length;
+      // Assigned: awaiting maker to start work
+      const assigned = submittedRequests.filter((r) => r.status === 'assigned').length;
+
+      // In Production: STRICTLY only in_production (maker actively working)
+      const in_production = submittedRequests.filter((r) => r.status === 'in_production').length;
 
       // Ready: sample completed, awaiting dispatch
       const ready = submittedRequests.filter((r) => r.status === 'ready').length;
@@ -333,7 +334,7 @@ export function useAllRequestsStats() {
       // Received: delivered and confirmed
       const received = submittedRequests.filter((r) => r.status === 'received').length;
 
-      return { total, pending, in_production, ready, dispatched, received };
+      return { total, pending, assigned, in_production, ready, dispatched, received };
     },
   });
 }
