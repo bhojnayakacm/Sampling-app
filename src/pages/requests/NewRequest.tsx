@@ -1143,7 +1143,7 @@ export default function NewRequest() {
                     </Label>
                     <Input
                       id="company_firm_name"
-                      {...register('company_firm_name', { required: 'Firm name is required' })}
+                      {...register('company_firm_name')}
                       placeholder={clientType === 'architect' ? 'Enter architect firm name' : 'Enter firm name'}
                       error={!!errors.company_firm_name}
                       className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
