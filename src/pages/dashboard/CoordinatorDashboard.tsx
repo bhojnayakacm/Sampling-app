@@ -1,15 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +18,6 @@ import TrackingDialog from '@/components/requests/TrackingDialog';
 import ReportsView from './coordinator/ReportsView';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAllRequestsStats, usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
-import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   Inbox,
@@ -41,14 +32,210 @@ import {
   Loader2,
   AlertCircle,
   Truck,
-  Eye,
   ArrowRight,
   CheckCircle,
   PackageCheck,
+  Timer,
+  AlertTriangle,
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 
-// Stat card configuration type
+// ============================================================
+// BUSINESS HOURS SLA CALCULATION
+// ============================================================
+
+// IST timezone offset (+5:30 from UTC)
+const IST_OFFSET_MINUTES = 5 * 60 + 30;
+
+// Working hours configuration (10:00 AM to 7:00 PM IST = 9 hours/day)
+const WORK_START_HOUR = 10; // 10:00 AM
+const WORK_END_HOUR = 19;   // 7:00 PM (19:00)
+
+/**
+ * Converts a Date to IST hours and minutes
+ */
+function toIST(date: Date): { hours: number; minutes: number; dayOfWeek: number; date: Date } {
+  const utcTime = date.getTime() + date.getTimezoneOffset() * 60000;
+  const istTime = new Date(utcTime + IST_OFFSET_MINUTES * 60000);
+  return {
+    hours: istTime.getHours(),
+    minutes: istTime.getMinutes(),
+    dayOfWeek: istTime.getDay(), // 0 = Sunday
+    date: istTime,
+  };
+}
+
+/**
+ * Checks if a given IST day is a working day (not Sunday)
+ */
+function isWorkingDay(dayOfWeek: number): boolean {
+  return dayOfWeek !== 0; // Sunday = 0
+}
+
+/**
+ * Calculates working minutes remaining from current time to target date
+ * considering only business hours (10 AM - 7 PM IST) and skipping Sundays
+ */
+function calculateWorkingMinutes(targetDate: string | Date): number {
+  const now = new Date();
+  const target = new Date(targetDate);
+
+  // If target is in the past, return negative working minutes
+  if (target <= now) {
+    return -calculateWorkingMinutesBetween(target, now);
+  }
+
+  return calculateWorkingMinutesBetween(now, target);
+}
+
+/**
+ * Core function: calculates working minutes between two dates
+ */
+function calculateWorkingMinutesBetween(startDate: Date, endDate: Date): number {
+  let totalWorkingMinutes = 0;
+
+  // Clone start date to avoid mutation
+  const current = new Date(startDate);
+
+  // Iterate day by day
+  while (current < endDate) {
+    const istCurrent = toIST(current);
+    const istEnd = toIST(endDate);
+
+    // Skip Sundays entirely
+    if (!isWorkingDay(istCurrent.dayOfWeek)) {
+      // Move to next day at midnight
+      current.setDate(current.getDate() + 1);
+      current.setHours(0, 0, 0, 0);
+      continue;
+    }
+
+    // Calculate working minutes for this day
+    const currentHour = istCurrent.hours + istCurrent.minutes / 60;
+
+    // Check if we're on the same day as the end date
+    const isSameDay =
+      istCurrent.date.toDateString() === istEnd.date.toDateString();
+
+    if (isSameDay) {
+      // Same day: calculate minutes from current time to end time (within working hours)
+      const effectiveStart = Math.max(currentHour, WORK_START_HOUR);
+      const endHour = istEnd.hours + istEnd.minutes / 60;
+      const effectiveEnd = Math.min(endHour, WORK_END_HOUR);
+
+      if (effectiveEnd > effectiveStart && effectiveStart < WORK_END_HOUR) {
+        totalWorkingMinutes += (effectiveEnd - effectiveStart) * 60;
+      }
+      break; // Done
+    } else {
+      // Not the same day: calculate remaining work time for current day
+      if (currentHour < WORK_END_HOUR) {
+        const effectiveStart = Math.max(currentHour, WORK_START_HOUR);
+        if (effectiveStart < WORK_END_HOUR) {
+          totalWorkingMinutes += (WORK_END_HOUR - effectiveStart) * 60;
+        }
+      }
+
+      // Move to next day at start of work
+      current.setDate(current.getDate() + 1);
+      current.setHours(0, 0, 0, 0);
+    }
+  }
+
+  return Math.round(totalWorkingMinutes);
+}
+
+/**
+ * Formats working hours remaining into a human-readable string
+ */
+function formatWorkingTime(totalMinutes: number): string {
+  const isOverdue = totalMinutes < 0;
+  const absMinutes = Math.abs(totalMinutes);
+
+  const hours = Math.floor(absMinutes / 60);
+  const minutes = Math.round(absMinutes % 60);
+
+  if (hours === 0) {
+    return isOverdue ? `Overdue ${minutes}m` : `${minutes}m`;
+  }
+
+  if (minutes === 0) {
+    return isOverdue ? `Overdue ${hours}h` : `${hours}h`;
+  }
+
+  return isOverdue ? `Overdue ${hours}h ${minutes}m` : `${hours}h ${minutes}m`;
+}
+
+/**
+ * Returns SLA status and styling based on working hours remaining
+ */
+function getSLAStatus(workingMinutes: number): {
+  label: string;
+  className: string;
+  icon: React.ElementType;
+  level: 'safe' | 'approaching' | 'warning' | 'overdue';
+} {
+  const workingHours = workingMinutes / 60;
+
+  if (workingMinutes < 0) {
+    return {
+      label: formatWorkingTime(workingMinutes),
+      className: 'bg-red-100 text-red-700 border-red-200',
+      icon: AlertCircle,
+      level: 'overdue',
+    };
+  }
+
+  if (workingHours < 9) {
+    return {
+      label: formatWorkingTime(workingMinutes),
+      className: 'bg-amber-100 text-amber-700 border-amber-200',
+      icon: AlertTriangle,
+      level: 'warning',
+    };
+  }
+
+  if (workingHours <= 18) {
+    return {
+      label: formatWorkingTime(workingMinutes),
+      className: 'bg-blue-100 text-blue-700 border-blue-200',
+      icon: Timer,
+      level: 'approaching',
+    };
+  }
+
+  return {
+    label: formatWorkingTime(workingMinutes),
+    className: 'bg-green-100 text-green-700 border-green-200',
+    icon: CheckCircle,
+    level: 'safe',
+  };
+}
+
+// ============================================================
+// FORMATTING HELPERS
+// ============================================================
+
+function formatCreatedDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
+function formatRequiredBy(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+// ============================================================
+// STAT CARD CONFIG
+// ============================================================
+
 interface StatCardConfig {
   key: string;
   label: string;
@@ -57,32 +244,13 @@ interface StatCardConfig {
   iconColor: string;
   hoverColor: string;
   getValue: (stats: any) => number;
-  filterStatus: RequestStatus | null; // null means "show all"
+  filterStatus: RequestStatus | null;
 }
 
-// Helper function to generate smart item summary for table display
-function getItemSummary(request: Request): { text: string; tooltip: string; isMulti: boolean } {
-  const itemCount = request.item_count || 1;
-  const totalQuantity = request.quantity || 0;
+// ============================================================
+// BADGE COMPONENTS
+// ============================================================
 
-  if (itemCount === 1) {
-    const productType = request.product_type || 'Unknown';
-    const capitalizedType = productType.charAt(0).toUpperCase() + productType.slice(1);
-    return {
-      text: `${capitalizedType} (${totalQuantity} pcs)`,
-      tooltip: `${capitalizedType} - ${request.quality || 'N/A'}`,
-      isMulti: false,
-    };
-  }
-
-  return {
-    text: `${itemCount} Products`,
-    tooltip: 'Click to view all products in this request',
-    isMulti: true,
-  };
-}
-
-// Clean status badge
 function getStatusBadge(status: string) {
   const statusMap: Record<string, { label: string; className: string }> = {
     draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
@@ -98,7 +266,7 @@ function getStatusBadge(status: string) {
 
   const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-600' };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${className}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap ${className}`}>
       {label}
     </span>
   );
@@ -107,7 +275,7 @@ function getStatusBadge(status: string) {
 function getPriorityBadge(priority: string) {
   const isUrgent = priority === 'urgent';
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium uppercase ${
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium uppercase whitespace-nowrap ${
       isUrgent ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
     }`}>
       {priority}
@@ -115,7 +283,6 @@ function getPriorityBadge(priority: string) {
   );
 }
 
-// Get status accent color for mobile cards
 function getStatusAccent(status: string) {
   const colors: Record<string, string> = {
     draft: 'border-l-slate-400',
@@ -130,6 +297,37 @@ function getStatusAccent(status: string) {
   };
   return colors[status] || 'border-l-slate-400';
 }
+
+// ============================================================
+// SLA BADGE COMPONENT
+// ============================================================
+
+function SLABadge({ request }: { request: Request }) {
+  const workingMinutes = useMemo(() => {
+    if (!request.required_by) return null;
+    // Don't show SLA for completed statuses
+    if (['received', 'rejected', 'draft'].includes(request.status)) return null;
+    return calculateWorkingMinutes(request.required_by);
+  }, [request.required_by, request.status]);
+
+  if (workingMinutes === null) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+
+  const slaStatus = getSLAStatus(workingMinutes);
+  const Icon = slaStatus.icon;
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border whitespace-nowrap ${slaStatus.className}`}>
+      <Icon className="h-3 w-3" />
+      {slaStatus.label}
+    </span>
+  );
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 export default function CoordinatorDashboard() {
   const { profile } = useAuth();
@@ -154,7 +352,7 @@ export default function CoordinatorDashboard() {
 
   const { data: result, isLoading: requestsLoading } = usePaginatedRequests({
     page,
-    pageSize: 15,
+    pageSize: 20,
     search,
     status,
     priority,
@@ -167,9 +365,8 @@ export default function CoordinatorDashboard() {
   const totalCount = result?.count || 0;
 
   const isRequesterUser = profile?.role === 'requester';
-  const isStaffUser = profile?.role === 'admin' || profile?.role === 'coordinator' || profile?.role === 'maker';
 
-  // Define all 6 stat cards
+  // Stat cards configuration
   const statCards: StatCardConfig[] = [
     {
       key: 'total',
@@ -241,7 +438,6 @@ export default function CoordinatorDashboard() {
   const handleStatusChange = (value: RequestStatus | null) => {
     setStatus(value);
     setPage(1);
-    // Clear active card highlight when manually changing status
     setActiveCard(null);
   };
 
@@ -258,13 +454,11 @@ export default function CoordinatorDashboard() {
     setActiveCard(null);
   };
 
-  // Handle stat card click - filters list and scrolls
   const handleCardClick = (card: StatCardConfig) => {
     setStatus(card.filterStatus);
     setPage(1);
     setActiveCard(card.key);
 
-    // Smooth scroll to list section
     setTimeout(() => {
       listSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -392,10 +586,12 @@ export default function CoordinatorDashboard() {
             </Card>
           ) : (
             <>
-              {/* Mobile Card Stack View */}
-              <div className="md:hidden space-y-3">
+              {/* Mobile Card Stack View - Optimized Layout */}
+              <div className="lg:hidden space-y-3">
                 {requests.map((request) => {
                   const isDraft = request.status === 'draft';
+                  const itemCount = request.item_count || 1;
+
                   return (
                     <Card
                       key={request.id}
@@ -405,229 +601,252 @@ export default function CoordinatorDashboard() {
                       }`}
                     >
                       <CardContent className="p-4">
-                        {/* Header Row */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1 min-w-0">
-                            <code className="text-sm font-mono font-semibold text-indigo-600">
-                              {request.request_number}
-                            </code>
-                            <p className="text-sm font-medium text-slate-900 mt-1 truncate">
-                              {request.client_project_name}
-                            </p>
-                            <p className="text-xs text-slate-500 truncate">{request.company_firm_name}</p>
+                        {/* Top Row: Sample ID (Left) + Status Badge (Right) */}
+                        <div className="flex items-center justify-between mb-3">
+                          <code className="text-sm font-mono font-bold text-indigo-600">
+                            {request.request_number}
+                          </code>
+                          <div className="flex items-center gap-2">
+                            {request.priority === 'urgent' && getPriorityBadge(request.priority)}
+                            {getStatusBadge(request.status)}
                           </div>
-                          <div className="flex gap-1 ml-2 flex-shrink-0">
-                            <TrackingDialog
-                              request={request}
-                              trigger={
-                                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-slate-100">
-                                  <MapPin className="h-4 w-4 text-slate-400" />
-                                </Button>
-                              }
-                            />
-                            {!isDraft && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-9 w-9 p-0 hover:bg-slate-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/requests/${request.id}`);
-                                }}
-                              >
-                                <Eye className="h-4 w-4 text-slate-400" />
-                              </Button>
-                            )}
+                        </div>
+
+                        {/* Middle: Client Name + Item Count */}
+                        <div className="mb-3">
+                          <p className="text-sm font-medium text-slate-900 truncate">
+                            {request.client_project_name}
+                          </p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-xs text-slate-500 truncate flex-1 mr-2">
+                              {request.company_firm_name || request.architect_firm_name || '—'}
+                            </p>
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
+                              itemCount > 1
+                                ? 'bg-indigo-50 text-indigo-600 font-medium'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {itemCount > 1 && <Package className="h-3 w-3" />}
+                              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: SLA Badge (Left) + Track Button (Right) */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <SLABadge request={request} />
+                          </div>
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {/* Draft Actions */}
                             {isRequesterUser && isDraft && (
                               <>
                                 <Button
                                   size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/requests/edit/${request.id}`);
-                                  }}
-                                  className="h-9 w-9 p-0"
+                                  variant="outline"
+                                  onClick={() => navigate(`/requests/edit/${request.id}`)}
+                                  className="h-11 px-3 text-xs"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  <Edit className="h-4 w-4 mr-1" />
+                                  Edit
                                 </Button>
                                 <Button
                                   size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDraftToDelete({ id: request.id, number: request.request_number });
-                                  }}
-                                  className="h-9 w-9 p-0"
+                                  variant="outline"
+                                  onClick={() => setDraftToDelete({ id: request.id, number: request.request_number })}
+                                  className="h-11 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
                                 >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </>
                             )}
-                          </div>
-                        </div>
-
-                        {/* Status and Priority Badges */}
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {getStatusBadge(request.status)}
-                          {getPriorityBadge(request.priority)}
-                        </div>
-
-                        {/* Details */}
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="col-span-2 bg-slate-50 rounded-md p-2">
-                            <span className="text-slate-500">Items:</span>
-                            {(() => {
-                              const summary = getItemSummary(request);
-                              return (
-                                <span
-                                  className={`ml-1 font-medium ${summary.isMulti ? 'text-indigo-600' : 'text-slate-700'}`}
-                                  title={summary.tooltip}
-                                >
-                                  {summary.isMulti && <Package className="inline h-3 w-3 mr-1" />}
-                                  {summary.text}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Created:</span>
-                            <span className="ml-1 font-medium text-slate-700">{formatDate(request.created_at)}</span>
-                          </div>
-                        </div>
-
-                        {/* Creator Info */}
-                        {request.creator && (
-                          <div className="mt-3 pt-3 border-t border-slate-100">
-                            <span className="text-xs text-slate-500">Requester: </span>
-                            <span className="text-xs font-medium text-indigo-600">
-                              {request.creator.full_name}
-                            </span>
-                            {request.creator.department && (
-                              <span className="text-xs text-slate-400 ml-1 capitalize">
-                                ({request.creator.department})
-                              </span>
+                            {/* Track Button - Always visible, 44px touch target */}
+                            {!isDraft && (
+                              <TrackingDialog
+                                request={request}
+                                trigger={
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-11 px-4 text-xs font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                  >
+                                    <MapPin className="h-4 w-4 mr-1.5" />
+                                    Track
+                                  </Button>
+                                }
+                              />
                             )}
                           </div>
-                        )}
+                        </div>
                       </CardContent>
                     </Card>
                   );
                 })}
               </div>
 
-              {/* Desktop Table View */}
-              <div className="hidden md:block">
+              {/* Desktop High-Density Table */}
+              <div className="hidden lg:block">
                 <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 hover:bg-slate-50">
-                        <TableHead className="font-semibold text-slate-700">Request #</TableHead>
-                        {isStaffUser && <TableHead className="font-semibold text-slate-700">Requester</TableHead>}
-                        <TableHead className="font-semibold text-slate-700">Client / Project</TableHead>
-                        <TableHead className="font-semibold text-slate-700">Items</TableHead>
-                        <TableHead className="font-semibold text-slate-700">Priority</TableHead>
-                        <TableHead className="font-semibold text-slate-700">Status</TableHead>
-                        <TableHead className="font-semibold text-slate-700">Created</TableHead>
-                        <TableHead className="font-semibold text-slate-700 text-center">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {requests.map((request) => {
-                        const isDraft = request.status === 'draft';
-                        return (
-                          <TableRow
-                            key={request.id}
-                            className={`${!isDraft ? 'cursor-pointer' : ''} hover:bg-slate-50 transition-colors`}
-                            onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
-                          >
-                            <TableCell className="font-mono font-medium text-indigo-600">
-                              {request.request_number}
-                            </TableCell>
-                            {isStaffUser && (
-                              <TableCell>
-                                <p className="font-medium text-sm text-slate-900">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1100px]">
+                      {/* Sticky Header */}
+                      <thead className="bg-slate-50 sticky top-0 z-10">
+                        <tr className="border-b border-slate-200">
+                          <th className="text-left py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Sample ID
+                          </th>
+                          <th className="text-left py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Requester
+                          </th>
+                          <th className="text-left py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Client / Project
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Items
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Priority
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Status
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Created
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Required By
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            SLA Remaining
+                          </th>
+                          <th className="text-center py-3 px-3 text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {requests.map((request) => {
+                          const isDraft = request.status === 'draft';
+                          const itemCount = request.item_count || 1;
+
+                          return (
+                            <tr
+                              key={request.id}
+                              className={`${!isDraft ? 'cursor-pointer' : ''} hover:bg-slate-50 transition-colors`}
+                              onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
+                            >
+                              {/* Sample ID */}
+                              <td className="py-2.5 px-3">
+                                <code className="text-sm font-mono font-semibold text-indigo-600">
+                                  {request.request_number}
+                                </code>
+                              </td>
+
+                              {/* Requester */}
+                              <td className="py-2.5 px-3">
+                                <p className="text-sm font-medium text-slate-900 truncate max-w-[140px]">
                                   {request.creator?.full_name || 'Unknown'}
                                 </p>
                                 {request.creator?.department && (
-                                  <p className="text-xs text-slate-500 capitalize">
+                                  <p className="text-xs text-slate-500 capitalize truncate max-w-[140px]">
                                     {request.creator.department}
                                   </p>
                                 )}
-                              </TableCell>
-                            )}
-                            <TableCell>
-                              <div>
-                                <p className="font-medium text-sm text-slate-900">{request.client_project_name}</p>
-                                <p className="text-xs text-slate-500">{request.company_firm_name}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {(() => {
-                                const summary = getItemSummary(request);
-                                return (
-                                  <div
-                                    className={`flex items-center gap-1.5 ${summary.isMulti ? 'text-indigo-600 font-medium' : 'text-slate-700'}`}
-                                    title={summary.tooltip}
-                                  >
-                                    {summary.isMulti && <Package className="h-4 w-4" />}
-                                    <span className="text-sm">{summary.text}</span>
-                                  </div>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell>{getPriorityBadge(request.priority)}</TableCell>
-                            <TableCell>{getStatusBadge(request.status)}</TableCell>
-                            <TableCell className="text-sm text-slate-600">
-                              {formatDate(request.created_at)}
-                            </TableCell>
-                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex justify-center gap-1">
-                                <TrackingDialog
-                                  request={request}
-                                  trigger={
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-slate-100">
-                                      <MapPin className="h-4 w-4 text-slate-400" />
-                                    </Button>
-                                  }
-                                />
-                                {!isDraft && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-slate-100"
-                                    onClick={() => navigate(`/requests/${request.id}`)}
-                                  >
-                                    <Eye className="h-4 w-4 text-slate-400" />
-                                  </Button>
-                                )}
-                                {isRequesterUser && isDraft && (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => navigate(`/requests/edit/${request.id}`)}
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => setDraftToDelete({ id: request.id, number: request.request_number })}
-                                      className="h-8 w-8 p-0"
-                                    >
-                                      <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                              </td>
+
+                              {/* Client / Project */}
+                              <td className="py-2.5 px-3">
+                                <p className="text-sm font-medium text-slate-900 truncate max-w-[180px]">
+                                  {request.client_project_name}
+                                </p>
+                                <p className="text-xs text-slate-500 truncate max-w-[180px]">
+                                  {request.company_firm_name || request.architect_firm_name || '—'}
+                                </p>
+                              </td>
+
+                              {/* Item Count */}
+                              <td className="py-2.5 px-3 text-center">
+                                <span className={`inline-flex items-center gap-1 text-sm ${
+                                  itemCount > 1 ? 'text-indigo-600 font-medium' : 'text-slate-700'
+                                }`}>
+                                  {itemCount > 1 && <Package className="h-3.5 w-3.5" />}
+                                  {itemCount}
+                                </span>
+                              </td>
+
+                              {/* Priority */}
+                              <td className="py-2.5 px-3 text-center">
+                                {getPriorityBadge(request.priority)}
+                              </td>
+
+                              {/* Status */}
+                              <td className="py-2.5 px-3 text-center">
+                                {getStatusBadge(request.status)}
+                              </td>
+
+                              {/* Created */}
+                              <td className="py-2.5 px-3 text-center">
+                                <span className="text-sm text-slate-600">
+                                  {formatCreatedDate(request.created_at)}
+                                </span>
+                              </td>
+
+                              {/* Required By */}
+                              <td className="py-2.5 px-3 text-center">
+                                <span className="text-sm text-slate-600 whitespace-nowrap">
+                                  {request.required_by ? formatRequiredBy(request.required_by) : '—'}
+                                </span>
+                              </td>
+
+                              {/* SLA Remaining */}
+                              <td className="py-2.5 px-3 text-center">
+                                <SLABadge request={request} />
+                              </td>
+
+                              {/* Actions - Track only (row click opens details) */}
+                              <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-center gap-1">
+                                  <TrackingDialog
+                                    request={request}
+                                    trigger={
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs text-slate-600 hover:text-indigo-600 hover:bg-indigo-50"
+                                      >
+                                        <MapPin className="h-3.5 w-3.5 mr-1" />
+                                        Track
+                                      </Button>
+                                    }
+                                  />
+                                  {isRequesterUser && isDraft && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => navigate(`/requests/edit/${request.id}`)}
+                                        className="h-8 w-8 p-0 hover:bg-slate-100"
+                                      >
+                                        <Edit className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setDraftToDelete({ id: request.id, number: request.request_number })}
+                                        className="h-8 w-8 p-0 hover:bg-red-50"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
               </div>
             </>
@@ -640,8 +859,8 @@ export default function CoordinatorDashboard() {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="text-sm text-slate-600 text-center sm:text-left">
                     <span className="hidden sm:inline">
-                      Showing <span className="font-medium text-slate-900">{(page - 1) * 15 + 1}</span> to{' '}
-                      <span className="font-medium text-slate-900">{Math.min(page * 15, totalCount)}</span> of{' '}
+                      Showing <span className="font-medium text-slate-900">{(page - 1) * 20 + 1}</span> to{' '}
+                      <span className="font-medium text-slate-900">{Math.min(page * 20, totalCount)}</span> of{' '}
                       <span className="font-medium text-slate-900">{totalCount}</span> results
                     </span>
                     <span className="sm:hidden">
