@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,8 @@ import {
   CheckCircle,
   PackageCheck,
   Timer,
-  AlertTriangle,
+  Hourglass,
+  User,
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 
@@ -73,11 +74,28 @@ function isWorkingDay(dayOfWeek: number): boolean {
 }
 
 /**
+ * Determines if the SLA timer should be stopped (SLA met/completed)
+ * - Self Pickup: Stops at 'ready' or 'received'
+ * - Other methods: Stops at 'dispatched' or 'received'
+ */
+function isSLACompleted(status: string, pickupResponsibility: string | null | undefined): boolean {
+  const isSelfPickup = pickupResponsibility === 'self_pickup';
+
+  if (isSelfPickup) {
+    // Self Pickup: SLA is met when ready for pickup or received
+    return ['ready', 'received'].includes(status);
+  } else {
+    // Courier/Field Boy: SLA is met when dispatched or received
+    return ['dispatched', 'received'].includes(status);
+  }
+}
+
+/**
  * Calculates working minutes remaining from current time to target date
  * considering only business hours (10 AM - 7 PM IST) and skipping Sundays
  */
 function calculateWorkingMinutes(targetDate: string | Date): number {
-  const now = new Date();
+  const now = new Date(); // Always use current time for real-time updates
   const target = new Date(targetDate);
 
   // If target is in the past, return negative working minutes
@@ -168,12 +186,13 @@ function formatWorkingTime(totalMinutes: number): string {
 
 /**
  * Returns SLA status and styling based on working hours remaining
+ * Uses Hourglass icon for warning state (< 9 hours)
  */
 function getSLAStatus(workingMinutes: number): {
   label: string;
   className: string;
   icon: React.ElementType;
-  level: 'safe' | 'approaching' | 'warning' | 'overdue';
+  level: 'safe' | 'approaching' | 'warning' | 'overdue' | 'completed';
 } {
   const workingHours = workingMinutes / 60;
 
@@ -190,7 +209,7 @@ function getSLAStatus(workingMinutes: number): {
     return {
       label: formatWorkingTime(workingMinutes),
       className: 'bg-amber-100 text-amber-700 border-amber-200',
-      icon: AlertTriangle,
+      icon: Hourglass, // Changed from AlertTriangle to Hourglass
       level: 'warning',
     };
   }
@@ -299,28 +318,47 @@ function getStatusAccent(status: string) {
 }
 
 // ============================================================
-// SLA BADGE COMPONENT
+// SLA BADGE COMPONENT (with stop conditions)
 // ============================================================
 
-function SLABadge({ request }: { request: Request }) {
-  const workingMinutes = useMemo(() => {
+function SLABadge({ request, tick }: { request: Request; tick: number }) {
+  const slaResult = useMemo(() => {
     if (!request.required_by) return null;
-    // Don't show SLA for completed statuses
-    if (['received', 'rejected', 'draft'].includes(request.status)) return null;
-    return calculateWorkingMinutes(request.required_by);
-  }, [request.required_by, request.status]);
 
-  if (workingMinutes === null) {
+    // Don't show SLA for drafts or rejected
+    if (['draft', 'rejected'].includes(request.status)) return null;
+
+    // Check if SLA is completed (stop conditions)
+    if (isSLACompleted(request.status, request.pickup_responsibility)) {
+      return {
+        isCompleted: true,
+        label: 'Done',
+        className: 'bg-green-100 text-green-700 border-green-200',
+        icon: CheckCircle,
+      };
+    }
+
+    // Calculate working minutes remaining
+    const workingMinutes = calculateWorkingMinutes(request.required_by);
+    const status = getSLAStatus(workingMinutes);
+
+    return {
+      isCompleted: false,
+      ...status,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request.required_by, request.status, request.pickup_responsibility, tick]);
+
+  if (slaResult === null) {
     return <span className="text-xs text-slate-400">—</span>;
   }
 
-  const slaStatus = getSLAStatus(workingMinutes);
-  const Icon = slaStatus.icon;
+  const Icon = slaResult.icon;
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border whitespace-nowrap ${slaStatus.className}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border whitespace-nowrap ${slaResult.className}`}>
       <Icon className="h-3 w-3" />
-      {slaStatus.label}
+      {slaResult.label}
     </span>
   );
 }
@@ -347,6 +385,20 @@ export default function CoordinatorDashboard() {
   const [priority, setPriority] = useState<Priority | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
   const [activeCard, setActiveCard] = useState<string | null>(null);
+
+  // ============================================================
+  // HEARTBEAT: Force re-render every 60 seconds for SLA updates
+  // Zero API load - only recalculates existing data
+  // ============================================================
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((prev) => prev + 1);
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   const deleteDraft = useDeleteDraft();
 
@@ -586,7 +638,7 @@ export default function CoordinatorDashboard() {
             </Card>
           ) : (
             <>
-              {/* Mobile Card Stack View - Optimized Layout */}
+              {/* Mobile Card Stack View - Optimized Layout with Requester */}
               <div className="lg:hidden space-y-3">
                 {requests.map((request) => {
                   const isDraft = request.status === 'draft';
@@ -602,7 +654,7 @@ export default function CoordinatorDashboard() {
                     >
                       <CardContent className="p-4">
                         {/* Top Row: Sample ID (Left) + Status Badge (Right) */}
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center justify-between mb-2">
                           <code className="text-sm font-mono font-bold text-indigo-600">
                             {request.request_number}
                           </code>
@@ -611,6 +663,17 @@ export default function CoordinatorDashboard() {
                             {getStatusBadge(request.status)}
                           </div>
                         </div>
+
+                        {/* Requester Row */}
+                        {request.creator && (
+                          <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
+                            <User className="h-3 w-3" />
+                            <span className="font-medium text-slate-700">{request.creator.full_name}</span>
+                            {request.creator.department && (
+                              <span className="text-slate-400 capitalize">• {request.creator.department}</span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Middle: Client Name + Item Count */}
                         <div className="mb-3">
@@ -635,7 +698,7 @@ export default function CoordinatorDashboard() {
                         {/* Bottom Row: SLA Badge (Left) + Track Button (Right) */}
                         <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                           <div className="flex items-center gap-2">
-                            <SLABadge request={request} />
+                            <SLABadge request={request} tick={tick} />
                           </div>
                           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             {/* Draft Actions */}
@@ -800,7 +863,7 @@ export default function CoordinatorDashboard() {
 
                               {/* SLA Remaining */}
                               <td className="py-2.5 px-3 text-center">
-                                <SLABadge request={request} />
+                                <SLABadge request={request} tick={tick} />
                               </td>
 
                               {/* Actions - Track only (row click opens details) */}
