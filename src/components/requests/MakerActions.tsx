@@ -11,7 +11,7 @@ interface MakerActionsProps {
   userId: string;
 }
 
-export default function MakerActions({ request, userRole, userId }: MakerActionsProps) {
+export default function MakerActions({ request, userRole: _userRole, userId }: MakerActionsProps) {
   const updateStatus = useUpdateRequestStatus();
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -38,8 +38,9 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
     }
   };
 
-  // Only show to makers, and only for their assigned requests
-  if (userRole !== 'maker' || request.assigned_to !== userId) {
+  // Show to anyone who is assigned to this request (maker OR coordinator acting as maker)
+  // This enables the "Coordinator as Maker" workflow
+  if (request.assigned_to !== userId) {
     return null;
   }
 

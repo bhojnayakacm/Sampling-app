@@ -1208,8 +1208,8 @@ export default function RequestDetail() {
           </div>
         </div>
 
-        {/* Non-coordinator actions */}
-        {!isCoordinator && (
+        {/* Production actions - Show for makers OR coordinators who assigned themselves */}
+        {(!isCoordinator || request.assigned_to === profile?.id) && (
           <MakerActions request={request} userRole={profile?.role || ''} userId={profile?.id || ''} />
         )}
       </main>

@@ -408,25 +408,63 @@ export default function RequestActions({ request, userRole, isCompact = false }:
               </DialogDescription>
             </DialogHeader>
 
-            <div className="py-4">
-              <label htmlFor="maker-select" className="text-sm font-medium text-gray-700 mb-2 block">
-                Select Maker
-              </label>
-              <Select value={selectedMaker} onValueChange={setSelectedMaker}>
-                <SelectTrigger id="maker-select">
-                  <SelectValue placeholder="Choose a maker..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {makers?.map((maker) => (
-                    <SelectItem key={maker.id} value={maker.id}>
-                      {maker.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-gray-500 mt-2">
-                The maker will be notified and can begin production.
-              </p>
+            <div className="py-4 space-y-4">
+              {/* Assign to Me - Quick action for coordinator */}
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-indigo-900">Assign to Myself</p>
+                    <p className="text-xs text-indigo-600 mt-0.5">Take on this request directly</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      if (profile?.id) {
+                        setSelectedMaker(profile.id);
+                        handleAssign();
+                      }
+                    }}
+                    disabled={assignRequest.isPending || !profile?.id}
+                    className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 shrink-0"
+                  >
+                    {assignRequest.isPending && selectedMaker === profile?.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Assign to Me'
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-slate-500">or select a maker</span>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="maker-select" className="text-sm font-medium text-gray-700 mb-2 block">
+                  Select Maker
+                </label>
+                <Select value={selectedMaker} onValueChange={setSelectedMaker}>
+                  <SelectTrigger id="maker-select">
+                    <SelectValue placeholder="Choose a maker..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {makers?.map((maker) => (
+                      <SelectItem key={maker.id} value={maker.id}>
+                        {maker.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 mt-2">
+                  The selected person will be notified and can begin production.
+                </p>
+              </div>
             </div>
 
             <DialogFooter>
