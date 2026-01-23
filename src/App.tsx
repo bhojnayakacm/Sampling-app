@@ -22,8 +22,53 @@ import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 // Loading spinner component
 function LoadingScreen() {
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+    <div className="flex items-center justify-center min-h-screen bg-slate-50">
+      <div className="flex flex-col items-center gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <p className="text-sm text-slate-500">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+// Error recovery screen (shown when profile fetch fails)
+function ProfileErrorScreen() {
+  const { user, retryFetchProfile, signOut } = useAuth();
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-xl shadow-lg border border-slate-200 p-6 text-center">
+        <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+          <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">
+          Almost there!
+        </h2>
+        <p className="text-slate-600 mb-6">
+          We're setting up your account. This sometimes takes a moment for new users.
+        </p>
+        <div className="space-y-3">
+          <button
+            onClick={retryFetchProfile}
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+          <button
+            onClick={signOut}
+            className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
+        {user?.email && (
+          <p className="text-xs text-slate-400 mt-4">
+            Signed in as {user.email}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -45,10 +90,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Dashboard router based on role
 function DashboardRouter() {
-  const { profile } = useAuth();
+  const { profile, loading, profileError } = useAuth();
 
-  if (!profile) {
+  // Show loading while fetching profile
+  if (loading) {
     return <LoadingScreen />;
+  }
+
+  // Show error recovery screen if profile fetch failed
+  if (profileError || !profile) {
+    return <ProfileErrorScreen />;
   }
 
   switch (profile.role) {
