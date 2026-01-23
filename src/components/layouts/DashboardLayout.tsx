@@ -62,15 +62,15 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Clean Light Sidebar */}
+      {/* Clean Light Sidebar - Full height with sticky footer */}
       <aside
         className={cn(
-          "fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0",
+          "fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50 w-72 h-screen bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0",
           sidebarOpen ? "translate-x-0 shadow-xl" : "-translate-x-full"
         )}
       >
-        {/* Logo/Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100">
+        {/* Logo/Header - Fixed at top */}
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-indigo-600 flex items-center justify-center">
               <LayoutDashboard className="h-5 w-5 text-white" />
@@ -90,8 +90,8 @@ export default function DashboardLayout({
           </Button>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="flex-1 p-4 space-y-1">
+        {/* Navigation Menu - Scrollable middle section */}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-3">
             Navigation
           </p>
@@ -131,8 +131,8 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* User Profile & Sign Out */}
-        <div className="p-4 border-t border-slate-100">
+        {/* User Profile & Sign Out - Sticky at bottom */}
+        <div className="p-4 border-t border-slate-100 shrink-0 mt-auto">
           <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 rounded-lg mb-3">
             <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center">
               <span className="text-sm font-bold text-indigo-600">
