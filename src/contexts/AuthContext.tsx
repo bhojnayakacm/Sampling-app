@@ -8,9 +8,9 @@ interface AuthContextType {
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
-  profileError: boolean; // True if profile fetch failed after all retries
+  profileError: boolean;
   signOut: () => Promise<void>;
-  retryFetchProfile: () => void; // Manual retry for error recovery
+  retryFetchProfile: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,7 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
 
-  // Refs to track retry state and prevent memory leaks
+  // Refs for stability - these don't trigger re-renders
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+  const isFetchingRef = useRef(false);
   const retryCountRef = useRef(0);
   const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -44,12 +46,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Fetch profile with retry logic
+  // Try to create profile (fallback if DB trigger failed)
+  const tryCreateProfile = useCallback(async (userId: string): Promise<Profile | null> => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return null;
+
+      // Extract and validate role
+      let role = authUser.user_metadata?.role?.toLowerCase() || 'requester';
+      if (!['admin', 'coordinator', 'requester', 'maker'].includes(role)) {
+        role = 'requester';
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          role: role,
+          full_name: authUser.user_metadata?.full_name || authUser.email || 'User',
+          phone: authUser.user_metadata?.phone || null,
+          department: authUser.user_metadata?.department || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        // Unique constraint violation = trigger already created it
+        if (error.code === '23505') {
+          console.log('[Auth] Profile already exists (created by trigger), will retry fetch');
+          return null;
+        }
+        throw error;
+      }
+
+      console.log('[Auth] Profile created successfully');
+      return data as Profile;
+    } catch (error) {
+      console.error('[Auth] Error creating profile:', error);
+      return null;
+    }
+  }, []);
+
+  // Core fetch function - uses refs to avoid dependency issues
   const fetchProfileWithRetry = useCallback(async (userId: string, isRetry = false) => {
     if (!isMountedRef.current) return;
 
-    // Reset state for fresh fetch (not retry)
+    // STABILITY CHECK 1: Already fetching for this user
+    if (isFetchingRef.current && !isRetry) {
+      console.log('[Auth] Already fetching, skipping duplicate request');
+      return;
+    }
+
+    // STABILITY CHECK 2: Already have profile for this user
+    if (!isRetry && lastFetchedUserIdRef.current === userId) {
+      console.log('[Auth] Already have profile for this user, skipping fetch');
+      setLoading(false);
+      return;
+    }
+
+    // Mark as fetching
     if (!isRetry) {
+      isFetchingRef.current = true;
       retryCountRef.current = 0;
       setProfileError(false);
       setLoading(true);
@@ -57,8 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Set safety timeout to prevent infinite loading
       clearTimeouts();
       safetyTimeoutRef.current = setTimeout(() => {
-        if (isMountedRef.current && loading) {
+        if (isMountedRef.current) {
           console.warn('[Auth] Safety timeout reached - forcing loading to complete');
+          isFetchingRef.current = false;
           setLoading(false);
           setProfileError(true);
         }
@@ -66,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      console.log(`[Auth] Fetching profile (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1})`);
+      console.log(`[Auth] Fetching profile for ${userId} (attempt ${retryCountRef.current + 1}/${RETRY_DELAYS.length + 1})`);
 
       const { data, error } = await supabase
         .from('profiles')
@@ -82,9 +140,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('[Auth] Profile not found, attempting to create or retry...');
 
           // Try creating the profile (handles case where trigger failed)
-          const created = await tryCreateProfile(userId);
-          if (created) {
+          const createdProfile = await tryCreateProfile(userId);
+          if (createdProfile) {
+            lastFetchedUserIdRef.current = userId;
+            isFetchingRef.current = false;
             clearTimeouts();
+            setProfile(createdProfile);
             setLoading(false);
             return;
           }
@@ -103,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // All retries exhausted
           console.error('[Auth] Profile fetch failed after all retries');
+          isFetchingRef.current = false;
           clearTimeouts();
           setProfileError(true);
           setLoading(false);
@@ -114,7 +176,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Success - profile found
-      console.log('[Auth] Profile loaded successfully');
+      console.log('[Auth] Profile loaded successfully for', userId);
+      lastFetchedUserIdRef.current = userId;
+      isFetchingRef.current = false;
       clearTimeouts();
       setProfile(data);
       setProfileError(false);
@@ -136,78 +200,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      isFetchingRef.current = false;
       clearTimeouts();
       setProfileError(true);
       setLoading(false);
     }
-  }, [clearTimeouts, loading]);
-
-  // Try to create profile (fallback if DB trigger failed)
-  async function tryCreateProfile(userId: string): Promise<boolean> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
-
-      // Extract and validate role
-      let role = user.user_metadata?.role?.toLowerCase() || 'requester';
-      if (!['admin', 'coordinator', 'requester', 'maker'].includes(role)) {
-        role = 'requester';
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          role: role,
-          full_name: user.user_metadata?.full_name || user.email || 'User',
-          phone: user.user_metadata?.phone || null,
-          department: user.user_metadata?.department || null,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        // Unique constraint violation = trigger already created it
-        // This is actually OK - we'll fetch it on next retry
-        if (error.code === '23505') {
-          console.log('[Auth] Profile already exists (created by trigger), will retry fetch');
-          return false;
-        }
-        throw error;
-      }
-
-      if (isMountedRef.current) {
-        setProfile(data);
-        console.log('[Auth] Profile created successfully');
-      }
-      return true;
-    } catch (error) {
-      console.error('[Auth] Error creating profile:', error);
-      return false;
-    }
-  }
+  }, [clearTimeouts, tryCreateProfile]);
 
   // Manual retry function (exposed to UI for error recovery)
   const retryFetchProfile = useCallback(() => {
     if (user?.id) {
       console.log('[Auth] Manual retry triggered');
+      // Reset the last fetched ID to force a fresh fetch
+      lastFetchedUserIdRef.current = null;
+      isFetchingRef.current = false;
       fetchProfileWithRetry(user.id);
     }
   }, [user?.id, fetchProfileWithRetry]);
 
-  // Main auth effect
+  // Main auth effect - STABLE dependencies only
   useEffect(() => {
     isMountedRef.current = true;
+    let initialLoadComplete = false;
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       if (!isMountedRef.current) return;
+      initialLoadComplete = true;
 
-      setSession(session);
-      setUser(session?.user ?? null);
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
 
-      if (session?.user) {
-        fetchProfileWithRetry(session.user.id);
+      if (initialSession?.user) {
+        fetchProfileWithRetry(initialSession.user.id);
       } else {
         setLoading(false);
       }
@@ -216,16 +241,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!isMountedRef.current) return;
 
-      setSession(session);
-      setUser(session?.user ?? null);
+      // Skip if this fires before initial load (Supabase sometimes double-fires)
+      if (!initialLoadComplete) return;
 
-      if (session?.user) {
-        fetchProfileWithRetry(session.user.id);
+      const newUserId = newSession?.user?.id ?? null;
+      const previousUserId = lastFetchedUserIdRef.current;
+
+      console.log(`[Auth] Auth state changed: ${event}, userId: ${newUserId}`);
+
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      if (newSession?.user) {
+        // STABILITY CHECK: Only fetch if user actually changed
+        if (newUserId !== previousUserId) {
+          console.log('[Auth] User changed, fetching new profile');
+          lastFetchedUserIdRef.current = null; // Reset to allow fresh fetch
+          isFetchingRef.current = false;
+          fetchProfileWithRetry(newSession.user.id);
+        } else {
+          console.log('[Auth] Same user, skipping profile fetch');
+          // Make sure we're not stuck in loading state
+          setLoading(false);
+        }
       } else {
+        // User signed out
         clearTimeouts();
+        lastFetchedUserIdRef.current = null;
+        isFetchingRef.current = false;
         setProfile(null);
         setProfileError(false);
         setLoading(false);
@@ -237,16 +283,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeouts();
       subscription.unsubscribe();
     };
-  }, [fetchProfileWithRetry, clearTimeouts]);
+  }, []); // Empty dependency array - runs once on mount
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     clearTimeouts();
+    lastFetchedUserIdRef.current = null;
+    isFetchingRef.current = false;
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
     setSession(null);
     setProfileError(false);
-  }
+  }, [clearTimeouts]);
 
   return (
     <AuthContext.Provider value={{
