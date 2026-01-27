@@ -75,7 +75,7 @@ function ProfileErrorScreen() {
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading, profileError } = useAuth();
 
   if (loading) {
     return <LoadingScreen />;
@@ -83,6 +83,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Wait for profile to load - prevents rendering pages with null profile
+  // which would hide role-dependent UI like the coordinator action bar
+  if (profileError || !profile) {
+    return <ProfileErrorScreen />;
   }
 
   return <>{children}</>;
