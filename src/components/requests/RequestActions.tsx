@@ -23,7 +23,7 @@ import { useAssignRequest, useUpdateRequestStatus, useUpdateRequiredBy } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Request } from '@/types';
-import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
 interface RequestActionsProps {
@@ -152,6 +152,31 @@ export default function RequestActions({ request, userRole, isCompact = false }:
     }
   };
 
+  // Coordinator override: directly update status (Start Production / Mark Ready)
+  const handleStatusUpdate = async (newStatus: string) => {
+    try {
+      await updateStatus.mutateAsync({ requestId: request.id, status: newStatus });
+
+      if (newStatus === 'in_production') {
+        toast.success(
+          <div>
+            <p className="font-bold">Production Started!</p>
+            <p className="text-sm">Status updated on behalf of the maker.</p>
+          </div>
+        );
+      } else if (newStatus === 'ready') {
+        toast.success(
+          <div>
+            <p className="font-bold">Marked as Ready!</p>
+            <p className="text-sm">The sample is ready for dispatch.</p>
+          </div>
+        );
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update status');
+    }
+  };
+
   // Only coordinators can manage requests (not admins)
   if (userRole !== 'coordinator') {
     return null;
@@ -198,6 +223,44 @@ export default function RequestActions({ request, userRole, isCompact = false }:
             </Button>
           )}
 
+          {/* Coordinator Override: Start Production (for assigned requests) */}
+          {request.status === 'assigned' && (
+            <Button
+              onClick={() => handleStatusUpdate('in_production')}
+              size="sm"
+              disabled={updateStatus.isPending}
+              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+            >
+              {updateStatus.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Start Production
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Coordinator Override: Mark as Ready (for in_production requests) */}
+          {request.status === 'in_production' && (
+            <Button
+              onClick={() => handleStatusUpdate('ready')}
+              size="sm"
+              disabled={updateStatus.isPending}
+              className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+            >
+              {updateStatus.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  Mark Ready
+                </>
+              )}
+            </Button>
+          )}
+
           {/* Hide Dispatch button for Self Pickup - requester will mark as received directly */}
           {request.status === 'ready' && !isSelfPickup && (
             <Button
@@ -217,7 +280,7 @@ export default function RequestActions({ request, userRole, isCompact = false }:
             </span>
           )}
 
-          {!['pending_approval', 'approved', 'ready'].includes(request.status) && (
+          {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production'].includes(request.status) && (
             <span className="text-sm text-slate-500 capitalize">
               {request.status.replace(/_/g, ' ')}
             </span>
@@ -628,6 +691,32 @@ export default function RequestActions({ request, userRole, isCompact = false }:
           </>
         )}
 
+        {/* Coordinator Override: Start Production */}
+        {request.status === 'assigned' && (
+          <Button
+            onClick={() => handleStatusUpdate('in_production')}
+            size="sm"
+            disabled={updateStatus.isPending}
+            className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+          >
+            {updateStatus.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            Start Production
+          </Button>
+        )}
+
+        {/* Coordinator Override: Mark as Ready */}
+        {request.status === 'in_production' && (
+          <Button
+            onClick={() => handleStatusUpdate('ready')}
+            size="sm"
+            disabled={updateStatus.isPending}
+            className="bg-indigo-600 hover:bg-indigo-700 gap-2"
+          >
+            {updateStatus.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+            Mark as Ready
+          </Button>
+        )}
+
         {/* Hide Dispatch button for Self Pickup */}
         {request.status === 'ready' && !isSelfPickup && (
           <Button
@@ -645,8 +734,8 @@ export default function RequestActions({ request, userRole, isCompact = false }:
       <p className="text-xs text-slate-500">
         {request.status === 'pending_approval' && 'Review and approve/reject this request.'}
         {request.status === 'approved' && 'Assign this request to a maker to begin production.'}
-        {request.status === 'assigned' && 'Waiting for maker to start work.'}
-        {request.status === 'in_production' && 'Maker is currently working on this request.'}
+        {request.status === 'assigned' && 'Start production on behalf of the maker.'}
+        {request.status === 'in_production' && 'Mark as ready on behalf of the maker.'}
         {request.status === 'ready' && isSelfPickup && 'Sample is ready for self pickup by requester.'}
         {request.status === 'ready' && !isSelfPickup && 'Sample is ready. Mark as dispatched when sent.'}
         {request.status === 'dispatched' && 'This request has been dispatched.'}

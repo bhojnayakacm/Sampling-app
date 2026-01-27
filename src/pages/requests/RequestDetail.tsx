@@ -1231,8 +1231,10 @@ export default function RequestDetail() {
                   <p className="text-xs text-slate-500">
                     {request.status === 'pending_approval' && 'Review and approve'}
                     {request.status === 'approved' && 'Assign to maker'}
+                    {request.status === 'assigned' && 'Start production'}
+                    {request.status === 'in_production' && 'Mark as ready'}
                     {request.status === 'ready' && 'Mark as dispatched'}
-                    {!['pending_approval', 'approved', 'ready'].includes(request.status) && `Status: ${request.status.replace(/_/g, ' ')}`}
+                    {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production'].includes(request.status) && `Status: ${request.status.replace(/_/g, ' ')}`}
                   </p>
                 </div>
               </div>
