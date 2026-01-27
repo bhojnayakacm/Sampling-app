@@ -17,7 +17,6 @@ export default function Signup() {
     confirmPassword: '',
     fullName: '',
     phone: '',
-    role: '',
     department: '',
   });
   const [loading, setLoading] = useState(false);
@@ -45,14 +44,9 @@ export default function Signup() {
       return;
     }
 
-    if (!formData.role) {
-      toast.error('Please select a role');
-      return;
-    }
-
-    // Department is mandatory ONLY for requesters
-    if (formData.role === 'requester' && !formData.department) {
-      toast.error('Department is required for requesters');
+    // Department is mandatory for all public signups (all are requesters)
+    if (!formData.department) {
+      toast.error('Please select your department');
       return;
     }
 
@@ -66,19 +60,16 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      // Sanitize and prepare metadata
-      // IMPORTANT: Convert role to lowercase and ensure department is null (not empty string)
-      const roleToSend = formData.role.toLowerCase(); // Ensure lowercase
-      const departmentToSend = formData.role === 'requester' ? formData.department : null; // null if not requester
-
+      // SECURITY: All public signups are strictly 'requester' role
+      // Coordinators and Makers must be created by an Admin
       const metadata = {
         full_name: formData.fullName,
         phone: formData.phone,
-        role: roleToSend, // Lowercase role
-        department: departmentToSend, // null or actual department
+        role: 'requester', // Hardcoded - cannot be changed by user
+        department: formData.department,
       };
 
-      console.log('Sending metadata:', metadata); // Debug log
+      console.log('Sending metadata:', metadata);
 
       // Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
@@ -114,7 +105,7 @@ export default function Signup() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-slate-900">Create an Account</CardTitle>
-          <CardDescription className="text-slate-500">Enter your details to get started</CardDescription>
+          <CardDescription className="text-slate-500">Sign up to submit sample requests</CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
           <form onSubmit={handleSignup} className="space-y-4">
@@ -148,48 +139,23 @@ export default function Signup() {
               />
             </div>
 
+            {/* Department - Always visible and mandatory for requesters */}
             <div className="space-y-2">
-              <Label htmlFor="role" className="text-slate-700 font-medium">Role *</Label>
+              <Label htmlFor="department" className="text-slate-700 font-medium">Department *</Label>
               <Select
-                value={formData.role}
-                onValueChange={(value) => {
-                  // Clear department when role changes
-                  setFormData({ ...formData, role: value, department: '' });
-                }}
+                value={formData.department}
+                onValueChange={(value) => setFormData({ ...formData, department: value })}
               >
                 <SelectTrigger className="h-11 border-slate-200 focus:ring-indigo-500">
-                  <SelectValue placeholder="Select your role" />
+                  <SelectValue placeholder="Select your department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* IMPORTANT: value prop is lowercase, label is capitalized */}
-                  <SelectItem value="requester">Requester</SelectItem>
-                  <SelectItem value="maker">Maker</SelectItem>
-                  <SelectItem value="coordinator">Coordinator</SelectItem>
+                  <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="marketing">Marketing</SelectItem>
+                  <SelectItem value="logistics">Logistics</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500">Admin access is granted manually by existing admins</p>
             </div>
-
-            {/* Department - Only visible if role is Requester */}
-            {formData.role === 'requester' && (
-              <div className="space-y-2">
-                <Label htmlFor="department" className="text-slate-700 font-medium">Department *</Label>
-                <Select
-                  value={formData.department}
-                  onValueChange={(value) => setFormData({ ...formData, department: value })}
-                >
-                  <SelectTrigger className="h-11 border-slate-200 focus:ring-indigo-500">
-                    <SelectValue placeholder="Select your department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* IMPORTANT: value prop is lowercase */}
-                    <SelectItem value="sales">Sales</SelectItem>
-                    <SelectItem value="marketing">Marketing</SelectItem>
-                    <SelectItem value="logistics">Logistics</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-slate-700 font-medium">Phone Number *</Label>

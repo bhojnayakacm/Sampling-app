@@ -7,15 +7,14 @@ import {
   Inbox,
   Clock,
   Cog,
-  Package,
   ArrowRight,
   LogOut,
-  Shield,
   Users,
-  Settings,
   BarChart3,
   Truck,
-  LayoutDashboard
+  LayoutDashboard,
+  CheckCircle,
+  Package
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -135,118 +134,66 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
-        </div>
 
-        {/* Management Hub */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* User Management Section */}
-          <Card className="bg-white border border-slate-200 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-indigo-600" />
+          {/* Second Row Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            {/* Ready */}
+            <Card
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate('/requests?status=ready')}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-teal-50 flex items-center justify-center">
+                    <Package className="h-5 w-5 text-teal-600" />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-teal-500 transition-colors" />
                 </div>
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">User Management</h3>
-                  <p className="text-sm text-slate-500">Manage system users and roles</p>
-                </div>
-              </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.ready || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Ready</p>
+              </CardContent>
+            </Card>
 
-              <div className="space-y-3 mb-5">
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="h-8 w-8 rounded-md bg-blue-100 flex items-center justify-center">
-                    <Shield className="h-4 w-4 text-blue-600" />
+            {/* Received */}
+            <Card
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate('/requests?status=received')}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-green-50 flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Coordinators</p>
-                    <p className="text-xs text-slate-500">Approve and manage requests</p>
-                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-green-500 transition-colors" />
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="h-8 w-8 rounded-md bg-emerald-100 flex items-center justify-center">
-                    <Cog className="h-4 w-4 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Makers</p>
-                    <p className="text-xs text-slate-500">Production floor staff</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="h-8 w-8 rounded-md bg-violet-100 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-violet-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Requesters</p>
-                    <p className="text-xs text-slate-500">Submit sample requests</p>
-                  </div>
-                </div>
-              </div>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.received || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Received</p>
+              </CardContent>
+            </Card>
 
-              <Button
-                onClick={() => navigate('/admin/users')}
-                className="w-full min-h-[48px] gap-2 bg-indigo-600 hover:bg-indigo-700"
-              >
-                <Users className="h-4 w-4" />
-                Manage Users
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* System Settings Section */}
-          <Card className="bg-white border border-slate-200 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
-                  <Settings className="h-5 w-5 text-violet-600" />
+            {/* Assigned */}
+            <Card
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate('/requests?status=assigned')}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
                 </div>
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">Product Management</h3>
-                  <p className="text-sm text-slate-500">Configure products and options</p>
-                </div>
-              </div>
-
-              <div className="space-y-3 mb-5">
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="h-8 w-8 rounded-md bg-violet-100 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-violet-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Product Types</p>
-                    <p className="text-xs text-slate-500">Marble, Tile, Terrazzo, Quartz</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="h-8 w-8 rounded-md bg-amber-100 flex items-center justify-center">
-                    <BarChart3 className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Quality Options</p>
-                    <p className="text-xs text-slate-500">228 marble qualities available</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <div className="h-8 w-8 rounded-md bg-teal-100 flex items-center justify-center">
-                    <Settings className="h-4 w-4 text-teal-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Finish & Size Options</p>
-                    <p className="text-xs text-slate-500">Customize available options</p>
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full min-h-[48px] gap-2 border-slate-200 text-slate-600"
-                disabled
-              >
-                <Settings className="h-4 w-4" />
-                Product Settings
-                <span className="text-xs bg-slate-100 px-2 py-0.5 rounded-full ml-auto">Coming Soon</span>
-              </Button>
-            </CardContent>
-          </Card>
+                <p className="text-2xl font-bold text-slate-900">
+                  {isLoading ? '...' : stats?.assigned || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Assigned</p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Quick Actions */}

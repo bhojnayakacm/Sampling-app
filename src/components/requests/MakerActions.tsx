@@ -11,8 +11,16 @@ interface MakerActionsProps {
   userId: string;
 }
 
-export default function MakerActions({ request, userRole: _userRole, userId }: MakerActionsProps) {
+export default function MakerActions({ request, userRole, userId }: MakerActionsProps) {
   const updateStatus = useUpdateRequestStatus();
+
+  const isCoordinator = userRole === 'coordinator';
+  const isAssignedUser = request.assigned_to === userId;
+
+  // Show actions if:
+  // 1. User is assigned to this request (maker or self-assigned coordinator)
+  // 2. OR user is a coordinator (manager override for any request)
+  const canPerformActions = isAssignedUser || isCoordinator;
 
   const handleStatusUpdate = async (newStatus: string) => {
     try {
@@ -22,14 +30,14 @@ export default function MakerActions({ request, userRole: _userRole, userId }: M
         toast.success(
           <div>
             <p className="font-bold">Production Started!</p>
-            <p className="text-sm">You can now begin working on this sample.</p>
+            <p className="text-sm">{isAssignedUser ? 'You can now begin working on this sample.' : 'Status updated on behalf of the maker.'}</p>
           </div>
         );
       } else if (newStatus === 'ready') {
         toast.success(
           <div>
             <p className="font-bold">Marked as Ready!</p>
-            <p className="text-sm">The coordinator will be notified for dispatch.</p>
+            <p className="text-sm">The sample is ready for dispatch.</p>
           </div>
         );
       }
@@ -38,9 +46,8 @@ export default function MakerActions({ request, userRole: _userRole, userId }: M
     }
   };
 
-  // Show to anyone who is assigned to this request (maker OR coordinator acting as maker)
-  // This enables the "Coordinator as Maker" workflow
-  if (request.assigned_to !== userId) {
+  // Hide if user cannot perform actions
+  if (!canPerformActions) {
     return null;
   }
 
