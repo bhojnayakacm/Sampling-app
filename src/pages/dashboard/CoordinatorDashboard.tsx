@@ -39,6 +39,7 @@ import {
   User,
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
+import { formatDate } from '@/lib/utils';
 
 // ============================================================
 // BUSINESS HOURS SLA CALCULATION
@@ -617,6 +618,12 @@ export default function CoordinatorDashboard() {
                             )}
                           </div>
                         )}
+
+                        {/* Created Date Row */}
+                        <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatDate(request.created_at)}</span>
+                        </div>
 
                         {/* Middle: Client Name + Item Count */}
                         <div className="mb-3">
