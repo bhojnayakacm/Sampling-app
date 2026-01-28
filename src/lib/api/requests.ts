@@ -319,6 +319,9 @@ export function useAllRequestsStats() {
       // Pending: ONLY pending_approval (strictly awaiting coordinator action)
       const pending = submittedRequests.filter((r) => r.status === 'pending_approval').length;
 
+      // Approved: awaiting assignment to a maker
+      const approved = submittedRequests.filter((r) => r.status === 'approved').length;
+
       // Assigned: awaiting maker to start work
       const assigned = submittedRequests.filter((r) => r.status === 'assigned').length;
 
@@ -334,7 +337,7 @@ export function useAllRequestsStats() {
       // Received: delivered and confirmed
       const received = submittedRequests.filter((r) => r.status === 'received').length;
 
-      return { total, pending, assigned, in_production, ready, dispatched, received };
+      return { total, pending, approved, assigned, in_production, ready, dispatched, received };
     },
   });
 }

@@ -32,7 +32,6 @@ import {
   Loader2,
   AlertCircle,
   Truck,
-  ArrowRight,
   CheckCircle,
   PackageCheck,
   Timer,
@@ -261,7 +260,6 @@ interface StatCardConfig {
   icon: React.ElementType;
   iconBg: string;
   iconColor: string;
-  hoverColor: string;
   getValue: (stats: any) => number;
   filterStatus: RequestStatus | null;
 }
@@ -418,68 +416,16 @@ export default function CoordinatorDashboard() {
 
   const isRequesterUser = profile?.role === 'requester';
 
-  // Stat cards configuration
+  // Stat cards configuration — full production lifecycle
   const statCards: StatCardConfig[] = [
-    {
-      key: 'total',
-      label: 'Total Requests',
-      icon: Inbox,
-      iconBg: 'bg-blue-50',
-      iconColor: 'text-blue-600',
-      hoverColor: 'group-hover:text-blue-500',
-      getValue: (s) => s?.total || 0,
-      filterStatus: null,
-    },
-    {
-      key: 'pending',
-      label: 'Pending',
-      icon: Clock,
-      iconBg: 'bg-amber-50',
-      iconColor: 'text-amber-600',
-      hoverColor: 'group-hover:text-amber-500',
-      getValue: (s) => s?.pending || 0,
-      filterStatus: 'pending_approval',
-    },
-    {
-      key: 'in_production',
-      label: 'In Production',
-      icon: Cog,
-      iconBg: 'bg-violet-50',
-      iconColor: 'text-violet-600',
-      hoverColor: 'group-hover:text-violet-500',
-      getValue: (s) => s?.in_production || 0,
-      filterStatus: 'in_production',
-    },
-    {
-      key: 'ready',
-      label: 'Ready',
-      icon: CheckCircle,
-      iconBg: 'bg-teal-50',
-      iconColor: 'text-teal-600',
-      hoverColor: 'group-hover:text-teal-500',
-      getValue: (s) => s?.ready || 0,
-      filterStatus: 'ready',
-    },
-    {
-      key: 'dispatched',
-      label: 'Dispatched',
-      icon: Truck,
-      iconBg: 'bg-emerald-50',
-      iconColor: 'text-emerald-600',
-      hoverColor: 'group-hover:text-emerald-500',
-      getValue: (s) => s?.dispatched || 0,
-      filterStatus: 'dispatched',
-    },
-    {
-      key: 'received',
-      label: 'Received',
-      icon: PackageCheck,
-      iconBg: 'bg-green-50',
-      iconColor: 'text-green-600',
-      hoverColor: 'group-hover:text-green-500',
-      getValue: (s) => s?.received || 0,
-      filterStatus: 'received',
-    },
+    { key: 'total', label: 'Total', icon: Inbox, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', getValue: (s) => s?.total || 0, filterStatus: null },
+    { key: 'pending', label: 'Pending', icon: Clock, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', getValue: (s) => s?.pending || 0, filterStatus: 'pending_approval' },
+    { key: 'approved', label: 'Approved', icon: CheckCircle, iconBg: 'bg-sky-50', iconColor: 'text-sky-600', getValue: (s) => s?.approved || 0, filterStatus: 'approved' },
+    { key: 'assigned', label: 'Assigned', icon: User, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', getValue: (s) => s?.assigned || 0, filterStatus: 'assigned' },
+    { key: 'in_production', label: 'Production', icon: Cog, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', getValue: (s) => s?.in_production || 0, filterStatus: 'in_production' },
+    { key: 'ready', label: 'Ready', icon: Package, iconBg: 'bg-teal-50', iconColor: 'text-teal-600', getValue: (s) => s?.ready || 0, filterStatus: 'ready' },
+    { key: 'dispatched', label: 'Dispatched', icon: Truck, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', getValue: (s) => s?.dispatched || 0, filterStatus: 'dispatched' },
+    { key: 'received', label: 'Received', icon: PackageCheck, iconBg: 'bg-green-50', iconColor: 'text-green-600', getValue: (s) => s?.received || 0, filterStatus: 'received' },
   ];
 
   const handleSearchChange = (value: string) => {
@@ -531,8 +477,8 @@ export default function CoordinatorDashboard() {
     if (activeTab === 'sample-requests') {
       return (
         <div className="p-4 sm:p-6 space-y-6">
-          {/* Stats Cards - 6 Card Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Stats Cards - 8 Card Lifecycle Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
             {statCards.map((card) => {
               const Icon = card.icon;
               const value = card.getValue(stats);
@@ -548,17 +494,14 @@ export default function CoordinatorDashboard() {
                       : 'border-slate-200'
                   }`}
                 >
-                  <CardContent className="p-3 sm:p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-lg ${card.iconBg} flex items-center justify-center`}>
-                        <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${card.iconColor}`} />
-                      </div>
-                      <ArrowRight className={`h-3.5 w-3.5 text-slate-300 ${card.hoverColor} transition-colors`} />
+                  <CardContent className="p-3">
+                    <div className={`h-8 w-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-2`}>
+                      <Icon className={`h-4 w-4 ${card.iconColor}`} />
                     </div>
-                    <p className="text-xl sm:text-2xl font-bold text-slate-900">
+                    <p className="text-xl font-bold text-slate-900 leading-none">
                       {statsLoading ? '...' : value}
                     </p>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{card.label}</p>
+                    <p className="text-xs text-slate-500 mt-1 truncate">{card.label}</p>
                   </CardContent>
                 </Card>
               );

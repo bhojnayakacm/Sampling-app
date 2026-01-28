@@ -10,17 +10,31 @@ import {
   ArrowRight,
   LogOut,
   Users,
+  User,
   BarChart3,
   Truck,
   LayoutDashboard,
   CheckCircle,
-  Package
+  Package,
+  PackageCheck,
 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const { data: stats, isLoading } = useAllRequestsStats();
+
+  // Full production lifecycle stat cards
+  const statCards = [
+    { key: 'total', label: 'Total', icon: Inbox, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', value: stats?.total || 0, status: null },
+    { key: 'pending', label: 'Pending', icon: Clock, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', value: stats?.pending || 0, status: 'pending_approval' },
+    { key: 'approved', label: 'Approved', icon: CheckCircle, iconBg: 'bg-sky-50', iconColor: 'text-sky-600', value: stats?.approved || 0, status: 'approved' },
+    { key: 'assigned', label: 'Assigned', icon: User, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', value: stats?.assigned || 0, status: 'assigned' },
+    { key: 'in_production', label: 'Production', icon: Cog, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', value: stats?.in_production || 0, status: 'in_production' },
+    { key: 'ready', label: 'Ready', icon: Package, iconBg: 'bg-teal-50', iconColor: 'text-teal-600', value: stats?.ready || 0, status: 'ready' },
+    { key: 'dispatched', label: 'Dispatched', icon: Truck, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', value: stats?.dispatched || 0, status: 'dispatched' },
+    { key: 'received', label: 'Received', icon: PackageCheck, iconBg: 'bg-green-50', iconColor: 'text-green-600', value: stats?.received || 0, status: 'received' },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -57,142 +71,27 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold text-slate-900">System Overview</h2>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Requests */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                    <Inbox className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.total || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Total Requests</p>
-              </CardContent>
-            </Card>
-
-            {/* Pending */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests?status=pending_approval')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.pending || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Pending</p>
-              </CardContent>
-            </Card>
-
-            {/* In Production */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests?status=in_production')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-violet-50 flex items-center justify-center">
-                    <Cog className="h-5 w-5 text-violet-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-violet-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.in_production || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">In Production</p>
-              </CardContent>
-            </Card>
-
-            {/* Dispatched */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests?status=dispatched')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                    <Truck className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.dispatched || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Dispatched</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Second Row Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-            {/* Ready */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests?status=ready')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-teal-50 flex items-center justify-center">
-                    <Package className="h-5 w-5 text-teal-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-teal-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.ready || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Ready</p>
-              </CardContent>
-            </Card>
-
-            {/* Received */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests?status=received')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-green-50 flex items-center justify-center">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-green-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.received || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Received</p>
-              </CardContent>
-            </Card>
-
-            {/* Assigned */}
-            <Card
-              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-              onClick={() => navigate('/requests?status=assigned')}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-                    <Users className="h-5 w-5 text-indigo-600" />
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-indigo-500 transition-colors" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900">
-                  {isLoading ? '...' : stats?.assigned || 0}
-                </p>
-                <p className="text-sm text-slate-500 mt-1">Assigned</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
+            {statCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Card
+                  key={card.key}
+                  className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => navigate(card.status ? `/requests?status=${card.status}` : '/requests')}
+                >
+                  <CardContent className="p-3">
+                    <div className={`h-8 w-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-2`}>
+                      <Icon className={`h-4 w-4 ${card.iconColor}`} />
+                    </div>
+                    <p className="text-xl font-bold text-slate-900 leading-none">
+                      {isLoading ? '...' : card.value}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1 truncate">{card.label}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
@@ -203,15 +102,7 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold text-slate-900">Quick Actions</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/requests')}
-              className="min-h-[52px] gap-2 bg-white border-slate-200 text-slate-700 hover:bg-slate-50 justify-start px-4"
-            >
-              <Inbox className="h-5 w-5 text-indigo-500" />
-              View All Requests
-            </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Button
               variant="outline"
               onClick={() => navigate('/admin/users')}

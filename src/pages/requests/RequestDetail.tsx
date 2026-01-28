@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -87,6 +87,7 @@ export default function RequestDetail() {
   const [isEditingDeliveryMethod, setIsEditingDeliveryMethod] = useState(false);
   const [editedDeliveryMethod, setEditedDeliveryMethod] = useState('');
   const [deliveryMethodRemark, setDeliveryMethodRemark] = useState('');
+  const [deliveryMethodAddress, setDeliveryMethodAddress] = useState('');
   const [isSavingDeliveryMethod, setIsSavingDeliveryMethod] = useState(false);
 
   // Image preview state
@@ -95,15 +96,11 @@ export default function RequestDetail() {
   // Edit Required By modal state
   const [isEditRequiredByOpen, setIsEditRequiredByOpen] = useState(false);
 
-  // Track previous pickup method
-  const previousPickupMethod = useRef<string | null>(null);
-
   useEffect(() => {
     if (request) {
       setEditedAddress(request.delivery_address || '');
-      previousPickupMethod.current = request.pickup_responsibility;
     }
-  }, [request?.delivery_address, request?.pickup_responsibility]);
+  }, [request?.delivery_address]);
 
   const displayAddress = request?.delivery_address || '';
 
@@ -173,6 +170,7 @@ export default function RequestDetail() {
   const handleStartEditDeliveryMethod = () => {
     setEditedDeliveryMethod(request?.pickup_responsibility || '');
     setDeliveryMethodRemark('');
+    setDeliveryMethodAddress('');
     setIsEditingDeliveryMethod(true);
   };
 
@@ -180,9 +178,17 @@ export default function RequestDetail() {
     if (!id || !request) return;
 
     const originalMethod = request.pickup_responsibility || '';
-    const hasChanges = editedDeliveryMethod !== originalMethod;
+    const isNowDelivery = editedDeliveryMethod !== 'self_pickup';
+    const needsAddress = isNowDelivery && !request.delivery_address;
+    const hasMethodChange = editedDeliveryMethod !== originalMethod;
 
-    if (!hasChanges) {
+    // If switching to a delivery method and no address exists, require one
+    if (needsAddress && !deliveryMethodAddress.trim()) {
+      alert('Please enter a delivery address before saving.');
+      return;
+    }
+
+    if (!hasMethodChange && !deliveryMethodAddress.trim()) {
       setIsEditingDeliveryMethod(false);
       return;
     }
@@ -195,6 +201,12 @@ export default function RequestDetail() {
         is_delivery_method_edited: true,
         updated_at: new Date().toISOString(),
       };
+
+      // Include the address when switching away from self_pickup
+      if (needsAddress && deliveryMethodAddress.trim()) {
+        updatePayload.delivery_address = deliveryMethodAddress.trim();
+        updatePayload.is_address_edited = true;
+      }
 
       if (deliveryMethodRemark.trim()) {
         updatePayload.delivery_method_remark = deliveryMethodRemark.trim();
@@ -213,25 +225,14 @@ export default function RequestDetail() {
         return;
       }
 
-      const wasSelPickup = originalMethod === 'self_pickup';
-      const isNowDelivery = editedDeliveryMethod !== 'self_pickup';
-      const shouldPromptAddress = wasSelPickup && isNowDelivery && !request.delivery_address;
-
       setIsEditingDeliveryMethod(false);
       setDeliveryMethodRemark('');
+      setDeliveryMethodAddress('');
 
       await queryClient.invalidateQueries({ queryKey: ['request', id] });
       await queryClient.invalidateQueries({ queryKey: ['request-with-items', id] });
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
-
-      if (shouldPromptAddress) {
-        setTimeout(() => {
-          setEditedAddress('');
-          setAddressEditRemark('');
-          setIsEditingAddress(true);
-        }, 300);
-      }
     } catch (err) {
       console.error('Error saving delivery method:', err);
       alert('An error occurred while saving. Please try again.');
@@ -244,6 +245,7 @@ export default function RequestDetail() {
     setIsEditingDeliveryMethod(false);
     setEditedDeliveryMethod(request?.pickup_responsibility || '');
     setDeliveryMethodRemark('');
+    setDeliveryMethodAddress('');
   };
 
   const PICKUP_METHOD_OPTIONS = [
@@ -876,6 +878,23 @@ export default function RequestDetail() {
                           ))}
                         </SelectContent>
                       </Select>
+
+                      {/* Inline address input: shown when switching to a delivery method and no address exists */}
+                      {editedDeliveryMethod !== 'self_pickup' && !request.delivery_address && (
+                        <div className="space-y-1.5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <label className="text-xs font-medium text-amber-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5" />
+                            Delivery Address (required)
+                          </label>
+                          <Textarea
+                            value={deliveryMethodAddress}
+                            onChange={(e) => setDeliveryMethodAddress(e.target.value)}
+                            className="text-sm min-h-[80px] border-amber-300 bg-white focus:border-indigo-500"
+                            placeholder="Enter delivery address..."
+                          />
+                        </div>
+                      )}
+
                       <Textarea
                         value={deliveryMethodRemark}
                         onChange={(e) => setDeliveryMethodRemark(e.target.value)}
@@ -1208,8 +1227,8 @@ export default function RequestDetail() {
           </div>
         </div>
 
-        {/* Production actions - Show for assigned users OR coordinators (manager override) */}
-        {(isCoordinator || request.assigned_to === profile?.id) && (
+        {/* Production actions - Show only for makers assigned to this request */}
+        {isMaker && request.assigned_to === profile?.id && (
           <MakerActions request={request} userRole={profile?.role || ''} userId={profile?.id || ''} />
         )}
       </main>
