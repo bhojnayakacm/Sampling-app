@@ -10,20 +10,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { useRequestTimeline, useMarkAsReceived } from '@/lib/api/requests';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDateTime } from '@/lib/utils';
 import { Request, RequestStatus } from '@/types';
+import ReceiveConfirmDialog from './ReceiveConfirmDialog';
 import {
   MapPin,
   CheckCircle2,
@@ -97,7 +88,7 @@ const TIMELINE_STEPS = [
 export default function TrackingDialog({ request, trigger }: TrackingDialogProps) {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
 
   const { data: history, isLoading } = useRequestTimeline(request.id);
   const markAsReceived = useMarkAsReceived();
@@ -105,10 +96,10 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
   // Check if self pickup - skip dispatched step
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
-  // Check if user is the requester (only they can mark as received)
+  // Both requester and coordinator can mark as received
   const isRequester = profile?.id === request.created_by;
-  // For self pickup, requester can mark as received directly from "ready" status
-  const canMarkReceived = isRequester && (
+  const isCoordinator = profile?.role === 'coordinator';
+  const canMarkReceived = (isRequester || isCoordinator) && (
     request.status === 'dispatched' ||
     (request.status === 'ready' && isSelfPickup)
   );
@@ -132,15 +123,21 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
 
   const currentStepIndex = getCurrentStepIndex();
 
-  // Handle mark as received
-  const handleMarkAsReceived = async () => {
-    try {
-      await markAsReceived.mutateAsync(request.id);
-      toast.success('Sample marked as received successfully!');
-      setConfirmDialogOpen(false);
-      setOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to mark sample as received');
+  // Handle "Mark as Received" click — self-pickup auto-completes, others open modal
+  const handleMarkReceivedClick = async () => {
+    if (isSelfPickup) {
+      try {
+        await markAsReceived.mutateAsync({
+          requestId: request.id,
+          receivedBy: request.creator?.full_name || 'Requester (Self Pickup)',
+        });
+        toast.success('Sample marked as received!');
+        setOpen(false);
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to mark as received');
+      }
+    } else {
+      setReceiveDialogOpen(true);
     }
   };
 
@@ -284,7 +281,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
               </Button>
               {canMarkReceived && (
                 <Button
-                  onClick={() => setConfirmDialogOpen(true)}
+                  onClick={handleMarkReceivedClick}
                   disabled={markAsReceived.isPending}
                   className="bg-teal-600 hover:bg-teal-700"
                 >
@@ -306,30 +303,13 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog */}
-      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Sample Receipt</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you have received the sample for request{' '}
-              <strong>{request.request_number}</strong>?
-              <br />
-              <br />
-              This action will mark the request as complete and close the tracking.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleMarkAsReceived}
-              className="bg-teal-600 hover:bg-teal-700"
-            >
-              Confirm Receipt
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Receive Confirmation Modal (for non-self-pickup) */}
+      <ReceiveConfirmDialog
+        request={request}
+        open={receiveDialogOpen}
+        onOpenChange={setReceiveDialogOpen}
+        onSuccess={() => setOpen(false)}
+      />
     </>
   );
 }

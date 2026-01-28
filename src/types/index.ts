@@ -216,6 +216,7 @@ export interface Request {
   completed_at: string | null;
   dispatched_at: string | null;
   received_at: string | null;
+  received_by: string | null;
 
   // Deadline history (audit trail for required_by changes)
   required_by_history: RequiredByHistoryEntry[] | null;

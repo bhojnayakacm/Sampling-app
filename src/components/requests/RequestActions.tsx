@@ -23,7 +23,9 @@ import { useAssignRequest, useUpdateRequestStatus, useUpdateRequiredBy } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Request } from '@/types';
-import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play, PackageCheck } from 'lucide-react';
+import { useMarkAsReceived } from '@/lib/api/requests';
+import ReceiveConfirmDialog from './ReceiveConfirmDialog';
 import { formatDateTime } from '@/lib/utils';
 
 interface RequestActionsProps {
@@ -38,12 +40,14 @@ export default function RequestActions({ request, userRole, isCompact = false }:
   const assignRequest = useAssignRequest();
   const updateStatus = useUpdateRequestStatus();
   const updateRequiredBy = useUpdateRequiredBy();
+  const markAsReceived = useMarkAsReceived();
 
   // Dialog states
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [dispatchDialogOpen, setDispatchDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedMaker, setSelectedMaker] = useState('');
   const [message, setMessage] = useState('');
   const [dispatchNotes, setDispatchNotes] = useState('');
@@ -185,6 +189,27 @@ export default function RequestActions({ request, userRole, isCompact = false }:
   // Check if self pickup - coordinator doesn't need to dispatch
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
+  // Can coordinator mark as received? (dispatched, or ready + self_pickup)
+  const canCoordinatorReceive =
+    request.status === 'dispatched' || (request.status === 'ready' && isSelfPickup);
+
+  // Handle "Mark as Received" — self-pickup auto-completes, others open modal
+  const handleMarkReceivedClick = async () => {
+    if (isSelfPickup) {
+      try {
+        await markAsReceived.mutateAsync({
+          requestId: request.id,
+          receivedBy: request.creator?.full_name || 'Requester (Self Pickup)',
+        });
+        toast.success('Sample marked as received!');
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to mark as received');
+      }
+    } else {
+      setReceiveDialogOpen(true);
+    }
+  };
+
   // Compact mode for sticky action bar
   if (isCompact) {
     return (
@@ -273,14 +298,26 @@ export default function RequestActions({ request, userRole, isCompact = false }:
             </Button>
           )}
 
-          {/* Self Pickup at Ready: Show informational message */}
-          {request.status === 'ready' && isSelfPickup && (
-            <span className="text-sm text-slate-500">
-              Awaiting Self Pickup
-            </span>
+          {/* Mark as Received: for dispatched OR ready + self_pickup */}
+          {canCoordinatorReceive && (
+            <Button
+              onClick={handleMarkReceivedClick}
+              size="sm"
+              disabled={markAsReceived.isPending}
+              className="h-9 bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
+            >
+              {markAsReceived.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <PackageCheck className="h-4 w-4" />
+                  Mark Received
+                </>
+              )}
+            </Button>
           )}
 
-          {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production'].includes(request.status) && (
+          {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production', 'dispatched'].includes(request.status) && (
             <span className="text-sm text-slate-500 capitalize">
               {request.status.replace(/_/g, ' ')}
             </span>
@@ -562,6 +599,13 @@ export default function RequestActions({ request, userRole, isCompact = false }:
           </DialogContent>
         </Dialog>
 
+        {/* Receive Confirmation Dialog (for non-self-pickup) */}
+        <ReceiveConfirmDialog
+          request={request}
+          open={receiveDialogOpen}
+          onOpenChange={setReceiveDialogOpen}
+        />
+
         {/* Dispatch Dialog */}
         <Dialog open={dispatchDialogOpen} onOpenChange={setDispatchDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -728,6 +772,19 @@ export default function RequestActions({ request, userRole, isCompact = false }:
             Mark as Dispatched
           </Button>
         )}
+
+        {/* Mark as Received */}
+        {canCoordinatorReceive && (
+          <Button
+            onClick={handleMarkReceivedClick}
+            size="sm"
+            disabled={markAsReceived.isPending}
+            className="bg-teal-600 hover:bg-teal-700 gap-2"
+          >
+            {markAsReceived.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
+            Mark as Received
+          </Button>
+        )}
       </div>
 
       {/* Help text */}
@@ -736,9 +793,9 @@ export default function RequestActions({ request, userRole, isCompact = false }:
         {request.status === 'approved' && 'Assign this request to a maker to begin production.'}
         {request.status === 'assigned' && 'Start production on behalf of the maker.'}
         {request.status === 'in_production' && 'Mark as ready on behalf of the maker.'}
-        {request.status === 'ready' && isSelfPickup && 'Sample is ready for self pickup by requester.'}
+        {request.status === 'ready' && isSelfPickup && 'Sample is ready. Mark as received when picked up.'}
         {request.status === 'ready' && !isSelfPickup && 'Sample is ready. Mark as dispatched when sent.'}
-        {request.status === 'dispatched' && 'This request has been dispatched.'}
+        {request.status === 'dispatched' && 'Sample dispatched. Mark as received on delivery.'}
       </p>
 
       {renderDialogs()}

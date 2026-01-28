@@ -684,6 +684,23 @@ export default function RequestDetail() {
           </Alert>
         )}
 
+        {request.status === 'received' && request.received_by && (
+          <Alert className="mb-4 border border-green-200 bg-green-50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <AlertTitle className="text-sm font-medium text-slate-900">Received</AlertTitle>
+                <AlertDescription className="text-sm text-slate-600 mt-1">
+                  Received by <span className="font-medium text-slate-700">{request.received_by}</span>
+                  {request.received_at && (
+                    <span className="text-slate-400"> — {formatDateTime(request.received_at)}</span>
+                  )}
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
         {/* Mobile: Urgent Priority Badge */}
         {request.priority === 'urgent' && (
           <div className="sm:hidden mb-4 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
@@ -1252,8 +1269,9 @@ export default function RequestDetail() {
                     {request.status === 'approved' && 'Assign to maker'}
                     {request.status === 'assigned' && 'Start production'}
                     {request.status === 'in_production' && 'Mark as ready'}
-                    {request.status === 'ready' && 'Mark as dispatched'}
-                    {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production'].includes(request.status) && `Status: ${request.status.replace(/_/g, ' ')}`}
+                    {request.status === 'ready' && (isSelfPickup ? 'Mark as received' : 'Dispatch sample')}
+                    {request.status === 'dispatched' && 'Confirm receipt'}
+                    {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production', 'dispatched'].includes(request.status) && `Status: ${request.status.replace(/_/g, ' ')}`}
                   </p>
                 </div>
               </div>

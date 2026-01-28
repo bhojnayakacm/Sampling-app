@@ -579,12 +579,11 @@ export function useMarkAsReceived() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (requestId: string) => {
-      // First, verify the request is in 'dispatched' status
-      // Use maybeSingle() to avoid 406 errors if RLS prevents SELECT
+    mutationFn: async ({ requestId, receivedBy }: { requestId: string; receivedBy: string }) => {
+      // First, verify the request status
       const { data: currentRequest, error: fetchError } = await supabase
         .from('requests')
-        .select('status, created_by')
+        .select('status, pickup_responsibility')
         .eq('id', requestId)
         .maybeSingle();
 
@@ -594,16 +593,23 @@ export function useMarkAsReceived() {
         throw new Error('Request not found or you do not have permission to access it');
       }
 
-      if (currentRequest.status !== 'dispatched') {
-        throw new Error('Request must be in "dispatched" status to mark as received');
+      // Allow "ready" → "received" for self-pickup (skips dispatch step)
+      const isSelfPickup = currentRequest.pickup_responsibility === 'self_pickup';
+      const allowedStatuses = isSelfPickup ? ['dispatched', 'ready'] : ['dispatched'];
+
+      if (!allowedStatuses.includes(currentRequest.status)) {
+        throw new Error(
+          `Request must be in "${allowedStatuses.join('" or "')}" status to mark as received`
+        );
       }
 
-      // Update status to 'received' and set received_at timestamp
+      // Update status to 'received', set timestamp, and record who received it
       const { data, error } = await supabase
         .from('requests')
         .update({
           status: 'received',
           received_at: new Date().toISOString(),
+          received_by: receivedBy,
         })
         .eq('id', requestId)
         .select();
@@ -613,7 +619,6 @@ export function useMarkAsReceived() {
       // CRITICAL: Check if update was actually performed
       // If data is empty, RLS silently blocked the UPDATE (no rows modified)
       if (!data || data.length === 0) {
-        // Verify by re-fetching to see if status actually changed
         const { data: verifyData } = await supabase
           .from('requests')
           .select('status')
@@ -621,14 +626,12 @@ export function useMarkAsReceived() {
           .maybeSingle();
 
         if (verifyData?.status !== 'received') {
-          // Update was silently blocked by RLS
           throw new Error(
             'Permission denied: You do not have permission to update this request. ' +
             'Please contact your administrator if you believe this is an error.'
           );
         }
 
-        // Status changed but SELECT after UPDATE was blocked - this is OK
         return { data: verifyData, requestId };
       }
 
@@ -636,7 +639,6 @@ export function useMarkAsReceived() {
     },
     onSuccess: (result) => {
       const requestId = result.requestId;
-      // Invalidate all relevant caches for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
