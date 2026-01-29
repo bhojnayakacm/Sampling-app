@@ -1278,7 +1278,7 @@ export default function RequestDetail() {
 
               {/* Mobile: Full width action area */}
               <div className="flex-1 sm:flex-initial">
-                <RequestActions request={request} userRole={profile?.role || ''} isCompact />
+                <RequestActions request={request} userRole={profile?.role || ''} isCompact onDeadlineBlock={() => setIsEditRequiredByOpen(true)} />
               </div>
             </div>
           </div>

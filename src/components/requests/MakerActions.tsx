@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useUpdateRequestStatus } from '@/lib/api/requests';
 import { toast } from 'sonner';
 import type { Request } from '@/types';
-import { Play, CheckCircle, Loader2, Clock, Truck, Hammer } from 'lucide-react';
+import { Play, CheckCircle, Loader2, Clock, Truck, Hammer, AlertCircle } from 'lucide-react';
 
 interface MakerActionsProps {
   request: Request;
@@ -23,6 +23,23 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
   const canPerformActions = isAssignedUser || isCoordinator;
 
   const handleStatusUpdate = async (newStatus: string) => {
+    // Deadline compliance: block overdue requests for makers
+    if (request.required_by && new Date() > new Date(request.required_by)) {
+      if (!isCoordinator) {
+        toast.error(
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-bold">Deadline Exceeded</p>
+              <p className="text-sm">Please contact the Coordinator to extend the date before proceeding.</p>
+            </div>
+          </div>,
+          { duration: 5000 }
+        );
+        return;
+      }
+    }
+
     try {
       await updateStatus.mutateAsync({ requestId: request.id, status: newStatus });
 

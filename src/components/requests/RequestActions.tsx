@@ -32,9 +32,10 @@ interface RequestActionsProps {
   request: Request;
   userRole: string;
   isCompact?: boolean;
+  onDeadlineBlock?: () => void;
 }
 
-export default function RequestActions({ request, userRole, isCompact = false }: RequestActionsProps) {
+export default function RequestActions({ request, userRole, isCompact = false, onDeadlineBlock }: RequestActionsProps) {
   const { profile } = useAuth();
   const { data: makers } = useMakers();
   const assignRequest = useAssignRequest();
@@ -141,6 +142,11 @@ export default function RequestActions({ request, userRole, isCompact = false }:
     }
   };
 
+  const handleDispatchClick = () => {
+    if (!checkDeadlineCompliance()) return;
+    setDispatchDialogOpen(true);
+  };
+
   const handleDispatch = async () => {
     try {
       await updateStatus.mutateAsync({
@@ -156,8 +162,29 @@ export default function RequestActions({ request, userRole, isCompact = false }:
     }
   };
 
+  // Deadline compliance: check if overdue before any forward status change
+  const checkDeadlineCompliance = (): boolean => {
+    if (!request.required_by) return true;
+    if (new Date() <= new Date(request.required_by)) return true;
+
+    toast.error(
+      <div className="flex items-start gap-2">
+        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+        <div>
+          <p className="font-bold">Deadline Exceeded</p>
+          <p className="text-sm">Please extend the 'Required By' date before moving to the next stage.</p>
+        </div>
+      </div>,
+      { duration: 5000 }
+    );
+    onDeadlineBlock?.();
+    return false;
+  };
+
   // Coordinator override: directly update status (Start Production / Mark Ready)
   const handleStatusUpdate = async (newStatus: string) => {
+    if (!checkDeadlineCompliance()) return;
+
     try {
       await updateStatus.mutateAsync({ requestId: request.id, status: newStatus });
 
@@ -289,7 +316,7 @@ export default function RequestActions({ request, userRole, isCompact = false }:
           {/* Hide Dispatch button for Self Pickup - requester will mark as received directly */}
           {request.status === 'ready' && !isSelfPickup && (
             <Button
-              onClick={() => setDispatchDialogOpen(true)}
+              onClick={handleDispatchClick}
               size="sm"
               className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
             >
@@ -764,7 +791,7 @@ export default function RequestActions({ request, userRole, isCompact = false }:
         {/* Hide Dispatch button for Self Pickup */}
         {request.status === 'ready' && !isSelfPickup && (
           <Button
-            onClick={() => setDispatchDialogOpen(true)}
+            onClick={handleDispatchClick}
             size="sm"
             className="bg-blue-600 hover:bg-blue-700 gap-2"
           >
