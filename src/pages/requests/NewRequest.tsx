@@ -370,6 +370,22 @@ export default function NewRequest() {
     setProducts(products.map((p, i) => (i === index ? { ...p, ...updates } : p)));
   };
 
+  const duplicateProduct = (index: number) => {
+    const source = products[index];
+    const cloned: ProductItem = {
+      ...source,
+      id: generateId(),
+      quality: '',
+      quality_custom: '',
+      image_file: null,
+      image_preview: null,
+      image_url: null,
+    };
+    const updated = [...products];
+    updated.splice(index + 1, 0, cloned);
+    setProducts(updated);
+  };
+
   // ============================================================
   // VALIDATION
   // ============================================================
@@ -962,11 +978,13 @@ export default function NewRequest() {
                 {/* Delivery Address - Hidden for Self Pickup */}
                 {pickupResponsibility !== 'self_pickup' && (
                   <div className="md:col-span-2">
-                    <Label htmlFor="delivery_address" className="text-slate-700 font-semibold">Delivery Address *</Label>
+                    <Label htmlFor="delivery_address" className="text-slate-700 font-semibold">
+                      Full Delivery Address (House No, Street, Landmark, City) *
+                    </Label>
                     <Textarea
                       id="delivery_address"
                       {...register('delivery_address')}
-                      placeholder="Enter delivery address"
+                      placeholder="e.g., Plot 45, Sector 56, Near Metro Station, Gurgaon..."
                       rows={3}
                       className="mt-1.5 border-slate-200 focus:ring-indigo-500"
                     />
@@ -1206,6 +1224,7 @@ export default function NewRequest() {
                     canDelete={products.length > 1}
                     onUpdate={updateProduct}
                     onRemove={removeProduct}
+                    onDuplicate={duplicateProduct}
                   />
                 ))}
               </div>
