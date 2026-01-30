@@ -58,6 +58,7 @@ import {
   Mail,
   Package,
   AlertCircle,
+  Copy,
 } from 'lucide-react';
 import type { RequestItemDB } from '@/types';
 
@@ -95,6 +96,9 @@ export default function RequestDetail() {
 
   // Edit Required By modal state
   const [isEditRequiredByOpen, setIsEditRequiredByOpen] = useState(false);
+
+  // Copy qualities state
+  const [qualitiesCopied, setQualitiesCopied] = useState(false);
 
   useEffect(() => {
     if (request) {
@@ -721,15 +725,36 @@ export default function RequestDetail() {
             {/* =========================================== */}
             <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden">
               <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                  <Package className="h-4 w-4 text-indigo-500" />
-                  Product Items
-                  {hasItems && (
-                    <span className="text-xs font-normal text-slate-500">
-                      ({request.items!.length})
-                    </span>
-                  )}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                    <Package className="h-4 w-4 text-indigo-500" />
+                    Product Items
+                    {hasItems && (
+                      <span className="text-xs font-normal text-slate-500">
+                        ({request.items!.length})
+                      </span>
+                    )}
+                  </CardTitle>
+                  <button
+                    onClick={async () => {
+                      const qualities = hasItems
+                        ? request.items!.map((item) => item.quality_custom || item.quality).filter(Boolean)
+                        : request.quality ? [request.quality] : [];
+                      if (qualities.length === 0) return;
+                      await navigator.clipboard.writeText(qualities.join(', '));
+                      setQualitiesCopied(true);
+                      setTimeout(() => setQualitiesCopied(false), 2000);
+                    }}
+                    className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                    title="Copy quality list"
+                  >
+                    {qualitiesCopied ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {hasItems ? (
