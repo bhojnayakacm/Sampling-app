@@ -59,6 +59,7 @@ import {
   Package,
   AlertCircle,
   Copy,
+  RotateCcw,
 } from 'lucide-react';
 import type { RequestItemDB } from '@/types';
 
@@ -668,12 +669,35 @@ export default function RequestDetail() {
               ) : (
                 <MessageSquare className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <AlertTitle className="text-sm font-medium text-slate-900">Coordinator Message</AlertTitle>
                 <AlertDescription className="text-sm text-slate-600 mt-1">{request.coordinator_message}</AlertDescription>
               </div>
             </div>
           </Alert>
+        )}
+
+        {/* Edit & Resubmit CTA for rejected requests (requester only) */}
+        {request.status === 'rejected' && profile?.id === request.created_by && (
+          <div className="mb-4 border-2 border-dashed border-amber-300 bg-amber-50 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <RotateCcw className="h-4 w-4 text-amber-700" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-900">Want to fix and resubmit?</p>
+                <p className="text-xs text-amber-700">Edit your request based on the feedback above and send it for review again.</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => navigate(`/requests/edit/${request.id}`)}
+              className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white gap-2 shrink-0"
+              size="sm"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit & Resubmit
+            </Button>
+          </div>
         )}
 
         {request.dispatch_notes && (request.status === 'dispatched' || request.status === 'received') && (

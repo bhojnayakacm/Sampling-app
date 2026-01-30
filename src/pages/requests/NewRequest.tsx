@@ -19,7 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare } from 'lucide-react';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
 import { LocationAutocomplete } from '@/components/ui/location-autocomplete';
@@ -259,7 +259,8 @@ export default function NewRequest() {
 
   // Use the new hook that fetches request with items
   const { data: existingDraft, isLoading: isDraftLoading } = useRequestWithItems(draftId);
-  const isEditMode = !!draftId && existingDraft?.status === 'draft';
+  const isEditMode = !!draftId && (existingDraft?.status === 'draft' || existingDraft?.status === 'rejected');
+  const isResubmitMode = !!draftId && existingDraft?.status === 'rejected';
 
   const {
     register,
@@ -705,9 +706,16 @@ export default function NewRequest() {
 
       // Step 4: Create or update - CALLED EXACTLY ONCE
       if (isEditMode && draftId) {
-        console.log(`[NewRequest] ${submissionId} - Updating draft ${draftId}`);
+        // For resubmission, clear the old coordinator message
+        if (isResubmitMode) {
+          (requestData as any).coordinator_message = null;
+        }
+        console.log(`[NewRequest] ${submissionId} - Updating ${isResubmitMode ? 'rejected' : 'draft'} request ${draftId}`);
         await updateRequestWithItems(draftId, requestData, itemsData);
-        toast.success('Draft submitted successfully');
+        toast.success(isResubmitMode
+          ? 'Request resubmitted successfully!'
+          : 'Draft submitted successfully'
+        );
       } else {
         console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
         const result = await createRequestWithItems(requestData, itemsData);
@@ -815,7 +823,7 @@ export default function NewRequest() {
     );
   }
 
-  if (draftId && existingDraft && existingDraft.status !== 'draft') {
+  if (draftId && existingDraft && existingDraft.status !== 'draft' && existingDraft.status !== 'rejected') {
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="container mx-auto p-6 max-w-4xl">
@@ -857,7 +865,7 @@ export default function NewRequest() {
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
-                {isEditMode ? 'Edit Draft' : 'New Request'}
+                {isResubmitMode ? 'Edit & Resubmit' : isEditMode ? 'Edit Draft' : 'New Request'}
               </h1>
               <p className="text-sm text-slate-500 hidden sm:block">
                 {profile.full_name} | {profile.department}
@@ -876,6 +884,22 @@ export default function NewRequest() {
       </header>
 
       <form onSubmit={(e) => e.preventDefault()} className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-8">
+        {/* Rejection Reason Alert (Edit & Resubmit mode only) */}
+        {isResubmitMode && existingDraft?.coordinator_message && (
+          <div className="mb-5 border-2 border-red-300 bg-red-50 rounded-xl p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+                <XCircle className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-red-800 uppercase tracking-wide">Reason for Rejection</h3>
+                <p className="mt-1.5 text-sm text-red-700 leading-relaxed">{existingDraft.coordinator_message}</p>
+                <p className="mt-3 text-xs text-red-500">Please address the above feedback, make the necessary changes, and resubmit.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Accordion type="multiple" defaultValue={["section-1", "section-2", "section-3"]} className="space-y-4">
           {/* ============================================================ */}
           {/* SECTION 1: REQUESTER DETAILS */}
@@ -1340,43 +1364,49 @@ export default function NewRequest() {
               Cancel
             </Button>
 
-            {/* Save Draft Button */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSaveDraft}
-              disabled={isSubmitting}
-              className="w-full sm:w-auto min-h-[48px] px-6 gap-2 text-base font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-all"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>{isEditMode ? 'Updating...' : 'Saving...'}</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-5 w-5" />
-                  <span>{isEditMode ? 'Update Draft' : 'Save Draft'}</span>
-                </>
-              )}
-            </Button>
+            {/* Save Draft Button — hidden in resubmit mode */}
+            {!isResubmitMode && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSaveDraft}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto min-h-[48px] px-6 gap-2 text-base font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-all"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>{isEditMode ? 'Updating...' : 'Saving...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5" />
+                    <span>{isEditMode ? 'Update Draft' : 'Save Draft'}</span>
+                  </>
+                )}
+              </Button>
+            )}
 
-            {/* Submit Button - Primary */}
+            {/* Submit / Resubmit Button - Primary */}
             <Button
               type="button"
               onClick={handleSubmit(handleSubmitRequest)}
               disabled={isSubmitting}
-              className="w-full sm:w-auto min-h-[48px] px-8 gap-2 text-base font-semibold bg-indigo-600 hover:bg-indigo-700 transition-all"
+              className={`w-full sm:w-auto min-h-[48px] px-8 gap-2 text-base font-semibold transition-all ${
+                isResubmitMode
+                  ? 'bg-amber-600 hover:bg-amber-700'
+                  : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Submitting...
+                  {isResubmitMode ? 'Resubmitting...' : 'Submitting...'}
                 </>
               ) : (
                 <>
-                  <SendHorizontal className="h-5 w-5" />
-                  <span>Submit {products.length > 1 ? `(${products.length} items)` : 'Request'}</span>
+                  {isResubmitMode ? <RotateCcw className="h-5 w-5" /> : <SendHorizontal className="h-5 w-5" />}
+                  <span>{isResubmitMode ? 'Resubmit Request' : `Submit ${products.length > 1 ? `(${products.length} items)` : 'Request'}`}</span>
                 </>
               )}
             </Button>
