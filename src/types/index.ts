@@ -2,7 +2,7 @@
 // USER ROLES
 // ============================================================
 
-export type UserRole = 'admin' | 'coordinator' | 'requester' | 'maker';  // Changed 'marketing' to 'requester'
+export type UserRole = 'admin' | 'coordinator' | 'requester' | 'maker' | 'dispatcher';
 
 // ============================================================
 // REQUEST ENUMS

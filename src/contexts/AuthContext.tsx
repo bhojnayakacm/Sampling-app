@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Extract and validate role
       let role = authUser.user_metadata?.role?.toLowerCase() || 'requester';
-      if (!['admin', 'coordinator', 'requester', 'maker'].includes(role)) {
+      if (!['admin', 'coordinator', 'requester', 'maker', 'dispatcher'].includes(role)) {
         role = 'requester';
       }
 

@@ -176,6 +176,7 @@ export default function UserManagement() {
       coordinator: 'default',
       maker: 'secondary',
       requester: 'outline',
+      dispatcher: 'secondary',
     };
     return <Badge variant={variants[role] || 'outline'}>{role.toUpperCase()}</Badge>;
   };
@@ -276,6 +277,7 @@ export default function UserManagement() {
                           <SelectContent>
                             <SelectItem value="requester">Requester</SelectItem>
                             <SelectItem value="maker">Maker</SelectItem>
+                            <SelectItem value="dispatcher">Dispatcher</SelectItem>
                             <SelectItem value="coordinator">Coordinator</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
@@ -335,6 +337,7 @@ export default function UserManagement() {
                           <SelectContent>
                             <SelectItem value="requester">Requester</SelectItem>
                             <SelectItem value="maker">Maker</SelectItem>
+                            <SelectItem value="dispatcher">Dispatcher</SelectItem>
                             <SelectItem value="coordinator">Coordinator</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
@@ -374,7 +377,7 @@ export default function UserManagement() {
               Create New User
             </DialogTitle>
             <DialogDescription>
-              Create a new Coordinator, Maker, or Requester account. The user will be able to log in immediately.
+              Create a new Coordinator, Maker, Dispatcher, or Requester account. The user will be able to log in immediately.
             </DialogDescription>
           </DialogHeader>
 
@@ -449,6 +452,7 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="coordinator">Coordinator</SelectItem>
                   <SelectItem value="maker">Maker</SelectItem>
+                  <SelectItem value="dispatcher">Dispatcher</SelectItem>
                   <SelectItem value="requester">Requester</SelectItem>
                 </SelectContent>
               </Select>

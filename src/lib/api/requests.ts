@@ -62,6 +62,9 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
       } else if (userRole === 'maker' && userId) {
         // Makers see only requests assigned to them
         query = query.eq('assigned_to', userId);
+      } else if (userRole === 'dispatcher') {
+        // Dispatchers see field_boy requests that are ready, dispatched, or received
+        query = query.eq('pickup_responsibility', 'field_boy').in('status', ['ready', 'dispatched', 'received']);
       } else if (userRole === 'admin' || userRole === 'coordinator') {
         // Admins and coordinators see all requests except drafts
         query = query.neq('status', 'draft');
@@ -374,6 +377,68 @@ export function useMakerStats(userId: string | undefined) {
   });
 }
 
+// Get stats for dispatcher (field boy)
+export function useDispatcherStats(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['dispatcher-stats', userId],
+    queryFn: async () => {
+      if (!userId) return { readyForPickup: 0, dispatchedToday: 0, totalDispatched: 0 };
+
+      // Fetch field_boy requests visible to this dispatcher
+      const { data, error } = await supabase
+        .from('requests')
+        .select('status, dispatched_at, pickup_responsibility')
+        .eq('pickup_responsibility', 'field_boy')
+        .in('status', ['ready', 'dispatched', 'received']);
+
+      if (error) throw error;
+
+      const readyForPickup = data.filter((r) => r.status === 'ready').length;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dispatchedToday = data.filter(
+        (r) => (r.status === 'dispatched' || r.status === 'received') &&
+               r.dispatched_at && new Date(r.dispatched_at) >= today
+      ).length;
+
+      const totalDispatched = data.filter(
+        (r) => r.status === 'dispatched' || r.status === 'received'
+      ).length;
+
+      return { readyForPickup, dispatchedToday, totalDispatched };
+    },
+    enabled: !!userId,
+  });
+}
+
+// Fetch ready field_boy requests for the dispatcher work list
+export function useFieldBoyReadyRequests() {
+  return useQuery({
+    queryKey: ['field-boy-ready-requests'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('requests')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            full_name,
+            role,
+            department
+          ),
+          items:request_items (*)
+        `)
+        .eq('status', 'ready')
+        .eq('pickup_responsibility', 'field_boy')
+        .order('required_by', { ascending: true });
+
+      if (error) throw error;
+      return (data || []) as Request[];
+    },
+  });
+}
+
 // Update request status (enhanced with auto-timestamps and optional message)
 export function useUpdateRequestStatus() {
   const queryClient = useQueryClient();
@@ -434,6 +499,8 @@ export function useUpdateRequestStatus() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
       queryClient.invalidateQueries({ queryKey: ['maker-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dispatcher-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['field-boy-ready-requests'] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     },
   });

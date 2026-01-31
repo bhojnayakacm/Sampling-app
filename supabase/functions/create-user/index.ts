@@ -13,7 +13,7 @@ const corsHeaders = {
 interface CreateUserRequest {
   email: string
   password: string
-  role: 'requester' | 'coordinator' | 'maker'
+  role: 'requester' | 'coordinator' | 'maker' | 'dispatcher'
   full_name: string
   phone?: string
   department?: string
@@ -90,7 +90,7 @@ serve(async (req) => {
     }
 
     // Validate role
-    const validRoles = ['requester', 'coordinator', 'maker']
+    const validRoles = ['requester', 'coordinator', 'maker', 'dispatcher']
     if (!validRoles.includes(role)) {
       return new Response(
         JSON.stringify({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }),

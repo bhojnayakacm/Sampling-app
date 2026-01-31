@@ -11,6 +11,7 @@ import AdminDashboard from '@/pages/dashboard/AdminDashboard';
 import CoordinatorDashboard from '@/pages/dashboard/CoordinatorDashboard';
 import RequesterDashboard from '@/pages/dashboard/RequesterDashboard';
 import MakerDashboard from '@/pages/dashboard/MakerDashboard';
+import DispatcherDashboard from '@/pages/dashboard/DispatcherDashboard';
 import RequestList from '@/pages/requests/RequestList';
 import NewRequest from '@/pages/requests/NewRequest';
 import RequestDetail from '@/pages/requests/RequestDetail';
@@ -117,6 +118,8 @@ function DashboardRouter() {
       return <RequesterDashboard />;
     case 'maker':
       return <MakerDashboard />;
+    case 'dispatcher':
+      return <DispatcherDashboard />;
     default:
       return <Navigate to="/login" replace />;
   }
