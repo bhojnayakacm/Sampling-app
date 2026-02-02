@@ -384,29 +384,33 @@ export function useDispatcherStats(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) return { readyForPickup: 0, dispatchedToday: 0, totalDispatched: 0 };
 
-      // Fetch field_boy requests visible to this dispatcher
-      const { data, error } = await supabase
+      // Ready count: system-wide field_boy requests awaiting pickup
+      const { count: readyForPickup, error: readyError } = await supabase
         .from('requests')
-        .select('status, dispatched_at, pickup_responsibility')
+        .select('*', { count: 'exact', head: true })
         .eq('pickup_responsibility', 'field_boy')
-        .in('status', ['ready', 'dispatched', 'received']);
+        .eq('status', 'ready');
 
-      if (error) throw error;
+      if (readyError) throw readyError;
 
-      const readyForPickup = data.filter((r) => r.status === 'ready').length;
+      // Dispatched counts: query status history for THIS user's dispatches
+      const { data: dispatchHistory, error: historyError } = await supabase
+        .from('request_status_history')
+        .select('changed_at')
+        .eq('status', 'dispatched')
+        .eq('changed_by', userId);
+
+      if (historyError) throw historyError;
+
+      const totalDispatched = dispatchHistory?.length || 0;
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const dispatchedToday = data.filter(
-        (r) => (r.status === 'dispatched' || r.status === 'received') &&
-               r.dispatched_at && new Date(r.dispatched_at) >= today
+      const dispatchedToday = (dispatchHistory || []).filter(
+        (h) => h.changed_at && new Date(h.changed_at) >= today
       ).length;
 
-      const totalDispatched = data.filter(
-        (r) => r.status === 'dispatched' || r.status === 'received'
-      ).length;
-
-      return { readyForPickup, dispatchedToday, totalDispatched };
+      return { readyForPickup: readyForPickup || 0, dispatchedToday, totalDispatched };
     },
     enabled: !!userId,
   });

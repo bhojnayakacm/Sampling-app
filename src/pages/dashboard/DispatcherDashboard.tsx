@@ -305,7 +305,7 @@ export default function DispatcherDashboard() {
       {/* DISPATCH CONFIRMATION DIALOG */}
       {/* ============================================ */}
       <Dialog open={!!dispatchTarget} onOpenChange={(open) => { if (!open) setDispatchTarget(null); }}>
-        <DialogContent className="sm:max-w-[420px] mx-4">
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-teal-700">
               <Truck className="h-5 w-5" />
