@@ -158,8 +158,11 @@ function createEmptyProduct(): ProductItem {
   return {
     id: generateId(),
     product_type: '',
-    quality: '',
+    // Multi-select quality support (Batch Entry feature)
+    selected_qualities: [],
     quality_custom: '',
+    use_custom_quality: false,
+    quality: '', // Legacy field
     sample_size: '',
     sample_size_remarks: '',
     thickness: '',
@@ -216,18 +219,41 @@ async function uploadAllImages(
 }
 
 // Convert ProductItem to CreateRequestItemInput (without request_id)
+// This is called AFTER exploding batch entries, so each item has exactly one quality
 function productToItemInput(
   product: ProductItem,
-  imageUrl: string | null
+  imageUrl: string | null,
+  qualityOverride?: string // Used when exploding batch entries
 ): Omit<CreateRequestItemInput, 'request_id'> {
   const hasFinish = product.product_type &&
     PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
 
+  // Determine the quality value
+  // Priority: qualityOverride (from batch explosion) > custom quality > first selected quality > legacy quality
+  let qualityValue: string;
+  let qualityCustomValue: string | null = null;
+
+  if (qualityOverride) {
+    // This is from batch explosion - quality is verified from database
+    qualityValue = qualityOverride;
+  } else if (product.use_custom_quality && product.quality_custom) {
+    // Custom entry mode - mark as custom
+    qualityValue = product.quality_custom;
+    qualityCustomValue = product.quality_custom; // Store in quality_custom to indicate it's a one-off
+  } else if (product.selected_qualities.length > 0) {
+    // Multi-select mode - take the first quality (should only have one after explosion)
+    qualityValue = product.selected_qualities[0];
+  } else {
+    // Legacy fallback
+    qualityValue = product.quality === 'Custom' ? (product.quality_custom || 'Custom') : product.quality;
+    qualityCustomValue = product.quality === 'Custom' ? (product.quality_custom || null) : null;
+  }
+
   return {
     item_index: 0, // Will be set by the API function
     product_type: product.product_type,
-    quality: product.quality === 'Custom' ? (product.quality_custom || 'Custom') : product.quality,
-    quality_custom: product.quality === 'Custom' ? product.quality_custom : null,
+    quality: qualityValue,
+    quality_custom: qualityCustomValue,
     sample_size: product.sample_size,
     sample_size_remarks: product.sample_size === 'Custom' ? product.sample_size_remarks : null,
     thickness: product.thickness,
@@ -239,6 +265,56 @@ function productToItemInput(
     quantity: product.quantity,
     image_url: imageUrl,
   };
+}
+
+// ============================================================
+// BATCH ENTRY: Explode products with multiple qualities into individual items
+// ============================================================
+//
+// Example: User selects Qualities ["Statuario", "Michel Angelo"] with custom "MyStone"
+// Result: 3 separate items with identical specs but different qualities
+//
+interface ExplodedItem {
+  product: ProductItem;
+  quality: string;
+  isCustom: boolean;
+  originalIndex: number; // Track which original product this came from (for image URL mapping)
+}
+
+function explodeProducts(products: ProductItem[]): ExplodedItem[] {
+  const exploded: ExplodedItem[] = [];
+
+  products.forEach((product, originalIndex) => {
+    if (product.use_custom_quality && product.quality_custom) {
+      // Custom quality mode: single item with custom quality
+      exploded.push({
+        product,
+        quality: product.quality_custom,
+        isCustom: true,
+        originalIndex,
+      });
+    } else if (product.selected_qualities.length > 0) {
+      // Multi-select mode: create one item per selected quality
+      product.selected_qualities.forEach((quality) => {
+        exploded.push({
+          product,
+          quality,
+          isCustom: false,
+          originalIndex,
+        });
+      });
+    } else if (product.quality) {
+      // Legacy fallback: single quality from old format
+      exploded.push({
+        product,
+        quality: product.quality === 'Custom' ? (product.quality_custom || 'Custom') : product.quality,
+        isCustom: product.quality === 'Custom',
+        originalIndex,
+      });
+    }
+  });
+
+  return exploded;
 }
 
 // ============================================================
@@ -313,11 +389,18 @@ export default function NewRequest() {
           const productType = item.product_type as ProductType;
           const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
 
+          // Determine if this was a custom quality entry
+          const isCustom = Boolean(item.quality_custom);
+
           return {
             id: generateId(),
             product_type: productType,
-            quality: item.quality_custom ? 'Custom' : item.quality,
+            // New multi-select fields
+            selected_qualities: isCustom ? [] : [item.quality], // Load single quality into array
             quality_custom: item.quality_custom || '',
+            use_custom_quality: isCustom,
+            // Legacy field for backward compatibility
+            quality: item.quality || '',
             sample_size: item.sample_size,
             sample_size_remarks: item.sample_size_remarks || '',
             thickness: item.thickness,
@@ -334,11 +417,17 @@ export default function NewRequest() {
         // Backward compatibility: Load from legacy columns
         const productType = existingDraft.product_type as ProductType;
         const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
+        const quality = existingDraft.quality || '';
 
         setProducts([{
           id: generateId(),
           product_type: productType,
-          quality: existingDraft.quality || '',
+          // New multi-select fields - load legacy quality into array
+          selected_qualities: quality ? [quality] : [],
+          quality_custom: '',
+          use_custom_quality: false,
+          // Legacy field
+          quality: quality,
           sample_size: existingDraft.sample_size || '',
           sample_size_remarks: existingDraft.sample_size_remarks || '',
           thickness: existingDraft.thickness || '',
@@ -373,11 +462,17 @@ export default function NewRequest() {
 
   const duplicateProduct = (index: number) => {
     const source = products[index];
+    // Clone with same specs but clear all quality selections
+    // This allows user to quickly select different qualities with same specs
     const cloned: ProductItem = {
       ...source,
       id: generateId(),
-      quality: '',
+      // Clear all quality-related fields
+      selected_qualities: [],
       quality_custom: '',
+      use_custom_quality: false,
+      quality: '', // Legacy field
+      // Clear image (user may want different image for different quality)
       image_file: null,
       image_preview: null,
       image_url: null,
@@ -400,12 +495,25 @@ export default function NewRequest() {
       if (!product.product_type) {
         errors.push(`${prefix}Product Type is required`);
       }
-      if (!product.quality) {
-        errors.push(`${prefix}Quality is required`);
+
+      // Quality validation - check based on mode (multi-select vs custom)
+      if (product.use_custom_quality) {
+        // Custom quality mode: require quality_custom
+        if (!product.quality_custom || product.quality_custom.trim() === '') {
+          errors.push(`${prefix}Custom Quality name is required`);
+        }
+      } else {
+        // Multi-select mode: require at least one quality selected
+        if (!product.selected_qualities || product.selected_qualities.length === 0) {
+          // Fallback to legacy quality field for backward compatibility
+          if (!product.quality) {
+            errors.push(`${prefix}At least one Quality must be selected`);
+          } else if (product.quality === 'Custom' && !product.quality_custom) {
+            errors.push(`${prefix}Custom Quality text is required`);
+          }
+        }
       }
-      if (product.quality === 'Custom' && !product.quality_custom) {
-        errors.push(`${prefix}Custom Quality text is required`);
-      }
+
       if (!product.sample_size) {
         errors.push(`${prefix}Sample Size is required`);
       }
@@ -512,7 +620,16 @@ export default function NewRequest() {
       // Step 1: Upload all images in parallel
       const imageUrlMap = await uploadAllImages(products);
 
-      // Step 2: Prepare request data (parent)
+      // Step 2: Explode batch entries into individual items
+      const explodedItems = explodeProducts(products);
+
+      // Step 3: Get the first quality for legacy columns
+      const firstProduct = products[0];
+      const firstQuality = firstProduct?.use_custom_quality
+        ? firstProduct.quality_custom
+        : (firstProduct?.selected_qualities[0] || firstProduct?.quality || null);
+
+      // Step 4: Prepare request data (parent)
       const requestData = {
         created_by: profile.id,
         status: 'draft',
@@ -551,22 +668,26 @@ export default function NewRequest() {
         requester_message: formValues.requester_message || null,
 
         // Legacy columns (set to first product for backward compatibility)
-        product_type: products[0]?.product_type || null,
-        quality: products[0]?.quality === 'Custom' ? products[0]?.quality_custom : products[0]?.quality || null,
-        sample_size: products[0]?.sample_size || null,
-        thickness: products[0]?.thickness || null,
-        finish: products[0]?.finish || null,
-        quantity: products[0]?.quantity || null,
-        image_url: imageUrlMap.get(0) || products[0]?.image_url || null,
+        product_type: firstProduct?.product_type || null,
+        quality: firstQuality,
+        sample_size: firstProduct?.sample_size || null,
+        thickness: firstProduct?.thickness || null,
+        finish: firstProduct?.finish || null,
+        quantity: firstProduct?.quantity || null,
+        image_url: imageUrlMap.get(0) || firstProduct?.image_url || null,
       };
 
-      // Step 3: Prepare items data (children)
-      const itemsData = products.map((product, index) => {
-        const imageUrl = imageUrlMap.get(index) || product.image_url || null;
-        return productToItemInput(product, imageUrl);
+      // Step 5: Prepare items data from exploded entries
+      const itemsData = explodedItems.map((explodedItem) => {
+        const imageUrl = imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null;
+        return productToItemInput(
+          explodedItem.product,
+          imageUrl,
+          explodedItem.isCustom ? undefined : explodedItem.quality // Only pass override for non-custom qualities
+        );
       });
 
-      // Step 4: Save using appropriate method
+      // Step 6: Save using appropriate method
       if (isEditMode && draftId) {
         await updateRequestWithItems(draftId, requestData, itemsData);
         toast.success('Draft updated successfully');
@@ -647,7 +768,18 @@ export default function NewRequest() {
       // Step 1: Upload all images in parallel
       const imageUrlMap = await uploadAllImages(products);
 
-      // Step 2: Prepare request data (parent - EXACTLY ONE request)
+      // Step 2: Explode batch entries into individual items
+      // Each product card with multiple qualities becomes multiple database items
+      const explodedItems = explodeProducts(products);
+      console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
+
+      // Step 3: Get the first quality for legacy columns
+      const firstProduct = products[0];
+      const firstQuality = firstProduct?.use_custom_quality
+        ? firstProduct.quality_custom
+        : (firstProduct?.selected_qualities[0] || firstProduct?.quality || null);
+
+      // Step 4: Prepare request data (parent - EXACTLY ONE request)
       const requestData = {
         created_by: profile.id,
         status: 'pending_approval',
@@ -686,25 +818,30 @@ export default function NewRequest() {
         requester_message: data.requester_message || null,
 
         // Legacy columns (set to first product for backward compatibility)
-        product_type: products[0]?.product_type || null,
-        quality: products[0]?.quality === 'Custom' ? products[0]?.quality_custom : products[0]?.quality || null,
-        sample_size: products[0]?.sample_size || null,
-        thickness: products[0]?.thickness || null,
-        finish: products[0]?.finish || null,
-        quantity: products[0]?.quantity || null,
-        image_url: imageUrlMap.get(0) || products[0]?.image_url || null,
+        product_type: firstProduct?.product_type || null,
+        quality: firstQuality,
+        sample_size: firstProduct?.sample_size || null,
+        thickness: firstProduct?.thickness || null,
+        finish: firstProduct?.finish || null,
+        quantity: firstProduct?.quantity || null,
+        image_url: imageUrlMap.get(0) || firstProduct?.image_url || null,
       };
 
-      // Step 3: Prepare items data (ONE item per product card, quantity is just a field value)
-      const itemsData = products.map((product, index) => {
-        const imageUrl = imageUrlMap.get(index) || product.image_url || null;
-        return productToItemInput(product, imageUrl);
+      // Step 5: Prepare items data from exploded entries
+      // Each exploded item becomes one row in request_items table
+      const itemsData = explodedItems.map((explodedItem) => {
+        const imageUrl = imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null;
+        return productToItemInput(
+          explodedItem.product,
+          imageUrl,
+          explodedItem.isCustom ? undefined : explodedItem.quality
+        );
       });
 
       console.log(`[NewRequest] ${submissionId} - Items to insert: ${itemsData.length}`);
-      console.log(`[NewRequest] ${submissionId} - Item quantities:`, itemsData.map(i => i.quantity));
+      console.log(`[NewRequest] ${submissionId} - Item qualities:`, itemsData.map(i => i.quality));
 
-      // Step 4: Create or update - CALLED EXACTLY ONCE
+      // Step 6: Create or update - CALLED EXACTLY ONCE
       if (isEditMode && draftId) {
         // For resubmission, clear the old coordinator message
         if (isResubmitMode) {
@@ -720,11 +857,18 @@ export default function NewRequest() {
         console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
         const result = await createRequestWithItems(requestData, itemsData);
         console.log(`[NewRequest] ${submissionId} - Created request: ${result.request.request_number}`);
+
+        // Show appropriate message based on batch vs single entry
+        const itemCount = explodedItems.length;
+        const cardCount = products.length;
+        const isBatch = itemCount > cardCount;
+
         toast.success(
           <div>
             <p className="font-semibold">Request submitted successfully!</p>
             <p className="text-sm">
-              Request #{result.request.request_number} with {products.length} product{products.length > 1 ? 's' : ''}
+              Request #{result.request.request_number} with {itemCount} item{itemCount > 1 ? 's' : ''}
+              {isBatch && ` (from ${cardCount} product card${cardCount > 1 ? 's' : ''})`}
             </p>
           </div>
         );
@@ -790,10 +934,19 @@ export default function NewRequest() {
     products.length > 0 &&
     products.every(product => {
       const hasFinish = product.product_type && PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
+
+      // Quality validation based on mode
+      const hasValidQuality = product.use_custom_quality
+        ? Boolean(product.quality_custom && product.quality_custom.trim())
+        : (
+            // Multi-select mode OR legacy single quality
+            (product.selected_qualities && product.selected_qualities.length > 0) ||
+            (product.quality && (product.quality !== 'Custom' || product.quality_custom))
+          );
+
       return (
         product.product_type &&
-        product.quality &&
-        (product.quality !== 'Custom' || product.quality_custom) &&
+        hasValidQuality &&
         product.sample_size &&
         (product.sample_size !== 'Custom' || product.sample_size_remarks) &&
         product.thickness &&
@@ -1233,15 +1386,31 @@ export default function NewRequest() {
                 }`}>
                   {isSection3Complete ? <Check className="h-5 w-5" /> : '3'}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-base sm:text-lg text-slate-800">Products</span>
-                  <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                    isSection3Complete
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    {products.length} {products.length === 1 ? 'item' : 'items'}
-                  </span>
+                  {(() => {
+                    // Calculate total items including batch entries
+                    const totalItems = products.reduce((sum, p) => {
+                      if (p.use_custom_quality && p.quality_custom) return sum + 1;
+                      if (p.selected_qualities.length > 0) return sum + p.selected_qualities.length;
+                      if (p.quality) return sum + 1;
+                      return sum;
+                    }, 0);
+                    const isBatch = totalItems > products.length;
+
+                    return (
+                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                        isSection3Complete
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {totalItems > 0
+                          ? `${totalItems} item${totalItems !== 1 ? 's' : ''}${isBatch ? ` (${products.length} card${products.length !== 1 ? 's' : ''})` : ''}`
+                          : `${products.length} card${products.length !== 1 ? 's' : ''}`
+                        }
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </AccordionTrigger>
@@ -1396,28 +1565,51 @@ export default function NewRequest() {
             )}
 
             {/* Submit / Resubmit Button - Primary */}
-            <Button
-              type="button"
-              onClick={handleSubmit(handleSubmitRequest)}
-              disabled={isSubmitting}
-              className={`w-full sm:w-auto min-h-[48px] px-8 gap-2 text-base font-semibold transition-all ${
-                isResubmitMode
-                  ? 'bg-amber-600 hover:bg-amber-700'
-                  : 'bg-indigo-600 hover:bg-indigo-700'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  {isResubmitMode ? 'Resubmitting...' : 'Submitting...'}
-                </>
-              ) : (
-                <>
-                  {isResubmitMode ? <RotateCcw className="h-5 w-5" /> : <SendHorizontal className="h-5 w-5" />}
-                  <span>{isResubmitMode ? 'Resubmit Request' : `Submit ${products.length > 1 ? `(${products.length} items)` : 'Request'}`}</span>
-                </>
-              )}
-            </Button>
+            {(() => {
+              // Calculate total item count (accounting for batch entries)
+              const totalItemCount = products.reduce((sum, product) => {
+                if (product.use_custom_quality && product.quality_custom) {
+                  return sum + 1; // Custom entry = 1 item
+                } else if (product.selected_qualities.length > 0) {
+                  return sum + product.selected_qualities.length; // Multi-select = N items
+                } else if (product.quality) {
+                  return sum + 1; // Legacy single quality = 1 item
+                }
+                return sum;
+              }, 0);
+
+              return (
+                <Button
+                  type="button"
+                  onClick={handleSubmit(handleSubmitRequest)}
+                  disabled={isSubmitting}
+                  className={`w-full sm:w-auto min-h-[48px] px-8 gap-2 text-base font-semibold transition-all ${
+                    isResubmitMode
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      {isResubmitMode ? 'Resubmitting...' : 'Submitting...'}
+                    </>
+                  ) : (
+                    <>
+                      {isResubmitMode ? <RotateCcw className="h-5 w-5" /> : <SendHorizontal className="h-5 w-5" />}
+                      <span>
+                        {isResubmitMode
+                          ? 'Resubmit Request'
+                          : totalItemCount > 1
+                            ? `Submit (${totalItemCount} items)`
+                            : 'Submit Request'
+                        }
+                      </span>
+                    </>
+                  )}
+                </Button>
+              );
+            })()}
           </div>
         </div>
       </form>

@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Combobox } from '@/components/ui/combobox';
-import { Trash2, Upload, X, Package, ChevronDown, ChevronUp, Copy } from 'lucide-react';
+import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
+import { Switch } from '@/components/ui/switch';
+import { Trash2, Upload, X, Package, ChevronDown, ChevronUp, Copy, HelpCircle } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import type { ProductItem, ProductType } from '@/types';
@@ -47,11 +48,10 @@ export default function ProductItemCard({
   const finishOptions = productType ? PRODUCT_FINISH_OPTIONS[productType] : null;
   const thicknessOptions = productType ? PRODUCT_THICKNESS_OPTIONS[productType] : [];
 
-  // Get quality options from the new data source with "Custom" option appended
+  // Get quality options from the data source (without "Custom" - that's now a separate toggle)
   const qualityOptions = useMemo(() => {
     if (!productTypeKey) return [];
-    const qualities = PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [];
-    return [...qualities, 'Custom'];
+    return PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [];
   }, [productTypeKey]);
 
   // Get popular qualities for the selected product type
@@ -113,8 +113,11 @@ export default function ProductItemCard({
 
     onUpdate(index, {
       product_type: newProductType,
-      quality: '',
+      // Reset multi-select qualities
+      selected_qualities: [],
       quality_custom: '',
+      use_custom_quality: false,
+      quality: '', // Legacy field
       sample_size: autoSize || '',
       sample_size_remarks: '',
       thickness: autoThickness || '',
@@ -125,11 +128,24 @@ export default function ProductItemCard({
     });
   };
 
-  // Handle quality selection from Combobox
-  const handleQualityChange = (value: string) => {
+  // Handle multi-select quality changes
+  const handleQualitiesChange = (qualities: string[]) => {
     onUpdate(index, {
-      quality: value,
-      quality_custom: value === 'Custom' ? '' : undefined,
+      selected_qualities: qualities,
+      // Also update legacy field with first selection for backward compatibility
+      quality: qualities[0] || '',
+    });
+  };
+
+  // Handle custom quality toggle
+  const handleCustomToggle = (enabled: boolean) => {
+    onUpdate(index, {
+      use_custom_quality: enabled,
+      // Clear the other mode's data when switching
+      ...(enabled
+        ? { selected_qualities: [], quality: '' }
+        : { quality_custom: '' }
+      ),
     });
   };
 
@@ -139,6 +155,25 @@ export default function ProductItemCard({
     return PRODUCT_TYPE_LABELS[item.product_type] || 'Product';
   };
 
+  // Get quality summary for header
+  const getQualitySummary = () => {
+    if (item.use_custom_quality && item.quality_custom) {
+      return item.quality_custom;
+    }
+    if (item.selected_qualities.length === 1) {
+      return item.selected_qualities[0];
+    }
+    if (item.selected_qualities.length > 1) {
+      return `${item.selected_qualities.length} qualities`;
+    }
+    // Fallback to legacy single quality
+    if (item.quality && item.quality !== 'Custom') {
+      return item.quality;
+    }
+    return null;
+  };
+
+  const qualitySummary = getQualitySummary();
   const imagePreview = item.image_preview || item.image_url;
 
   return (
@@ -149,30 +184,35 @@ export default function ProductItemCard({
           <button
             type="button"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="flex items-center gap-3 text-left flex-1"
+            className="flex items-center gap-3 text-left flex-1 min-w-0"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm flex-shrink-0">
               {index + 1}
             </div>
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <Package className="h-4 w-4 text-slate-500 flex-shrink-0" />
               <span className="font-medium text-slate-800 truncate">
                 {getProductLabel()}
               </span>
+              {qualitySummary && (
+                <span className="text-xs text-slate-500 truncate max-w-[120px] hidden sm:inline">
+                  • {qualitySummary}
+                </span>
+              )}
               {item.quantity > 0 && (
-                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full flex-shrink-0">
                   Qty: {item.quantity}
                 </span>
               )}
             </div>
             {isCollapsed ? (
-              <ChevronDown className="h-4 w-4 text-slate-400 ml-auto" />
+              <ChevronDown className="h-4 w-4 text-slate-400 ml-auto flex-shrink-0" />
             ) : (
-              <ChevronUp className="h-4 w-4 text-slate-400 ml-auto" />
+              <ChevronUp className="h-4 w-4 text-slate-400 ml-auto flex-shrink-0" />
             )}
           </button>
 
-          <div className="flex items-center ml-2">
+          <div className="flex items-center ml-2 flex-shrink-0">
             {onDuplicate && (
               <Button
                 type="button"
@@ -180,7 +220,7 @@ export default function ProductItemCard({
                 size="sm"
                 onClick={() => onDuplicate(index)}
                 className="text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
-                title="Duplicate with same specs"
+                title="Duplicate with same specs (choose different quality)"
               >
                 <Copy className="h-4 w-4" />
               </Button>
@@ -224,36 +264,83 @@ export default function ProductItemCard({
               </Select>
             </div>
 
-            {/* Quality - Searchable Combobox */}
-            <div>
-              <Label>Quality *</Label>
-              {productTypeKey ? (
-                <Combobox
-                  options={qualityOptions}
-                  popularOptions={popularQualities}
-                  value={item.quality}
-                  onChange={handleQualityChange}
-                  placeholder="Select quality..."
-                  searchPlaceholder="Type to search..."
-                  emptyMessage="No matching quality"
-                  className="w-full"
-                />
+            {/* Quality Section - Multi-Select or Custom Entry */}
+            <div className="md:col-span-2 space-y-3">
+              {/* Toggle: Quality not listed? */}
+              {productTypeKey && (
+                <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-800">
+                      Quality not listed?
+                    </span>
+                    <span className="text-xs text-amber-600">
+                      (Type manually for this request only)
+                    </span>
+                  </div>
+                  <Switch
+                    checked={item.use_custom_quality || false}
+                    onCheckedChange={handleCustomToggle}
+                    className="data-[state=checked]:bg-amber-500"
+                  />
+                </div>
+              )}
+
+              {productTypeKey && !item.use_custom_quality ? (
+                /* Multi-Select Mode */
+                <div>
+                  <Label className="flex items-center gap-2">
+                    Quality *
+                    {item.selected_qualities.length > 1 && (
+                      <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-normal">
+                        Batch: {item.selected_qualities.length} items
+                      </span>
+                    )}
+                  </Label>
+                  <MultiSelectCombobox
+                    options={qualityOptions}
+                    popularOptions={popularQualities}
+                    value={item.selected_qualities || []}
+                    onChange={handleQualitiesChange}
+                    placeholder="Select one or more qualities..."
+                    searchPlaceholder="Type to search..."
+                    emptyMessage="No matching quality"
+                    className="w-full mt-1.5"
+                    maxDisplay={4}
+                  />
+                  {item.selected_qualities.length > 1 && (
+                    <p className="text-xs text-indigo-600 mt-1.5">
+                      Same specs (Size, Finish, Thickness, Qty) will apply to all {item.selected_qualities.length} selected qualities.
+                    </p>
+                  )}
+                </div>
+              ) : productTypeKey && item.use_custom_quality ? (
+                /* Manual Entry Mode */
+                <div>
+                  <Label className="flex items-center gap-2">
+                    Custom Quality *
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-normal">
+                      One-off entry
+                    </span>
+                  </Label>
+                  <Input
+                    value={item.quality_custom || ''}
+                    onChange={(e) => onUpdate(index, { quality_custom: e.target.value })}
+                    placeholder="Type the exact quality name..."
+                    className="mt-1.5"
+                  />
+                  <p className="text-xs text-amber-600 mt-1.5">
+                    This name is for this request only and won't be added to the master database.
+                  </p>
+                </div>
               ) : (
-                <Input placeholder="Select product type first" disabled />
+                /* No Product Type Selected */
+                <div>
+                  <Label>Quality *</Label>
+                  <Input placeholder="Select product type first" disabled className="mt-1.5" />
+                </div>
               )}
             </div>
-
-            {/* Custom Quality Input - Show when "Custom" is selected */}
-            {item.quality === 'Custom' && (
-              <div className="md:col-span-2">
-                <Label>Custom Quality *</Label>
-                <Input
-                  value={item.quality_custom || ''}
-                  onChange={(e) => onUpdate(index, { quality_custom: e.target.value })}
-                  placeholder="Enter custom quality name"
-                />
-              </div>
-            )}
 
             {/* Sample Size */}
             <div>

@@ -70,8 +70,15 @@ export const PRODUCT_QUALITY_OPTIONS: Record<ProductType, string[]> = {
 export interface ProductItem {
   id: string; // Unique identifier for React keys (client-side only)
   product_type: ProductType | '';
+
+  // Multi-select quality support (Batch Entry feature)
+  selected_qualities: string[]; // Array of selected verified qualities from database
+  quality_custom?: string; // Free text for unlisted quality (one-off, never saved to master DB)
+  use_custom_quality?: boolean; // Toggle: true = using manual entry instead of multi-select
+
+  // Legacy single quality field (kept for backward compatibility when loading drafts)
   quality: string;
-  quality_custom?: string; // Custom quality text when "Custom" is selected
+
   sample_size: string;
   sample_size_remarks?: string;
   thickness: string;
