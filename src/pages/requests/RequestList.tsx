@@ -359,9 +359,9 @@ export default function RequestList() {
                             )}
                           </div>
                           <p className="text-sm font-semibold text-slate-800 truncate">
-                            {request.client_project_name}
+                            {request.client_contact_name}
                           </p>
-                          <p className="text-xs text-slate-500 truncate">{request.company_firm_name}</p>
+                          <p className="text-xs text-slate-500 truncate">{request.firm_name}</p>
                         </div>
 
                         {/* Action Buttons */}
@@ -469,8 +469,8 @@ export default function RequestList() {
                         )}
                         <TableCell>
                           <div>
-                            <p className="font-semibold text-sm text-slate-700">{request.client_project_name}</p>
-                            <p className="text-xs text-slate-400">{request.company_firm_name}</p>
+                            <p className="font-semibold text-sm text-slate-700">{request.client_contact_name}</p>
+                            <p className="text-xs text-slate-400">{request.firm_name}</p>
                           </div>
                         </TableCell>
                         <TableCell>

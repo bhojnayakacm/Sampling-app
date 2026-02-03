@@ -171,7 +171,7 @@ export default function MakerDashboard() {
                           <code className="text-sm font-mono font-semibold text-indigo-600">
                             {task.request_number}
                           </code>
-                          <p className="text-slate-900 font-medium mt-1">{task.client_project_name}</p>
+                          <p className="text-slate-900 font-medium mt-1">{task.client_contact_name}</p>
                         </div>
                         <span className="px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700">
                           NEW
@@ -255,7 +255,7 @@ export default function MakerDashboard() {
                           <code className="text-sm font-mono font-semibold text-indigo-600">
                             {task.request_number}
                           </code>
-                          <p className="text-slate-900 font-medium mt-1">{task.client_project_name}</p>
+                          <p className="text-slate-900 font-medium mt-1">{task.client_contact_name}</p>
                         </div>
                         <span className="px-2 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-700 flex items-center gap-1">
                           <Clock className="h-3 w-3" />

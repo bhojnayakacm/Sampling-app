@@ -83,7 +83,7 @@ export default function DuplicateWarningDialog({
               </>
             ) : (
               <>
-                This client (<strong>{existingRequest.client_project_name}</strong>) already has a sample request (
+                This client (<strong>{existingRequest.client_contact_name}</strong>) already has a sample request (
                 <strong>{existingRequest.request_number}</strong>) created by{' '}
                 <strong>{existingRequest.requester_name}</strong> on{' '}
                 <strong>{formatDateTime(existingRequest.created_at)}</strong>.

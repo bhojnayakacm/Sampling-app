@@ -253,7 +253,7 @@ export default function RequesterDashboard() {
                       {getStatusBadge(request.status)}
                     </div>
                     <p className="text-sm text-slate-700 truncate">
-                      {request.client_project_name || 'Untitled'}
+                      {request.client_contact_name || 'Untitled'}
                     </p>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {formatDate(request.created_at)}

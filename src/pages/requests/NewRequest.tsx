@@ -49,10 +49,10 @@ interface RequestFormData {
   // Section 2: Client Project Details
   client_type: ClientType;
   client_type_remarks?: string;
-  client_project_name: string;
+  client_contact_name: string;  // Dynamic label based on client_type
   client_phone: string;
   client_email?: string;
-  company_firm_name: string;
+  firm_name: string;  // Company or firm name
   site_location: string;
 
   // Dynamic fields based on client_type
@@ -285,10 +285,10 @@ export default function NewRequest() {
       // Load form fields
       setValue('client_type', existingDraft.client_type as ClientType);
       setValue('client_type_remarks', existingDraft.client_type_remarks || '');
-      setValue('client_project_name', existingDraft.client_project_name);
+      setValue('client_contact_name', existingDraft.client_contact_name);
       setValue('client_phone', existingDraft.client_phone);
       setValue('client_email', existingDraft.client_email || '');
-      setValue('company_firm_name', existingDraft.company_firm_name || '');
+      setValue('firm_name', existingDraft.firm_name || '');
       setValue('site_location', existingDraft.site_location);
 
       // Load dynamic client type fields
@@ -457,7 +457,7 @@ export default function NewRequest() {
     if (data.client_type === 'others' && !data.client_type_remarks) {
       missingFields.push('Client Type Remarks (required when "Others" is selected)');
     }
-    if (!data.client_project_name) missingFields.push('Client/Project Name');
+    if (!data.client_contact_name) missingFields.push('Contact Name');
     // client_phone is now optional
 
     // Conditional validation based on client_type
@@ -465,8 +465,8 @@ export default function NewRequest() {
       // Retail: Company Firm Name is NOT required (replaced by optional architect fields)
     } else {
       // All other types: Company/Firm Name is required
-      if (!data.company_firm_name) {
-        missingFields.push(data.client_type === 'architect' ? 'Architect Firm Name' : 'Company/Firm Name');
+      if (!data.firm_name) {
+        missingFields.push(data.client_type === 'architect' ? 'Architect Firm Name' : 'Firm Name');
       }
     }
 
@@ -529,10 +529,10 @@ export default function NewRequest() {
         // Client Project Details
         client_type: formValues.client_type || null,
         client_type_remarks: formValues.client_type_remarks || null,
-        client_project_name: formValues.client_project_name || null,
+        client_contact_name: formValues.client_contact_name || null,
         client_phone: formValues.client_phone || null,
         client_email: formValues.client_email || null,
-        company_firm_name: formValues.client_type === 'retail' ? null : (formValues.company_firm_name || null),
+        firm_name: formValues.client_type === 'retail' ? null : (formValues.firm_name || null),
         site_location: formValues.site_location || null,
 
         // Dynamic client type fields
@@ -664,10 +664,10 @@ export default function NewRequest() {
         // Client Project Details
         client_type: data.client_type,
         client_type_remarks: data.client_type === 'others' ? data.client_type_remarks : null,
-        client_project_name: data.client_project_name,
+        client_contact_name: data.client_contact_name,
         client_phone: data.client_phone,
         client_email: data.client_email || null,
-        company_firm_name: data.client_type === 'retail' ? null : data.company_firm_name,
+        firm_name: data.client_type === 'retail' ? null : data.firm_name,
         site_location: data.site_location,
 
         // Dynamic client type fields
@@ -764,18 +764,18 @@ export default function NewRequest() {
   );
 
   // Section 2: Client Project Details - check required fields (with conditional logic)
-  const clientProjectName = watch('client_project_name');
-  const companyFirmName = watch('company_firm_name');
+  const clientContactName = watch('client_contact_name');
+  const firmName = watch('firm_name');
   const siteLocation = watch('site_location');
   const projectType = watch('project_type');
   const projectTypeCustom = watch('project_type_custom');
 
   const isSection2Complete = Boolean(
     clientType &&
-    clientProjectName &&
+    clientContactName &&
     siteLocation &&
-    // Conditional: Company Firm Name required for non-Retail
-    (clientType === 'retail' || companyFirmName) &&
+    // Conditional: Firm Name required for non-Retail
+    (clientType === 'retail' || firmName) &&
     // Conditional: Client Type Remarks required for "Others"
     (clientType !== 'others' || watch('client_type_remarks')) &&
     // Conditional: Project Type required for "Project" client type
@@ -1115,19 +1115,27 @@ export default function NewRequest() {
                   </>
                 )}
 
-                {/* Client/Contacted Person Name */}
+                {/* Client/Contacted Person Name - Dynamic label based on client_type */}
                 <div>
-                  <Label htmlFor="client_project_name" className={`font-semibold ${errors.client_project_name ? 'text-red-500' : 'text-slate-700'}`}>
-                    Client/Architect/Contacted Person Name *
+                  <Label htmlFor="client_contact_name" className={`font-semibold ${errors.client_contact_name ? 'text-red-500' : 'text-slate-700'}`}>
+                    {clientType === 'retail' && 'Client Name *'}
+                    {clientType === 'architect' && 'Architect Name *'}
+                    {clientType === 'project' && 'Contacted Person / Purchase Manager / Builder Name *'}
+                    {(!clientType || clientType === 'others') && 'Contact Name *'}
                   </Label>
                   <Input
-                    id="client_project_name"
-                    {...register('client_project_name', { required: 'Client/Project name is required' })}
-                    placeholder="Enter name"
-                    error={!!errors.client_project_name}
+                    id="client_contact_name"
+                    {...register('client_contact_name', { required: 'Contact name is required' })}
+                    placeholder={
+                      clientType === 'retail' ? 'Enter client name' :
+                      clientType === 'architect' ? 'Enter architect name' :
+                      clientType === 'project' ? 'Enter contacted person name' :
+                      'Enter contact name'
+                    }
+                    error={!!errors.client_contact_name}
                     className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
-                  {errors.client_project_name && <p className="text-red-500 text-xs mt-1">{errors.client_project_name.message}</p>}
+                  {errors.client_contact_name && <p className="text-red-500 text-xs mt-1">{errors.client_contact_name.message}</p>}
                 </div>
 
                 {/* Mobile (Optional) */}
@@ -1177,20 +1185,20 @@ export default function NewRequest() {
                   </>
                 )}
 
-                {/* Company Firm Name - Hidden for Retail, Label changes for Architect */}
+                {/* Firm Name - Hidden for Retail, Label changes for Architect */}
                 {clientType !== 'retail' && (
                   <div>
-                    <Label htmlFor="company_firm_name" className={`font-semibold ${errors.company_firm_name ? 'text-red-500' : 'text-slate-700'}`}>
-                      {clientType === 'architect' ? 'Architect Firm Name *' : 'Company Firm Name *'}
+                    <Label htmlFor="firm_name" className={`font-semibold ${errors.firm_name ? 'text-red-500' : 'text-slate-700'}`}>
+                      {clientType === 'architect' ? 'Architect Firm Name *' : 'Firm Name *'}
                     </Label>
                     <Input
-                      id="company_firm_name"
-                      {...register('company_firm_name')}
+                      id="firm_name"
+                      {...register('firm_name')}
                       placeholder={clientType === 'architect' ? 'Enter architect firm name' : 'Enter firm name'}
-                      error={!!errors.company_firm_name}
+                      error={!!errors.firm_name}
                       className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                     />
-                    {errors.company_firm_name && <p className="text-red-500 text-sm mt-1">{errors.company_firm_name.message}</p>}
+                    {errors.firm_name && <p className="text-red-500 text-sm mt-1">{errors.firm_name.message}</p>}
                   </div>
                 )}
 
@@ -1202,7 +1210,7 @@ export default function NewRequest() {
                   <LocationAutocomplete
                     value={siteLocation || ''}
                     onChange={(value) => setValue('site_location', value, { shouldValidate: true })}
-                    placeholder="Start typing to search cities..."
+                    placeholder="e.g. Mumbai, Maharashtra"
                     error={!!errors.site_location}
                     className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />

@@ -1257,20 +1257,48 @@ export default function RequestDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
+                {/* Contact Name - Dynamic label based on client_type */}
                 <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Project</label>
-                  <p className="text-sm text-slate-900 font-medium">{request.client_project_name}</p>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">
+                    {request.client_type === 'retail' && 'Client Name'}
+                    {request.client_type === 'architect' && 'Architect Name'}
+                    {request.client_type === 'project' && 'Contacted Person'}
+                    {(!request.client_type || request.client_type === 'others') && 'Contact Name'}
+                  </label>
+                  <p className="text-sm text-slate-900 font-medium">{request.client_contact_name}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Type</label>
                     <p className="text-sm text-slate-700 capitalize">{request.client_type}</p>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Company</label>
-                    <p className="text-sm text-slate-700 truncate">{request.company_firm_name}</p>
-                  </div>
+                  {/* Firm Name - Hidden for Retail (they use supporting_architect instead) */}
+                  {request.client_type !== 'retail' && request.firm_name && (
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">
+                        {request.client_type === 'architect' ? 'Firm' : 'Company'}
+                      </label>
+                      <p className="text-sm text-slate-700 truncate">{request.firm_name}</p>
+                    </div>
+                  )}
                 </div>
+                {/* Retail-specific: Supporting Architect fields */}
+                {request.client_type === 'retail' && (request.supporting_architect_name || request.architect_firm_name) && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    {request.supporting_architect_name && (
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Supporting Architect</label>
+                        <p className="text-sm text-slate-700">{request.supporting_architect_name}</p>
+                      </div>
+                    )}
+                    {request.architect_firm_name && (
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Architect Firm</label>
+                        <p className="text-sm text-slate-700">{request.architect_firm_name}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Hide contact info from Makers for privacy */}
                 {!isMaker && request.client_phone && (
                   <div className="flex items-center gap-2 text-sm text-slate-600">

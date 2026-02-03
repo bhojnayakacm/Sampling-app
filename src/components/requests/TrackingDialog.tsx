@@ -163,7 +163,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
               Track Sample: {request.request_number}
             </DialogTitle>
             <DialogDescription>
-              {request.client_project_name} - {request.company_firm_name}
+              {request.client_contact_name} - {request.firm_name}
             </DialogDescription>
           </DialogHeader>
 

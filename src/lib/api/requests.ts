@@ -79,7 +79,7 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
         if (userRole === 'requester') {
           // Requesters: Search by Request ID, Client Name, or Company Name
           query = query.or(
-            `request_number.ilike.%${searchTerm}%,client_project_name.ilike.%${searchTerm}%,company_firm_name.ilike.%${searchTerm}%`
+            `request_number.ilike.%${searchTerm}%,client_contact_name.ilike.%${searchTerm}%,firm_name.ilike.%${searchTerm}%`
           );
         } else if (userRole === 'admin' || userRole === 'coordinator' || userRole === 'maker') {
           // Staff: Search by Request ID only (creator name search done client-side below)
@@ -785,7 +785,7 @@ export interface ExistingRequest {
   created_at: string;
   requester_name: string;
   status: RequestStatus;
-  client_project_name: string;
+  client_contact_name: string;
   product_type: string;
   quality: string;
   sample_size: string;

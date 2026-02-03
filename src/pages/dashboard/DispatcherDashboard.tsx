@@ -326,7 +326,7 @@ export default function DispatcherDashboard() {
                     {dispatchTarget.delivery_address || 'No address'}
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {dispatchTarget.creator?.full_name} · {dispatchTarget.client_project_name}
+                    {dispatchTarget.creator?.full_name} · {dispatchTarget.client_contact_name}
                   </p>
                 </div>
               </div>

@@ -371,7 +371,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               </DialogTitle>
               <DialogDescription>
                 Approve request <strong>{request.request_number}</strong> for{' '}
-                <strong>{request.client_project_name}</strong>
+                <strong>{request.client_contact_name}</strong>
               </DialogDescription>
             </DialogHeader>
 
@@ -469,7 +469,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               </DialogTitle>
               <DialogDescription>
                 Reject request <strong>{request.request_number}</strong> for{' '}
-                <strong>{request.client_project_name}</strong>
+                <strong>{request.client_contact_name}</strong>
               </DialogDescription>
             </DialogHeader>
 
@@ -643,7 +643,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               </DialogTitle>
               <DialogDescription>
                 Mark request <strong>{request.request_number}</strong> for{' '}
-                <strong>{request.client_project_name}</strong> as dispatched.
+                <strong>{request.client_contact_name}</strong> as dispatched.
               </DialogDescription>
             </DialogHeader>
 

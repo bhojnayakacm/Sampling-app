@@ -628,11 +628,11 @@ export default function CoordinatorDashboard() {
                         {/* Middle: Client Name + Item Count */}
                         <div className="mb-3">
                           <p className="text-sm font-medium text-slate-900 truncate">
-                            {request.client_project_name}
+                            {request.client_contact_name}
                           </p>
                           <div className="flex items-center justify-between mt-1">
                             <p className="text-xs text-slate-500 truncate flex-1 mr-2">
-                              {request.company_firm_name || request.architect_firm_name || '—'}
+                              {request.firm_name || request.architect_firm_name || '—'}
                             </p>
                             <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
                               itemCount > 1
@@ -770,10 +770,10 @@ export default function CoordinatorDashboard() {
                               {/* Client / Project */}
                               <td className="py-2.5 px-3">
                                 <p className="text-sm font-medium text-slate-900 truncate max-w-[180px]">
-                                  {request.client_project_name}
+                                  {request.client_contact_name}
                                 </p>
                                 <p className="text-xs text-slate-500 truncate max-w-[180px]">
-                                  {request.company_firm_name || request.architect_firm_name || '—'}
+                                  {request.firm_name || request.architect_firm_name || '—'}
                                 </p>
                               </td>
 

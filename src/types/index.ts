@@ -166,10 +166,10 @@ export interface Request {
   // Section 2: Client Project Details
   client_type: string;  // ClientType
   client_type_remarks: string | null;
-  client_project_name: string;  // Was client_name
+  client_contact_name: string;  // Name of client/architect/contacted person based on client_type
   client_phone: string;
   client_email: string | null;
-  company_firm_name: string;  // Was firm_name
+  firm_name: string;  // Company or firm name
   site_location: string;
 
   // Dynamic fields based on client_type
@@ -254,10 +254,10 @@ export interface CreateRequestInput {
   // Section 2: Client Project Details
   client_type: ClientType;
   client_type_remarks?: string;  // Required if client_type === 'others'
-  client_project_name: string;
+  client_contact_name: string;  // Name of client/architect/contacted person based on client_type
   client_phone: string;
   client_email?: string;
-  company_firm_name: string;
+  firm_name: string;  // Company or firm name
   site_location: string;
 
   // Section 3: Sample Request Details
