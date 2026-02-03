@@ -73,8 +73,23 @@ export default function RequestDetail() {
 
   const isCoordinator = profile?.role === 'coordinator';
   const isMaker = profile?.role === 'maker';
-  const backDestination = isCoordinator ? '/' : '/requests';
-  const backButtonText = isCoordinator ? 'Dashboard' : 'Back';
+
+  // Role-aware back navigation
+  // Dispatchers, Makers, Coordinators, Admins → Dashboard (/)
+  // Requesters → Request List (/requests)
+  const backDestination = profile?.role === 'requester' ? '/requests' : '/';
+  const backButtonText = profile?.role === 'requester' ? 'Back' : 'Dashboard';
+
+  // Smart back: use browser history when possible (preserves URL state like ?tab=today)
+  const handleBack = () => {
+    // Check if we have history to go back to (came from within the app)
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      // Fallback to explicit destination (e.g., opened via direct link)
+      navigate(backDestination);
+    }
+  };
 
   // Address editing state
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -497,7 +512,7 @@ export default function RequestDetail() {
             <XCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
             <p className="text-slate-900 font-medium mb-1">Request not found</p>
             <p className="text-slate-500 text-sm mb-4">Unable to load request details.</p>
-            <Button onClick={() => navigate(backDestination)} className="bg-indigo-600 hover:bg-indigo-700">
+            <Button onClick={handleBack} className="bg-indigo-600 hover:bg-indigo-700">
               {backButtonText}
             </Button>
           </CardContent>
@@ -554,7 +569,7 @@ export default function RequestDetail() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(backDestination)}
+                onClick={handleBack}
                 className="h-9 w-9 p-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
               >
                 <ChevronLeft className="h-5 w-5" />

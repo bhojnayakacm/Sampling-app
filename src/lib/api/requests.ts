@@ -443,6 +443,75 @@ export function useFieldBoyReadyRequests() {
   });
 }
 
+// Fetch dispatcher's dispatch history from request_status_history
+// This queries the history table to find all requests THIS user dispatched
+export function useDispatcherHistory(userId: string | undefined, timeRange: 'today' | 'all') {
+  return useQuery({
+    queryKey: ['dispatcher-history', userId, timeRange],
+    queryFn: async () => {
+      if (!userId) return [];
+
+      // Step 1: Get all request IDs this dispatcher has dispatched
+      let historyQuery = supabase
+        .from('request_status_history')
+        .select('request_id, changed_at')
+        .eq('status', 'dispatched')
+        .eq('changed_by', userId)
+        .order('changed_at', { ascending: false });
+
+      // Apply time filter for "today"
+      if (timeRange === 'today') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        historyQuery = historyQuery.gte('changed_at', today.toISOString());
+      }
+
+      const { data: historyData, error: historyError } = await historyQuery;
+
+      if (historyError) throw historyError;
+      if (!historyData || historyData.length === 0) return [];
+
+      // Step 2: Get unique request IDs (a request might have been dispatched multiple times in edge cases)
+      const requestIds = [...new Set(historyData.map((h) => h.request_id))];
+
+      // Step 3: Fetch full request details for those IDs
+      const { data: requests, error: requestsError } = await supabase
+        .from('requests')
+        .select(`
+          *,
+          creator:profiles!created_by (
+            id,
+            full_name,
+            role,
+            department
+          ),
+          items:request_items (*)
+        `)
+        .in('id', requestIds);
+
+      if (requestsError) throw requestsError;
+
+      // Step 4: Sort by dispatch time (most recent first) using the history data
+      const dispatchTimeMap = new Map(
+        historyData.map((h) => [h.request_id, new Date(h.changed_at).getTime()])
+      );
+
+      const sortedRequests = (requests || []).sort((a, b) => {
+        const timeA = dispatchTimeMap.get(a.id) || 0;
+        const timeB = dispatchTimeMap.get(b.id) || 0;
+        return timeB - timeA;
+      });
+
+      // Add dispatched_at from history for display purposes
+      return sortedRequests.map((r) => ({
+        ...r,
+        _dispatchedByMeAt: historyData.find((h) => h.request_id === r.id)?.changed_at,
+      })) as (Request & { _dispatchedByMeAt?: string })[];
+    },
+    enabled: !!userId,
+  });
+}
+
 // Update request status (enhanced with auto-timestamps and optional message)
 export function useUpdateRequestStatus() {
   const queryClient = useQueryClient();
