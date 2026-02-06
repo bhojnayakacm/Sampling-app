@@ -22,6 +22,8 @@ import {
 import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
+import { SaveTemplateDialog } from '@/components/requests/SaveTemplateDialog';
+import { LoadTemplateDrawer } from '@/components/requests/LoadTemplateDrawer';
 import { LocationAutocomplete } from '@/components/ui/location-autocomplete';
 import type {
   PickupResponsibility,
@@ -480,6 +482,19 @@ export default function NewRequest() {
     const updated = [...products];
     updated.splice(index + 1, 0, cloned);
     setProducts(updated);
+  };
+
+  // Load products from a saved template
+  const loadFromTemplate = (items: ProductItem[], mode: 'append' | 'replace') => {
+    if (mode === 'replace') {
+      // Replace current products with template items
+      setProducts(items.length > 0 ? items : [createEmptyProduct()]);
+    } else {
+      // Append template items to current products
+      // Filter out empty products before appending
+      const existingValid = products.filter((p) => p.product_type);
+      setProducts([...existingValid, ...items]);
+    }
   };
 
   // ============================================================
@@ -1415,6 +1430,18 @@ export default function NewRequest() {
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 sm:px-6 pb-5">
+              {/* Template Actions - Load from saved buckets */}
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
+                <LoadTemplateDrawer
+                  onLoadTemplate={loadFromTemplate}
+                  hasExistingProducts={products.some((p) => p.product_type)}
+                />
+                <SaveTemplateDialog
+                  products={products}
+                  disabled={isSubmitting}
+                />
+              </div>
+
               {/* Product Cards */}
               <div className="space-y-4">
                 {products.map((product, index) => (
