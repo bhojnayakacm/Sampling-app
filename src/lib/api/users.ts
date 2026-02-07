@@ -2,49 +2,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
 
-// Extended profile type with email for user management
-export interface UserWithEmail extends Profile {
-  email: string;
-}
-
 /**
- * Fetch all users with their email addresses
- * Combines data from profiles table and auth.users
+ * Fetch all users (email is now directly on profiles table).
  */
 export function useAllUsers() {
   return useQuery({
     queryKey: ['all-users'],
     queryFn: async () => {
-      // Get profiles from database
-      const { data: profiles, error: profileError } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (profileError) throw profileError;
-
-      // Get auth users to fetch emails
-      const { data: { users }, error: authError } = await supabase.auth.admin.listUsers();
-
-      if (authError) {
-        // If admin.listUsers fails (permission issue), return profiles without emails
-        console.warn('Could not fetch user emails:', authError);
-        return profiles.map(profile => ({
-          ...profile,
-          email: 'N/A',
-        })) as UserWithEmail[];
-      }
-
-      // Merge email into profiles
-      const usersWithEmail = profiles.map(profile => {
-        const authUser = users.find(u => u.id === profile.id);
-        return {
-          ...profile,
-          email: authUser?.email || 'N/A',
-        };
-      }) as UserWithEmail[];
-
-      return usersWithEmail;
+      if (error) throw error;
+      return data as Profile[];
     },
   });
 }
@@ -70,18 +41,41 @@ export function useMakers() {
 }
 
 /**
- * Update a user's role
- * @param userId - User ID to update
- * @param newRole - New role (requester, coordinator, maker, admin)
+ * Update a user's role with smart department handling.
+ *
+ * - Changing TO 'requester': requires department to be provided
+ * - Changing FROM 'requester': automatically clears department
+ * - Other changes: role only
  */
 export function useUpdateUserRole() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+    mutationFn: async ({
+      userId,
+      newRole,
+      department,
+    }: {
+      userId: string;
+      newRole: string;
+      department?: string | null;
+    }) => {
+      const updatePayload: Record<string, unknown> = { role: newRole };
+
+      if (newRole === 'requester') {
+        // Setting to requester: department is required
+        if (!department) {
+          throw new Error('Department is required when assigning the Requester role');
+        }
+        updatePayload.department = department;
+      } else {
+        // Any other role: clear department
+        updatePayload.department = null;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
-        .update({ role: newRole })
+        .update(updatePayload)
         .eq('id', userId)
         .select()
         .single();
@@ -90,7 +84,6 @@ export function useUpdateUserRole() {
       return data;
     },
     onSuccess: () => {
-      // Invalidate queries to refresh user list
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
     },
   });
@@ -98,8 +91,6 @@ export function useUpdateUserRole() {
 
 /**
  * Toggle user active status (soft delete)
- * @param userId - User ID to toggle
- * @param isActive - New active status
  */
 export function useToggleUserActive() {
   const queryClient = useQueryClient();
@@ -124,7 +115,6 @@ export function useToggleUserActive() {
 
 /**
  * Delete user by admin (calls RPC function)
- * @param userId - User ID to delete
  */
 export function useDeleteUser() {
   const queryClient = useQueryClient();

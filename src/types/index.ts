@@ -140,6 +140,7 @@ export interface Profile {
   full_name: string;
   phone: string | null;
   department: string | null;  // Added: Department captured at signup
+  email: string | null;       // Synced from auth.users at signup
   is_active: boolean;
   created_at: string;
   updated_at: string;
