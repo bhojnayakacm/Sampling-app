@@ -35,6 +35,10 @@ import type {
   CreateRequestItemInput,
 } from '@/types';
 import { PRODUCT_FINISH_OPTIONS } from '@/types';
+import {
+  PRODUCT_QUALITIES_BY_KEY,
+  type ProductTypeKey,
+} from '@/lib/productData';
 
 // ============================================================
 // TYPES
@@ -225,25 +229,23 @@ async function uploadAllImages(
 function productToItemInput(
   product: ProductItem,
   imageUrl: string | null,
-  qualityOverride?: string // Used when exploding batch entries
+  qualityOverride?: string, // Used when exploding batch entries
+  isCustomQuality?: boolean // Marks this quality as a one-off custom entry
 ): Omit<CreateRequestItemInput, 'request_id'> {
   const hasFinish = product.product_type &&
     PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
 
   // Determine the quality value
-  // Priority: qualityOverride (from batch explosion) > custom quality > first selected quality > legacy quality
   let qualityValue: string;
   let qualityCustomValue: string | null = null;
 
   if (qualityOverride) {
-    // This is from batch explosion - quality is verified from database
     qualityValue = qualityOverride;
-  } else if (product.use_custom_quality && product.quality_custom) {
-    // Custom entry mode - mark as custom
-    qualityValue = product.quality_custom;
-    qualityCustomValue = product.quality_custom; // Store in quality_custom to indicate it's a one-off
+    // If custom, store in quality_custom to flag it as a one-off entry
+    if (isCustomQuality) {
+      qualityCustomValue = qualityOverride;
+    }
   } else if (product.selected_qualities.length > 0) {
-    // Multi-select mode - take the first quality (should only have one after explosion)
     qualityValue = product.selected_qualities[0];
   } else {
     // Legacy fallback
@@ -273,36 +275,39 @@ function productToItemInput(
 // BATCH ENTRY: Explode products with multiple qualities into individual items
 // ============================================================
 //
-// Example: User selects Qualities ["Statuario", "Michel Angelo"] with custom "MyStone"
+// Example: User selects verified ["Statuario", "Michel Angelo"] + custom "MyStone"
 // Result: 3 separate items with identical specs but different qualities
+// Custom detection: checks if quality exists in the DB list for that product type
 //
 interface ExplodedItem {
   product: ProductItem;
   quality: string;
   isCustom: boolean;
   originalIndex: number; // Track which original product this came from (for image URL mapping)
+  isFirstFromCard: boolean; // True for only the first item exploded from each card
 }
 
 function explodeProducts(products: ProductItem[]): ExplodedItem[] {
   const exploded: ExplodedItem[] = [];
 
   products.forEach((product, originalIndex) => {
-    if (product.use_custom_quality && product.quality_custom) {
-      // Custom quality mode: single item with custom quality
-      exploded.push({
-        product,
-        quality: product.quality_custom,
-        isCustom: true,
-        originalIndex,
-      });
-    } else if (product.selected_qualities.length > 0) {
-      // Multi-select mode: create one item per selected quality
-      product.selected_qualities.forEach((quality) => {
+    // Get the verified quality list for this product type
+    const productTypeKey = product.product_type as ProductTypeKey;
+    const verifiedQualities = productTypeKey
+      ? (PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [])
+      : [];
+    const verifiedSet = new Set(verifiedQualities);
+
+    if (product.selected_qualities.length > 0) {
+      // Unified mode: each selected quality becomes a separate item
+      // Custom detection: if the quality is NOT in the verified DB list
+      product.selected_qualities.forEach((quality, qualityIndex) => {
         exploded.push({
           product,
           quality,
-          isCustom: false,
+          isCustom: !verifiedSet.has(quality),
           originalIndex,
+          isFirstFromCard: qualityIndex === 0,
         });
       });
     } else if (product.quality) {
@@ -312,6 +317,7 @@ function explodeProducts(products: ProductItem[]): ExplodedItem[] {
         quality: product.quality === 'Custom' ? (product.quality_custom || 'Custom') : product.quality,
         isCustom: product.quality === 'Custom',
         originalIndex,
+        isFirstFromCard: true,
       });
     }
   });
@@ -391,16 +397,17 @@ export default function NewRequest() {
           const productType = item.product_type as ProductType;
           const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
 
-          // Determine if this was a custom quality entry
-          const isCustom = Boolean(item.quality_custom);
+          // Determine the quality to load into selected_qualities
+          // Both verified and custom qualities go into the same array now
+          const qualityToLoad = item.quality_custom || item.quality;
 
           return {
             id: generateId(),
             product_type: productType,
-            // New multi-select fields
-            selected_qualities: isCustom ? [] : [item.quality], // Load single quality into array
-            quality_custom: item.quality_custom || '',
-            use_custom_quality: isCustom,
+            // Unified quality: all entries go into selected_qualities
+            selected_qualities: qualityToLoad ? [qualityToLoad] : [],
+            quality_custom: '',
+            use_custom_quality: false,
             // Legacy field for backward compatibility
             quality: item.quality || '',
             sample_size: item.sample_size,
@@ -511,21 +518,11 @@ export default function NewRequest() {
         errors.push(`${prefix}Product Type is required`);
       }
 
-      // Quality validation - check based on mode (multi-select vs custom)
-      if (product.use_custom_quality) {
-        // Custom quality mode: require quality_custom
-        if (!product.quality_custom || product.quality_custom.trim() === '') {
-          errors.push(`${prefix}Custom Quality name is required`);
-        }
-      } else {
-        // Multi-select mode: require at least one quality selected
-        if (!product.selected_qualities || product.selected_qualities.length === 0) {
-          // Fallback to legacy quality field for backward compatibility
-          if (!product.quality) {
-            errors.push(`${prefix}At least one Quality must be selected`);
-          } else if (product.quality === 'Custom' && !product.quality_custom) {
-            errors.push(`${prefix}Custom Quality text is required`);
-          }
+      // Quality validation: at least one quality must be selected (verified or custom)
+      if (!product.selected_qualities || product.selected_qualities.length === 0) {
+        // Fallback to legacy quality field for backward compatibility
+        if (!product.quality) {
+          errors.push(`${prefix}At least one Quality must be selected`);
         }
       }
 
@@ -640,9 +637,7 @@ export default function NewRequest() {
 
       // Step 3: Get the first quality for legacy columns
       const firstProduct = products[0];
-      const firstQuality = firstProduct?.use_custom_quality
-        ? firstProduct.quality_custom
-        : (firstProduct?.selected_qualities[0] || firstProduct?.quality || null);
+      const firstQuality = firstProduct?.selected_qualities[0] || firstProduct?.quality || null;
 
       // Step 4: Prepare request data (parent)
       const requestData = {
@@ -693,12 +688,17 @@ export default function NewRequest() {
       };
 
       // Step 5: Prepare items data from exploded entries
+      // IMAGE RULE: Only the FIRST item from each batch card gets the image
       const itemsData = explodedItems.map((explodedItem) => {
-        const imageUrl = imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null;
+        // Only attach image to the first item exploded from each card
+        const imageUrl = explodedItem.isFirstFromCard
+          ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
+          : null;
         return productToItemInput(
           explodedItem.product,
           imageUrl,
-          explodedItem.isCustom ? undefined : explodedItem.quality // Only pass override for non-custom qualities
+          explodedItem.quality,
+          explodedItem.isCustom
         );
       });
 
@@ -790,9 +790,7 @@ export default function NewRequest() {
 
       // Step 3: Get the first quality for legacy columns
       const firstProduct = products[0];
-      const firstQuality = firstProduct?.use_custom_quality
-        ? firstProduct.quality_custom
-        : (firstProduct?.selected_qualities[0] || firstProduct?.quality || null);
+      const firstQuality = firstProduct?.selected_qualities[0] || firstProduct?.quality || null;
 
       // Step 4: Prepare request data (parent - EXACTLY ONE request)
       const requestData = {
@@ -843,13 +841,18 @@ export default function NewRequest() {
       };
 
       // Step 5: Prepare items data from exploded entries
+      // IMAGE RULE: Only the FIRST item from each batch card gets the image
       // Each exploded item becomes one row in request_items table
       const itemsData = explodedItems.map((explodedItem) => {
-        const imageUrl = imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null;
+        // Only attach image to the first item exploded from each card
+        const imageUrl = explodedItem.isFirstFromCard
+          ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
+          : null;
         return productToItemInput(
           explodedItem.product,
           imageUrl,
-          explodedItem.isCustom ? undefined : explodedItem.quality
+          explodedItem.quality,
+          explodedItem.isCustom
         );
       });
 
@@ -950,14 +953,10 @@ export default function NewRequest() {
     products.every(product => {
       const hasFinish = product.product_type && PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
 
-      // Quality validation based on mode
-      const hasValidQuality = product.use_custom_quality
-        ? Boolean(product.quality_custom && product.quality_custom.trim())
-        : (
-            // Multi-select mode OR legacy single quality
-            (product.selected_qualities && product.selected_qualities.length > 0) ||
-            (product.quality && (product.quality !== 'Custom' || product.quality_custom))
-          );
+      // Quality validation: at least one quality selected (verified or custom)
+      const hasValidQuality =
+        (product.selected_qualities && product.selected_qualities.length > 0) ||
+        (product.quality && product.quality !== 'Custom');
 
       return (
         product.product_type &&
@@ -1406,7 +1405,6 @@ export default function NewRequest() {
                   {(() => {
                     // Calculate total items including batch entries
                     const totalItems = products.reduce((sum, p) => {
-                      if (p.use_custom_quality && p.quality_custom) return sum + 1;
                       if (p.selected_qualities.length > 0) return sum + p.selected_qualities.length;
                       if (p.quality) return sum + 1;
                       return sum;
@@ -1595,12 +1593,10 @@ export default function NewRequest() {
             {(() => {
               // Calculate total item count (accounting for batch entries)
               const totalItemCount = products.reduce((sum, product) => {
-                if (product.use_custom_quality && product.quality_custom) {
-                  return sum + 1; // Custom entry = 1 item
-                } else if (product.selected_qualities.length > 0) {
-                  return sum + product.selected_qualities.length; // Multi-select = N items
+                if (product.selected_qualities.length > 0) {
+                  return sum + product.selected_qualities.length;
                 } else if (product.quality) {
-                  return sum + 1; // Legacy single quality = 1 item
+                  return sum + 1;
                 }
                 return sum;
               }, 0);

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput, RequiredByHistoryEntry } from '@/types';
 
@@ -35,6 +35,7 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
 
   return useQuery({
     queryKey: ['paginated-requests', page, pageSize, search, status, priority, userId, userRole],
+    placeholderData: keepPreviousData,
     queryFn: async (): Promise<PaginatedResult<Request>> => {
       // Start building the query
       let query = supabase

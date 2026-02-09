@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ChevronsUpDown, Check, Search, X, Star } from 'lucide-react';
+import { ChevronsUpDown, Check, Search, X, Star, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================================
@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 interface MultiSelectComboboxProps {
   options: string[];
   popularOptions?: string[];
-  value: string[]; // Array of selected values
+  value: string[]; // Array of selected values (verified + custom mixed)
   onChange: (value: string[]) => void;
   placeholder?: string;
   searchPlaceholder?: string;
@@ -18,6 +18,8 @@ interface MultiSelectComboboxProps {
   className?: string;
   disabled?: boolean;
   maxDisplay?: number; // Max chips to display before showing "+N more"
+  creatable?: boolean; // Allow creating custom entries by typing
+  createLabel?: string; // Label for the create prompt (default: "Add custom")
 }
 
 // ============================================================
@@ -26,14 +28,29 @@ interface MultiSelectComboboxProps {
 
 interface ChipProps {
   label: string;
+  variant?: 'verified' | 'custom';
   onRemove: () => void;
   disabled?: boolean;
 }
 
-function Chip({ label, onRemove, disabled }: ChipProps) {
+function Chip({ label, variant = 'verified', onRemove, disabled }: ChipProps) {
+  const isCustom = variant === 'custom';
+
   return (
-    <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-medium px-2 py-1 rounded-md max-w-[140px]">
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md max-w-[160px]',
+        isCustom
+          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+          : 'bg-indigo-100 text-indigo-800'
+      )}
+    >
       <span className="truncate">{label}</span>
+      {isCustom && (
+        <span className="text-[9px] font-bold uppercase tracking-wider text-amber-600 shrink-0">
+          C
+        </span>
+      )}
       {!disabled && (
         <button
           type="button"
@@ -41,7 +58,10 @@ function Chip({ label, onRemove, disabled }: ChipProps) {
             e.stopPropagation();
             onRemove();
           }}
-          className="shrink-0 hover:bg-indigo-200 rounded-full p-0.5 transition-colors"
+          className={cn(
+            'shrink-0 rounded-full p-0.5 transition-colors',
+            isCustom ? 'hover:bg-amber-200' : 'hover:bg-indigo-200'
+          )}
           aria-label={`Remove ${label}`}
         >
           <X className="h-3 w-3" />
@@ -52,7 +72,7 @@ function Chip({ label, onRemove, disabled }: ChipProps) {
 }
 
 // ============================================================
-// MULTI-SELECT COMBOBOX COMPONENT
+// MULTI-SELECT COMBOBOX COMPONENT (CREATABLE)
 // ============================================================
 
 export function MultiSelectCombobox({
@@ -61,11 +81,13 @@ export function MultiSelectCombobox({
   value,
   onChange,
   placeholder = 'Select qualities...',
-  searchPlaceholder = 'Type to search...',
+  searchPlaceholder = 'Type to search or add custom...',
   emptyMessage = 'No matching quality',
   className,
   disabled = false,
   maxDisplay = 3,
+  creatable = false,
+  createLabel = 'Add custom',
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -73,6 +95,17 @@ export function MultiSelectCombobox({
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [triggerWidth, setTriggerWidth] = useState<number>(0);
+
+  // Build a Set of all known options for O(1) lookup
+  const optionsSet = useMemo(() => new Set(options), [options]);
+
+  // Determine chip variant based on whether value is in verified options
+  const getChipVariant = useCallback(
+    (val: string): 'verified' | 'custom' => {
+      return optionsSet.has(val) ? 'verified' : 'custom';
+    },
+    [optionsSet]
+  );
 
   // Filter options based on search
   const isSearching = search.trim().length > 0;
@@ -94,6 +127,13 @@ export function MultiSelectCombobox({
   }, [options, popularOptions, isSearching, lowerSearch]);
 
   const totalFiltered = filteredPopular.length + filteredOptions.length;
+
+  // Check if the search text could be a new custom entry
+  const trimmedSearch = search.trim();
+  const canCreate = creatable &&
+    trimmedSearch.length > 0 &&
+    !value.includes(trimmedSearch) &&
+    !options.some((opt) => opt.toLowerCase() === trimmedSearch.toLowerCase());
 
   // Update trigger width on open
   useEffect(() => {
@@ -121,16 +161,30 @@ export function MultiSelectCombobox({
     }
   }, [open]);
 
+  // Create a custom entry
+  const handleCreate = useCallback(() => {
+    if (!canCreate) return;
+    onChange([...value, trimmedSearch]);
+    setSearch('');
+  }, [canCreate, trimmedSearch, value, onChange]);
+
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       setOpen(false);
       setSearch('');
-    } else if (e.key === 'Enter' && totalFiltered === 1) {
-      const singleResult = filteredPopular.length === 1 ? filteredPopular[0] : filteredOptions[0];
-      if (singleResult && !value.includes(singleResult)) {
-        onChange([...value, singleResult]);
-        setSearch('');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (totalFiltered === 1 && !canCreate) {
+        // Exact single match from DB list
+        const singleResult = filteredPopular.length === 1 ? filteredPopular[0] : filteredOptions[0];
+        if (singleResult && !value.includes(singleResult)) {
+          onChange([...value, singleResult]);
+          setSearch('');
+        }
+      } else if (canCreate) {
+        // Create custom entry
+        handleCreate();
       }
     } else if (e.key === 'Backspace' && search === '' && value.length > 0) {
       // Remove last chip when backspace on empty search
@@ -145,7 +199,6 @@ export function MultiSelectCombobox({
       onChange([...value, option]);
     }
     setSearch('');
-    // Keep dropdown open for multi-select
   }, [value, onChange]);
 
   const handleRemoveChip = useCallback((option: string) => {
@@ -158,6 +211,9 @@ export function MultiSelectCombobox({
   // Display chips with overflow handling
   const displayChips = value.slice(0, maxDisplay);
   const overflowCount = value.length - maxDisplay;
+
+  // Count custom entries in selection
+  const customCount = value.filter((v) => !optionsSet.has(v)).length;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -182,6 +238,7 @@ export function MultiSelectCombobox({
               <Chip
                 key={item}
                 label={item}
+                variant={getChipVariant(item)}
                 onRemove={() => handleRemoveChip(item)}
                 disabled={disabled}
               />
@@ -224,9 +281,14 @@ export function MultiSelectCombobox({
 
           {/* Selected Count */}
           {value.length > 0 && (
-            <div className="flex items-center justify-between px-3 py-1.5 bg-indigo-50 border-b">
-              <span className="text-xs font-medium text-indigo-700">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b">
+              <span className="text-xs font-medium text-slate-600">
                 {value.length} selected
+                {customCount > 0 && (
+                  <span className="text-amber-600 ml-1">
+                    ({customCount} custom)
+                  </span>
+                )}
               </span>
               <button
                 type="button"
@@ -240,9 +302,11 @@ export function MultiSelectCombobox({
 
           {/* Options List */}
           <div className="max-h-[280px] overflow-y-auto p-1">
-            {totalFiltered === 0 ? (
+            {totalFiltered === 0 && !canCreate ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
-                {emptyMessage}
+                {creatable
+                  ? 'No match found. Press Enter to add as custom.'
+                  : emptyMessage}
               </div>
             ) : (
               <>
@@ -313,6 +377,28 @@ export function MultiSelectCombobox({
                     })}
                   </>
                 )}
+
+                {/* Create Custom Option */}
+                {canCreate && (
+                  <>
+                    {totalFiltered > 0 && (
+                      <div className="-mx-1 my-1 h-px bg-muted" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleCreate}
+                      className="relative flex w-full cursor-default select-none items-center rounded-sm py-2 pl-3 pr-2 text-sm outline-none hover:bg-amber-50 text-amber-800"
+                    >
+                      <Plus className="h-4 w-4 mr-2 text-amber-600 shrink-0" />
+                      <span className="truncate">
+                        {createLabel}: "<span className="font-semibold">{trimmedSearch}</span>"
+                      </span>
+                      <span className="ml-auto text-[10px] font-medium text-amber-500 uppercase tracking-wider shrink-0 pl-2">
+                        Custom
+                      </span>
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -321,12 +407,12 @@ export function MultiSelectCombobox({
           <div className="border-t px-3 py-1.5 text-xs text-muted-foreground flex justify-between">
             <span>
               {isSearching
-                ? `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}`
+                ? `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}${canCreate ? ' + custom' : ''}`
                 : `${options.length} qualities available`
               }
             </span>
             <span className="text-indigo-600 font-medium">
-              Click to select multiple
+              {creatable ? 'Select or type custom' : 'Click to select multiple'}
             </span>
           </div>
         </div>

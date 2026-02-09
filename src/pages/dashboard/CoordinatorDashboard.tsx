@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -429,29 +429,29 @@ export default function CoordinatorDashboard() {
     { key: 'received', label: 'Received', icon: PackageCheck, iconBg: 'bg-green-50', iconColor: 'text-green-600', getValue: (s) => s?.received || 0, filterStatus: 'received' },
   ];
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     setPage(1);
-  };
+  }, []);
 
-  const handleStatusChange = (value: RequestStatus | null) => {
+  const handleStatusChange = useCallback((value: RequestStatus | null) => {
     setStatus(value);
     setPage(1);
     setActiveCard(null);
-  };
+  }, []);
 
-  const handlePriorityChange = (value: Priority | null) => {
+  const handlePriorityChange = useCallback((value: Priority | null) => {
     setPriority(value);
     setPage(1);
-  };
+  }, []);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setSearch('');
     setStatus(null);
     setPriority(null);
     setPage(1);
     setActiveCard(null);
-  };
+  }, []);
 
   const handleCardClick = (card: StatCardConfig) => {
     setStatus(card.filterStatus);

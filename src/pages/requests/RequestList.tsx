@@ -21,7 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, Plus, LogOut, List } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
@@ -69,10 +69,11 @@ export default function RequestList() {
   const [priority, setPriority] = useState<Priority | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
 
-  useEffect(() => {
-    const urlStatus = searchParams.get('status');
-    const urlFilter = searchParams.get('filter');
+  // Extract primitive values from searchParams for stable useEffect dependencies
+  const urlStatus = searchParams.get('status');
+  const urlFilter = searchParams.get('filter');
 
+  useEffect(() => {
     if (urlStatus && STATUS_FILTERS[urlStatus]) {
       setStatus(STATUS_FILTERS[urlStatus]);
     } else if (urlStatus) {
@@ -82,7 +83,7 @@ export default function RequestList() {
     if (urlFilter === 'drafts') {
       setStatus('draft');
     }
-  }, [searchParams]);
+  }, [urlStatus, urlFilter]);
 
   const deleteDraft = useDeleteDraft();
 
@@ -146,27 +147,27 @@ export default function RequestList() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setSearch('');
     setStatus(null);
     setPriority(null);
     setPage(1);
-  };
+  }, []);
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
     setPage(1);
-  };
+  }, []);
 
-  const handleStatusChange = (value: RequestStatus | null) => {
+  const handleStatusChange = useCallback((value: RequestStatus | null) => {
     setStatus(value);
     setPage(1);
-  };
+  }, []);
 
-  const handlePriorityChange = (value: Priority | null) => {
+  const handlePriorityChange = useCallback((value: Priority | null) => {
     setPriority(value);
     setPage(1);
-  };
+  }, []);
 
   // Get status bar color for mobile cards
   const getStatusBarColor = (status: string) => {
