@@ -9,6 +9,8 @@ export interface RequestFilters {
   search?: string;
   status?: RequestStatus | RequestStatus[] | null;
   priority?: Priority | null;
+  overdue?: boolean;
+  productType?: string | null;
   userId?: string; // For role-based filtering (requester sees own, maker sees assigned)
   userRole?: UserRole; // To determine filtering logic
 }
@@ -29,15 +31,35 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
     search = '',
     status = null,
     priority = null,
+    overdue = false,
+    productType = null,
     userId,
     userRole,
   } = filters;
 
   return useQuery({
-    queryKey: ['paginated-requests', page, pageSize, search, status, priority, userId, userRole],
+    queryKey: ['paginated-requests', page, pageSize, search, status, priority, overdue, productType, userId, userRole],
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<PaginatedResult<Request>> => {
-      // Start building the query
+      // Step 1: If filtering by product type, pre-fetch matching request IDs (case-insensitive)
+      let productTypeIds: string[] | null = null;
+
+      if (productType) {
+        const { data: matchingItems, error: itemsError } = await supabase
+          .from('request_items')
+          .select('request_id')
+          .ilike('product_type', `%${productType}%`);
+
+        if (itemsError) throw itemsError;
+
+        if (!matchingItems || matchingItems.length === 0) {
+          return { data: [], count: 0, page, pageSize, totalPages: 0 };
+        }
+
+        productTypeIds = [...new Set(matchingItems.map((i) => i.request_id))];
+      }
+
+      // Step 2: Build the main requests query
       let query = supabase
         .from('requests')
         .select(`
@@ -46,7 +68,8 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
             id,
             full_name,
             role,
-            department
+            department,
+            phone
           ),
           maker:profiles!assigned_to (
             id,
@@ -55,6 +78,11 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
             department
           )
         `, { count: 'exact' });
+
+      // Apply product type ID filter (from Step 1)
+      if (productTypeIds !== null) {
+        query = query.in('id', productTypeIds);
+      }
 
       // Role-based filtering
       if (userRole === 'requester' && userId) {
@@ -102,6 +130,14 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
         query = query.eq('priority', priority);
       }
 
+      // Overdue filter: required_by is past AND request is still in an active status
+      if (overdue) {
+        query = query
+          .not('required_by', 'is', null)
+          .lt('required_by', new Date().toISOString())
+          .in('status', ['pending_approval', 'approved', 'assigned', 'in_production', 'ready', 'dispatched']);
+      }
+
       // Ordering
       query = query.order('created_at', { ascending: false });
 
@@ -131,7 +167,8 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
                 id,
                 full_name,
                 role,
-                department
+                department,
+                phone
               ),
               maker:profiles!assigned_to (
                 id,
@@ -341,7 +378,10 @@ export function useAllRequestsStats() {
       // Received: delivered and confirmed
       const received = submittedRequests.filter((r) => r.status === 'received').length;
 
-      return { total, pending, approved, assigned, in_production, ready, dispatched, received };
+      // Rejected
+      const rejected = submittedRequests.filter((r) => r.status === 'rejected').length;
+
+      return { total, pending, approved, assigned, in_production, ready, dispatched, received, rejected };
     },
   });
 }

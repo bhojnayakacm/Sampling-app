@@ -37,6 +37,8 @@ import {
   Timer,
   Hourglass,
   User,
+  XCircle,
+  Phone,
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 import { formatDate } from '@/lib/utils';
@@ -384,6 +386,8 @@ export default function CoordinatorDashboard() {
   const [priority, setPriority] = useState<Priority | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
   const [activeCard, setActiveCard] = useState<string | null>(null);
+  const [overdue, setOverdue] = useState(false);
+  const [productType, setProductType] = useState<string | null>(null);
 
   // ============================================================
   // HEARTBEAT: Force re-render every 60 seconds for SLA updates
@@ -407,6 +411,8 @@ export default function CoordinatorDashboard() {
     search,
     status,
     priority,
+    overdue,
+    productType,
     userId: profile?.id,
     userRole: profile?.role,
   });
@@ -420,13 +426,14 @@ export default function CoordinatorDashboard() {
   // Stat cards configuration — full production lifecycle
   const statCards: StatCardConfig[] = [
     { key: 'total', label: 'Total', icon: Inbox, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', getValue: (s) => s?.total || 0, filterStatus: null },
-    { key: 'pending', label: 'Pending', icon: Clock, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', getValue: (s) => s?.pending || 0, filterStatus: 'pending_approval' },
+    { key: 'pending', label: 'Pending Approval', icon: Clock, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', getValue: (s) => s?.pending || 0, filterStatus: 'pending_approval' },
     { key: 'approved', label: 'Approved', icon: CheckCircle, iconBg: 'bg-sky-50', iconColor: 'text-sky-600', getValue: (s) => s?.approved || 0, filterStatus: 'approved' },
     { key: 'assigned', label: 'Assigned', icon: User, iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', getValue: (s) => s?.assigned || 0, filterStatus: 'assigned' },
     { key: 'in_production', label: 'Production', icon: Cog, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', getValue: (s) => s?.in_production || 0, filterStatus: 'in_production' },
     { key: 'ready', label: 'Ready', icon: Package, iconBg: 'bg-teal-50', iconColor: 'text-teal-600', getValue: (s) => s?.ready || 0, filterStatus: 'ready' },
     { key: 'dispatched', label: 'Dispatched', icon: Truck, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', getValue: (s) => s?.dispatched || 0, filterStatus: 'dispatched' },
     { key: 'received', label: 'Received', icon: PackageCheck, iconBg: 'bg-green-50', iconColor: 'text-green-600', getValue: (s) => s?.received || 0, filterStatus: 'received' },
+    { key: 'rejected', label: 'Rejected', icon: XCircle, iconBg: 'bg-red-50', iconColor: 'text-red-600', getValue: (s) => s?.rejected || 0, filterStatus: 'rejected' },
   ];
 
   const handleSearchChange = useCallback((value: string) => {
@@ -434,14 +441,19 @@ export default function CoordinatorDashboard() {
     setPage(1);
   }, []);
 
-  const handleStatusChange = useCallback((value: RequestStatus | null) => {
-    setStatus(value);
+  const handlePriorityChange = useCallback((value: Priority | null) => {
+    setPriority(value);
+    setPage(1);
+  }, []);
+
+  const handleOverdueChange = useCallback((value: boolean) => {
+    setOverdue(value);
     setPage(1);
     setActiveCard(null);
   }, []);
 
-  const handlePriorityChange = useCallback((value: Priority | null) => {
-    setPriority(value);
+  const handleProductTypeChange = useCallback((value: string | null) => {
+    setProductType(value);
     setPage(1);
   }, []);
 
@@ -449,6 +461,8 @@ export default function CoordinatorDashboard() {
     setSearch('');
     setStatus(null);
     setPriority(null);
+    setOverdue(false);
+    setProductType(null);
     setPage(1);
     setActiveCard(null);
   }, []);
@@ -478,8 +492,43 @@ export default function CoordinatorDashboard() {
     if (activeTab === 'sample-requests') {
       return (
         <div className="p-4 sm:p-6 space-y-6">
-          {/* Stats Cards - 8 Card Lifecycle Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
+          {/* Stats Cards — Mobile: horizontal scroll | Desktop: grid */}
+
+          {/* Mobile Horizontal Scroll (Instagram Story style) */}
+          <div className="md:hidden -mx-4 sm:-mx-6 px-4 sm:px-6">
+            <div className="flex gap-2.5 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
+              {statCards.map((card) => {
+                const Icon = card.icon;
+                const value = card.getValue(stats);
+                const isActive = activeCard === card.key;
+
+                return (
+                  <Card
+                    key={card.key}
+                    onClick={() => handleCardClick(card)}
+                    className={`flex-shrink-0 w-[100px] snap-start bg-white border shadow-sm hover:shadow-md transition-all cursor-pointer ${
+                      isActive
+                        ? 'border-indigo-500 ring-2 ring-indigo-200'
+                        : 'border-slate-200'
+                    }`}
+                  >
+                    <CardContent className="p-2.5">
+                      <div className={`h-7 w-7 rounded-lg ${card.iconBg} flex items-center justify-center mb-1.5`}>
+                        <Icon className={`h-3.5 w-3.5 ${card.iconColor}`} />
+                      </div>
+                      <p className="text-lg font-bold text-slate-900 leading-none">
+                        {statsLoading ? '...' : value}
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{card.label}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Desktop Grid */}
+          <div className="hidden md:grid grid-cols-5 xl:grid-cols-9 gap-3">
             {statCards.map((card) => {
               const Icon = card.icon;
               const value = card.getValue(stats);
@@ -517,10 +566,13 @@ export default function CoordinatorDashboard() {
                   search={search}
                   status={status}
                   priority={priority}
+                  productType={productType}
                   onSearchChange={handleSearchChange}
-                  onStatusChange={handleStatusChange}
+                  onProductTypeChange={handleProductTypeChange}
                   onPriorityChange={handlePriorityChange}
                   onReset={handleReset}
+                  overdue={overdue}
+                  onOverdueChange={handleOverdueChange}
                 />
               </CardContent>
             </Card>
@@ -565,11 +617,11 @@ export default function CoordinatorDashboard() {
                   <AlertCircle className="h-7 w-7 text-slate-400" />
                 </div>
                 <p className="text-slate-600 font-medium">
-                  {search || status || priority
+                  {search || status || priority || overdue || productType
                     ? 'No requests found matching your filters.'
                     : 'No requests found in the system.'}
                 </p>
-                {(search || status || priority) && (
+                {(search || status || priority || overdue || productType) && (
                   <Button
                     variant="outline"
                     onClick={handleReset}
@@ -608,32 +660,41 @@ export default function CoordinatorDashboard() {
                           </div>
                         </div>
 
-                        {/* Requester Row */}
+                        {/* Requester Name — Primary (Large & Bold) + Department + Call */}
                         {request.creator && (
-                          <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
-                            <User className="h-3 w-3" />
-                            <span className="font-medium text-slate-700">{request.creator.full_name}</span>
-                            {request.creator.department && (
-                              <span className="text-slate-400 capitalize">• {request.creator.department}</span>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-baseline gap-1.5 flex-wrap min-w-0 flex-1">
+                              <p className="text-lg font-semibold text-gray-900 truncate">
+                                {request.creator.full_name}
+                              </p>
+                              {request.creator.department && (
+                                <span className="text-xs text-gray-500 font-normal whitespace-nowrap">
+                                  • {request.creator.department}
+                                </span>
+                              )}
+                            </div>
+                            {request.creator.phone && (
+                              <a
+                                href={`tel:${request.creator.phone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-shrink-0 h-8 w-8 rounded-full bg-green-50 hover:bg-green-100 flex items-center justify-center transition-colors lg:hidden"
+                              >
+                                <Phone className="h-4 w-4 text-green-600" />
+                              </a>
                             )}
                           </div>
                         )}
 
-                        {/* Created Date Row */}
-                        <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatDate(request.created_at)}</span>
-                        </div>
-
-                        {/* Middle: Client Name + Item Count */}
+                        {/* Client / Project — Secondary */}
                         <div className="mb-3">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {request.client_contact_name}
+                          <p className="text-sm text-gray-500 font-normal truncate">
+                            {request.client_contact_name} — {request.firm_name || request.architect_firm_name || '—'}
                           </p>
                           <div className="flex items-center justify-between mt-1">
-                            <p className="text-xs text-slate-500 truncate flex-1 mr-2">
-                              {request.firm_name || request.architect_firm_name || '—'}
-                            </p>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                              <Clock className="h-3 w-3" />
+                              <span>{formatDate(request.created_at)}</span>
+                            </div>
                             <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
                               itemCount > 1
                                 ? 'bg-indigo-50 text-indigo-600 font-medium'

@@ -235,6 +235,7 @@ export interface Request {
     full_name: string;
     role: UserRole;
     department: string | null;
+    phone: string | null;
   };
   maker?: {
     id: string;

@@ -23,7 +23,7 @@ import { usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, Plus, LogOut, List } from 'lucide-react';
+import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, Plus, LogOut, List, Phone } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
@@ -359,10 +359,32 @@ export default function RequestList() {
                               </span>
                             )}
                           </div>
-                          <p className="text-sm font-semibold text-slate-800 truncate">
-                            {request.client_contact_name}
+                          {request.creator && (
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-baseline gap-1.5 flex-wrap min-w-0 flex-1">
+                                <p className="text-lg font-semibold text-gray-900 truncate">
+                                  {request.creator.full_name}
+                                </p>
+                                {request.creator.department && (
+                                  <span className="text-xs text-gray-500 font-normal whitespace-nowrap">
+                                    • {request.creator.department}
+                                  </span>
+                                )}
+                              </div>
+                              {request.creator.phone && (
+                                <a
+                                  href={`tel:${request.creator.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex-shrink-0 h-8 w-8 rounded-full bg-green-50 hover:bg-green-100 flex items-center justify-center transition-colors md:hidden"
+                                >
+                                  <Phone className="h-4 w-4 text-green-600" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-sm text-gray-500 truncate">
+                            {request.client_contact_name} — {request.firm_name}
                           </p>
-                          <p className="text-xs text-slate-500 truncate">{request.firm_name}</p>
                         </div>
 
                         {/* Action Buttons */}
@@ -422,12 +444,6 @@ export default function RequestList() {
                         <span className="text-slate-400 font-medium">{formatDate(request.created_at)}</span>
                       </div>
 
-                      {/* Creator Info */}
-                      {request.creator && (
-                        <p className="text-xs text-slate-400 mt-2 pt-2 border-t border-dashed border-slate-200">
-                          by {request.creator.full_name}
-                        </p>
-                      )}
                     </div>
                   </div>
                 );

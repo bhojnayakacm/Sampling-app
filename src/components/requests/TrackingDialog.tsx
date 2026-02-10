@@ -109,10 +109,13 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
     ? TIMELINE_STEPS.filter((step) => step.status !== 'dispatched')
     : TIMELINE_STEPS;
 
-  // Find the timestamp for each step
-  const getStepTimestamp = (status: RequestStatus) => {
+  // Find the timestamp and changer for each step
+  const getStepInfo = (status: RequestStatus) => {
     const historyItem = history?.find((h) => h.status === status);
-    return historyItem?.changed_at;
+    return {
+      timestamp: historyItem?.changed_at,
+      changerName: historyItem?.changer?.full_name || null,
+    };
   };
 
   // Get current step index (using filtered timeline for self pickup)
@@ -195,7 +198,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
             <div className="py-6">
               <div className="relative">
                 {timelineSteps.map((step, index) => {
-                  const timestamp = getStepTimestamp(step.status);
+                  const { timestamp, changerName } = getStepInfo(step.status);
                   const isCompleted = !!timestamp;
                   const isCurrent = index === currentStepIndex && !timestamp;
                   const isFuture = index > currentStepIndex;
@@ -256,9 +259,16 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
                             {step.description}
                           </p>
                           {timestamp && (
-                            <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-                              <Clock className="h-3 w-3" />
-                              <span>{formatDateTime(timestamp)}</span>
+                            <div className="mt-2 space-y-0.5">
+                              {changerName && (
+                                <p className="text-xs font-medium text-gray-700">
+                                  By: {changerName}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <Clock className="h-3 w-3" />
+                                <span>{formatDateTime(timestamp)}</span>
+                              </div>
                             </div>
                           )}
                           {isFuture && !timestamp && (
