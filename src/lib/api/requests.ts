@@ -45,10 +45,12 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
       let productTypeIds: string[] | null = null;
 
       if (productType) {
+        // Normalize: "Magro Stone" → "magro_stone" to match DB enum values
+        const normalizedType = productType.toLowerCase().replace(/\s+/g, '_');
         const { data: matchingItems, error: itemsError } = await supabase
           .from('request_items')
           .select('request_id')
-          .ilike('product_type', `%${productType}%`);
+          .ilike('product_type', `%${normalizedType}%`);
 
         if (itemsError) throw itemsError;
 

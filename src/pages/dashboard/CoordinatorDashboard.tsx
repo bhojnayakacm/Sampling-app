@@ -375,19 +375,41 @@ export default function CoordinatorDashboard() {
   const { data: stats, isLoading: statsLoading } = useAllRequestsStats();
   const listSectionRef = useRef<HTMLDivElement>(null);
 
+  // Derive all filter state from URL search params for persistence across navigation
   const activeTab = searchParams.get('tab') || 'sample-requests';
-  const setActiveTab = (tab: string) => {
-    setSearchParams({ tab });
-  };
+  const page = Number(searchParams.get('page')) || 1;
+  const search = searchParams.get('search') || '';
+  const status = (searchParams.get('status') as RequestStatus) || null;
+  const priority = (searchParams.get('priority') as Priority) || null;
+  const overdue = searchParams.get('overdue') === 'true';
+  const productType = searchParams.get('type') || null;
+  const activeCard = searchParams.get('card') || null;
 
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<RequestStatus | null>(null);
-  const [priority, setPriority] = useState<Priority | null>(null);
+  // Helper to update URL params (merges with existing, removes empty values)
+  const updateParams = useCallback((updates: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [key, val] of Object.entries(updates)) {
+        if (val === null || val === '' || val === 'false') {
+          next.delete(key);
+        } else {
+          next.set(key, val);
+        }
+      }
+      return next;
+    });
+  }, [setSearchParams]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    // When switching tabs, preserve only the tab param
+    setSearchParams({ tab });
+  }, [setSearchParams]);
+
+  const setPage = useCallback((p: number) => {
+    updateParams({ page: p > 1 ? String(p) : null });
+  }, [updateParams]);
+
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
-  const [activeCard, setActiveCard] = useState<string | null>(null);
-  const [overdue, setOverdue] = useState(false);
-  const [productType, setProductType] = useState<string | null>(null);
 
   // ============================================================
   // HEARTBEAT: Force re-render every 60 seconds for SLA updates
@@ -437,40 +459,27 @@ export default function CoordinatorDashboard() {
   ];
 
   const handleSearchChange = useCallback((value: string) => {
-    setSearch(value);
-    setPage(1);
-  }, []);
+    updateParams({ search: value || null, page: null });
+  }, [updateParams]);
 
   const handlePriorityChange = useCallback((value: Priority | null) => {
-    setPriority(value);
-    setPage(1);
-  }, []);
+    updateParams({ priority: value, page: null });
+  }, [updateParams]);
 
   const handleOverdueChange = useCallback((value: boolean) => {
-    setOverdue(value);
-    setPage(1);
-    setActiveCard(null);
-  }, []);
+    updateParams({ overdue: value ? 'true' : null, page: null, card: null });
+  }, [updateParams]);
 
   const handleProductTypeChange = useCallback((value: string | null) => {
-    setProductType(value);
-    setPage(1);
-  }, []);
+    updateParams({ type: value, page: null });
+  }, [updateParams]);
 
   const handleReset = useCallback(() => {
-    setSearch('');
-    setStatus(null);
-    setPriority(null);
-    setOverdue(false);
-    setProductType(null);
-    setPage(1);
-    setActiveCard(null);
-  }, []);
+    updateParams({ search: null, status: null, priority: null, overdue: null, type: null, page: null, card: null });
+  }, [updateParams]);
 
   const handleCardClick = (card: StatCardConfig) => {
-    setStatus(card.filterStatus);
-    setPage(1);
-    setActiveCard(card.key);
+    updateParams({ status: card.filterStatus, page: null, card: card.key });
 
     setTimeout(() => {
       listSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -494,37 +503,35 @@ export default function CoordinatorDashboard() {
         <div className="p-4 sm:p-6 space-y-6">
           {/* Stats Cards — Mobile: horizontal scroll | Desktop: grid */}
 
-          {/* Mobile Horizontal Scroll (Instagram Story style) */}
-          <div className="md:hidden -mx-4 sm:-mx-6 px-4 sm:px-6">
-            <div className="flex gap-2.5 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
-              {statCards.map((card) => {
-                const Icon = card.icon;
-                const value = card.getValue(stats);
-                const isActive = activeCard === card.key;
+          {/* Mobile 3x3 Grid */}
+          <div className="md:hidden grid grid-cols-3 gap-2">
+            {statCards.map((card) => {
+              const Icon = card.icon;
+              const value = card.getValue(stats);
+              const isActive = activeCard === card.key;
 
-                return (
-                  <Card
-                    key={card.key}
-                    onClick={() => handleCardClick(card)}
-                    className={`flex-shrink-0 w-[100px] snap-start bg-white border shadow-sm hover:shadow-md transition-all cursor-pointer ${
-                      isActive
-                        ? 'border-indigo-500 ring-2 ring-indigo-200'
-                        : 'border-slate-200'
-                    }`}
-                  >
-                    <CardContent className="p-2.5">
-                      <div className={`h-7 w-7 rounded-lg ${card.iconBg} flex items-center justify-center mb-1.5`}>
-                        <Icon className={`h-3.5 w-3.5 ${card.iconColor}`} />
-                      </div>
-                      <p className="text-lg font-bold text-slate-900 leading-none">
-                        {statsLoading ? '...' : value}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{card.label}</p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+              return (
+                <Card
+                  key={card.key}
+                  onClick={() => handleCardClick(card)}
+                  className={`bg-white border shadow-sm transition-all cursor-pointer ${
+                    isActive
+                      ? 'border-indigo-500 ring-2 ring-indigo-200'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  <CardContent className="p-2 text-center">
+                    <div className={`h-7 w-7 rounded-lg ${card.iconBg} flex items-center justify-center mx-auto mb-1`}>
+                      <Icon className={`h-3.5 w-3.5 ${card.iconColor}`} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-900 leading-none">
+                      {statsLoading ? '...' : value}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-tight whitespace-normal">{card.label}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Desktop Grid */}

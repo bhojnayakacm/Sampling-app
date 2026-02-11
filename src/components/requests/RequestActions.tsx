@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import DateTimePicker from '@/components/ui/date-time-picker';
 import { useMakers } from '@/lib/api/users';
 import { useAssignRequest, useUpdateRequestStatus, useUpdateRequiredBy } from '@/lib/api/requests';
 import { useAuth } from '@/contexts/AuthContext';
@@ -57,30 +57,18 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   const [editedRequiredBy, setEditedRequiredBy] = useState('');
   const originalRequiredBy = request.required_by;
 
-  // Convert ISO date to datetime-local format for input
-  const toDateTimeLocal = (isoDate: string) => {
-    const date = new Date(isoDate);
-    const offset = date.getTimezoneOffset();
-    const localDate = new Date(date.getTime() - offset * 60 * 1000);
-    return localDate.toISOString().slice(0, 16);
-  };
-
-  // Initialize editedRequiredBy when dialog opens
+  // Initialize editedRequiredBy when dialog opens (store as ISO string)
   useEffect(() => {
     if (approveDialogOpen && request.required_by) {
-      setEditedRequiredBy(toDateTimeLocal(request.required_by));
+      setEditedRequiredBy(request.required_by);
     }
   }, [approveDialogOpen, request.required_by]);
 
   // Check if required_by date was modified (compare at minute precision)
   const isRequiredByModified = () => {
     if (!editedRequiredBy || !originalRequiredBy) return false;
-    // Compare at minute precision since datetime-local input truncates seconds
-    const editedMinutes = new Date(editedRequiredBy).getTime();
-    const originalMinutes = new Date(originalRequiredBy).getTime();
-    // Round both to nearest minute for fair comparison
-    const editedRounded = Math.floor(editedMinutes / 60000) * 60000;
-    const originalRounded = Math.floor(originalMinutes / 60000) * 60000;
+    const editedRounded = Math.floor(new Date(editedRequiredBy).getTime() / 60000) * 60000;
+    const originalRounded = Math.floor(new Date(originalRequiredBy).getTime() / 60000) * 60000;
     return editedRounded !== originalRounded;
   };
 
@@ -383,12 +371,9 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                   Required By Date
                 </Label>
                 <div className="space-y-2">
-                  <Input
-                    id="required-by-date"
-                    type="datetime-local"
+                  <DateTimePicker
                     value={editedRequiredBy}
-                    onChange={(e) => setEditedRequiredBy(e.target.value)}
-                    className="h-10 border-slate-200"
+                    onChange={(v) => setEditedRequiredBy(v)}
                   />
                   {isRequiredByModified() && (
                     <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-md">

@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import DateTimePicker from '@/components/ui/date-time-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useUpdateRequiredBy } from '@/lib/api/requests';
@@ -51,18 +51,10 @@ export default function EditRequiredByModal({
   const editableStatuses = getEditableStatuses(isSelfPickup);
   const canEdit = editableStatuses.includes(request.status as RequestStatus);
 
-  // Convert ISO date to datetime-local format
-  const toDateTimeLocal = (isoDate: string) => {
-    const date = new Date(isoDate);
-    const offset = date.getTimezoneOffset();
-    const localDate = new Date(date.getTime() - offset * 60 * 1000);
-    return localDate.toISOString().slice(0, 16);
-  };
-
-  // Initialize form when dialog opens
+  // Initialize form when dialog opens (store as ISO string directly)
   useEffect(() => {
     if (open && request.required_by) {
-      setNewDate(toDateTimeLocal(request.required_by));
+      setNewDate(request.required_by);
       setReason('');
     }
   }, [open, request.required_by]);
@@ -179,12 +171,9 @@ export default function EditRequiredByModal({
               <Label htmlFor="new-date" className="text-sm font-medium text-slate-700">
                 New Date & Time <span className="text-red-500">*</span>
               </Label>
-              <Input
-                id="new-date"
-                type="datetime-local"
+              <DateTimePicker
                 value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-                className="h-11 border-slate-200"
+                onChange={(v) => setNewDate(v)}
               />
             </div>
 
