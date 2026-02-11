@@ -25,6 +25,7 @@ import ProductItemCard from '@/components/requests/ProductItemCard';
 import { SaveTemplateDialog } from '@/components/requests/SaveTemplateDialog';
 import { LoadTemplateDrawer } from '@/components/requests/LoadTemplateDrawer';
 import { LocationAutocomplete } from '@/components/ui/location-autocomplete';
+import DateTimePicker from '@/components/ui/date-time-picker';
 import type {
   PickupResponsibility,
   ClientType,
@@ -382,7 +383,7 @@ export default function NewRequest() {
       setValue('project_type_custom', existingDraft.project_type_custom || '');
       setValue('project_placeholder', existingDraft.project_placeholder || '');
       setValue('priority', existingDraft.priority as 'urgent' | 'normal');
-      setValue('required_by', existingDraft.required_by ? new Date(existingDraft.required_by).toISOString().slice(0, 16) : '');
+      setValue('required_by', existingDraft.required_by ? new Date(existingDraft.required_by).toISOString() : '');
       setValue('pickup_responsibility', existingDraft.pickup_responsibility as PickupResponsibility);
       setValue('pickup_remarks', existingDraft.pickup_remarks || '');
       setValue('delivery_address', existingDraft.delivery_address || '');
@@ -467,28 +468,6 @@ export default function NewRequest() {
 
   const updateProduct = (index: number, updates: Partial<ProductItem>) => {
     setProducts(products.map((p, i) => (i === index ? { ...p, ...updates } : p)));
-  };
-
-  const duplicateProduct = (index: number) => {
-    const source = products[index];
-    // Clone with same specs but clear all quality selections
-    // This allows user to quickly select different qualities with same specs
-    const cloned: ProductItem = {
-      ...source,
-      id: generateId(),
-      // Clear all quality-related fields
-      selected_qualities: [],
-      quality_custom: '',
-      use_custom_quality: false,
-      quality: '', // Legacy field
-      // Clear image (user may want different image for different quality)
-      image_file: null,
-      image_preview: null,
-      image_url: null,
-    };
-    const updated = [...products];
-    updated.splice(index + 1, 0, cloned);
-    setProducts(updated);
   };
 
   // Load products from a saved template
@@ -578,7 +557,14 @@ export default function NewRequest() {
       missingFields.push('Client Type Remarks (required when "Others" is selected)');
     }
     if (!data.client_contact_name) missingFields.push('Contact Name');
-    // client_phone is now optional
+    // client_phone is optional, but if provided must be exactly 10 digits
+    if (data.client_phone && !/^\d{10}$/.test(data.client_phone)) {
+      missingFields.push('Client mobile number must be exactly 10 digits');
+    }
+    // client_email is optional, but if provided must be valid format
+    if (data.client_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.client_email)) {
+      missingFields.push('Client email must be a valid email address');
+    }
 
     // Conditional validation based on client_type
     if (data.client_type === 'retail') {
@@ -681,8 +667,11 @@ export default function NewRequest() {
         product_type: firstProduct?.product_type || null,
         quality: firstQuality,
         sample_size: firstProduct?.sample_size || null,
+        sample_size_remarks: firstProduct?.sample_size === 'Custom' ? (firstProduct?.sample_size_remarks || null) : null,
         thickness: firstProduct?.thickness || null,
+        thickness_remarks: firstProduct?.thickness === 'Custom' ? (firstProduct?.thickness_remarks || null) : null,
         finish: firstProduct?.finish || null,
+        finish_remarks: (firstProduct?.finish === 'Custom' || firstProduct?.finish === 'Customize') ? (firstProduct?.finish_remarks || null) : null,
         quantity: firstProduct?.quantity || null,
         image_url: imageUrlMap.get(0) || firstProduct?.image_url || null,
       };
@@ -834,8 +823,11 @@ export default function NewRequest() {
         product_type: firstProduct?.product_type || null,
         quality: firstQuality,
         sample_size: firstProduct?.sample_size || null,
+        sample_size_remarks: firstProduct?.sample_size === 'Custom' ? (firstProduct?.sample_size_remarks || null) : null,
         thickness: firstProduct?.thickness || null,
+        thickness_remarks: firstProduct?.thickness === 'Custom' ? (firstProduct?.thickness_remarks || null) : null,
         finish: firstProduct?.finish || null,
+        finish_remarks: (firstProduct?.finish === 'Custom' || firstProduct?.finish === 'Customize') ? (firstProduct?.finish_remarks || null) : null,
         quantity: firstProduct?.quantity || null,
         image_url: imageUrlMap.get(0) || firstProduct?.image_url || null,
       };
@@ -1087,8 +1079,8 @@ export default function NewRequest() {
             <AccordionContent className="px-4 sm:px-6 pb-5">
               {/* Read-only profile info */}
               <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 mb-5">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
                     <Label className="text-indigo-600 font-medium text-xs uppercase tracking-wide">Name</Label>
                     <p className="text-base font-semibold mt-1 text-slate-800">{profile.full_name}</p>
                   </div>
@@ -1123,17 +1115,13 @@ export default function NewRequest() {
 
                 {/* Required By */}
                 <div>
-                  <Label htmlFor="required_by" className={`font-semibold ${errors.required_by ? 'text-red-500' : 'text-slate-700'}`}>
+                  <Label className="font-semibold text-slate-700">
                     Required By *
                   </Label>
-                  <Input
-                    id="required_by"
-                    type="datetime-local"
-                    {...register('required_by', { required: 'Required by date is required' })}
-                    error={!!errors.required_by}
-                    className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
+                  <DateTimePicker
+                    value={watch('required_by') || ''}
+                    onChange={(v) => setValue('required_by', v)}
                   />
-                  {errors.required_by && <p className="text-red-500 text-xs mt-1">{errors.required_by.message}</p>}
                 </div>
 
                 {/* Pickup Responsibility - Restricted options for Requesters */}
@@ -1311,9 +1299,12 @@ export default function NewRequest() {
                   <Input
                     id="client_phone"
                     {...register('client_phone')}
-                    placeholder="Enter mobile number (optional)"
+                    placeholder="Enter 10-digit mobile number"
+                    inputMode="numeric"
+                    maxLength={10}
                     className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
+                  <p className="text-xs text-slate-400 mt-1">Please enter 10 digits only (no country code).</p>
                 </div>
 
                 {/* Email */}
@@ -1450,7 +1441,6 @@ export default function NewRequest() {
                     canDelete={products.length > 1}
                     onUpdate={updateProduct}
                     onRemove={removeProduct}
-                    onDuplicate={duplicateProduct}
                   />
                 ))}
               </div>

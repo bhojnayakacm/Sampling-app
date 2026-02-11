@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
-import { Trash2, Upload, X, Package, ChevronDown, ChevronUp, Copy, Info } from 'lucide-react';
+import { Trash2, Upload, X, Package, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import type { ProductItem, ProductType } from '@/types';
@@ -27,7 +27,6 @@ interface ProductItemCardProps {
   canDelete: boolean;
   onUpdate: (index: number, updates: Partial<ProductItem>) => void;
   onRemove: (index: number) => void;
-  onDuplicate?: (index: number) => void;
 }
 
 export default function ProductItemCard({
@@ -36,7 +35,6 @@ export default function ProductItemCard({
   canDelete,
   onUpdate,
   onRemove,
-  onDuplicate,
 }: ProductItemCardProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -209,18 +207,6 @@ export default function ProductItemCard({
           </button>
 
           <div className="flex items-center ml-2 flex-shrink-0">
-            {onDuplicate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => onDuplicate(index)}
-                className="text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50"
-                title="Duplicate with same specs (choose different quality)"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-            )}
             {canDelete && (
               <Button
                 type="button"
