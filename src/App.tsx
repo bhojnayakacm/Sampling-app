@@ -1,6 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'sonner';
+import { useExitPrompt } from '@/hooks/useExitPrompt';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // Pages
 import Login from '@/pages/auth/Login';
@@ -95,6 +107,57 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Exit-prompt wrapper — only active on the dashboard root
+function DashboardExitGuard({ children }: { children: React.ReactNode }) {
+  const { signOut } = useAuth();
+  const location = useLocation();
+  const [showExitDialog, setShowExitDialog] = useState(false);
+
+  const isDashboard = location.pathname === '/';
+
+  const { resetTrap, allowExit } = useExitPrompt(() => {
+    if (isDashboard) {
+      setShowExitDialog(true);
+    }
+  });
+
+  const handleSignOut = async () => {
+    setShowExitDialog(false);
+    allowExit();
+    await signOut();
+  };
+
+  const handleCancel = () => {
+    setShowExitDialog(false);
+    resetTrap();
+  };
+
+  return (
+    <>
+      {children}
+      <AlertDialog open={showExitDialog} onOpenChange={(open) => { if (!open) handleCancel(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Do you want to sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to leave the dashboard. Would you like to sign out of your account?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSignOut}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Sign Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 // Dashboard router based on role
 function DashboardRouter() {
   const { profile, loading, profileError } = useAuth();
@@ -139,7 +202,9 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <DashboardRouter />
+                <DashboardExitGuard>
+                  <DashboardRouter />
+                </DashboardExitGuard>
               </ProtectedRoute>
             }
           />

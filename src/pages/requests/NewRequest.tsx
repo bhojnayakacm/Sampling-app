@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -19,7 +19,15 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
 import { SaveTemplateDialog } from '@/components/requests/SaveTemplateDialog';
@@ -332,12 +340,21 @@ function explodeProducts(products: ProductItem[]): ExplodedItem[] {
 
 export default function NewRequest() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id: draftId } = useParams<{ id: string }>();
   const { profile } = useAuth();
+
+  // Where to go when the user exits the form
+  const exitPath = (location.state as any)?.from || '/';
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Ref to prevent double-submission (belt + suspenders with isSubmitting state)
   const isSubmittingRef = useRef(false);
+
+  // Exit guard — dirty form protection
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const allowExitRef = useRef(false); // set true when save/submit succeeds to skip the guard
+  const [isSavingFromDialog, setIsSavingFromDialog] = useState(false);
 
   // Multi-product state
   const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()]);
@@ -352,7 +369,7 @@ export default function NewRequest() {
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<RequestFormData>({
     defaultValues: {
       priority: 'normal',
@@ -451,6 +468,68 @@ export default function NewRequest() {
       }
     }
   }, [isEditMode, existingDraft, setValue]);
+
+  // ============================================================
+  // DIRTY FORM PROTECTION — Intercept browser back button
+  // ============================================================
+
+  // Check if user has entered any meaningful data
+  const hasProductData = products.some(
+    (p) => p.product_type || p.selected_qualities.length > 0 || p.quality
+  );
+  const isFormDirty = isDirty || hasProductData;
+
+  /** Navigate away — always works regardless of history stack depth */
+  const leaveForm = useCallback(() => {
+    allowExitRef.current = true;
+    navigate(exitPath, { replace: true });
+  }, [navigate, exitPath]);
+
+  useEffect(() => {
+    // Push a dummy history entry so the browser back button fires popstate
+    // instead of actually leaving — we intercept it to show the exit modal.
+    window.history.pushState({ formGuard: true }, '');
+
+    const handlePopState = () => {
+      if (allowExitRef.current) return;
+      if (isFormDirty) {
+        // Re-push so URL stays on the form while the modal is shown
+        window.history.pushState({ formGuard: true }, '');
+        setShowExitWarning(true);
+      } else {
+        // Form is clean — navigate to explicit exit path
+        leaveForm();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isFormDirty, leaveForm]);
+
+  // Handle exit attempt from Cancel / Back buttons
+  const handleExitAttempt = useCallback(() => {
+    if (isFormDirty) {
+      setShowExitWarning(true);
+    } else {
+      leaveForm();
+    }
+  }, [isFormDirty, leaveForm]);
+
+  // Exit dialog actions
+  const handleExitWithoutSaving = useCallback(() => {
+    setShowExitWarning(false);
+    leaveForm();
+  }, [leaveForm]);
+
+  // handleSaveDraftAndExit — close dialog then trigger the real save (which navigates on success)
+  const handleSaveDraftAndExit = useCallback(() => {
+    setShowExitWarning(false);
+    setIsSavingFromDialog(true);
+  }, []);
+
+  const handleKeepEditing = useCallback(() => {
+    setShowExitWarning(false);
+  }, []);
 
   // ============================================================
   // PRODUCT MANAGEMENT
@@ -700,6 +779,7 @@ export default function NewRequest() {
         toast.success('Request saved as draft');
       }
 
+      allowExitRef.current = true;
       navigate('/requests');
     } catch (error: any) {
       console.error('Error saving draft:', error);
@@ -715,6 +795,15 @@ export default function NewRequest() {
       setIsSubmitting(false);
     }
   };
+
+  // Trigger save when "Save Draft & Exit" is clicked from exit dialog
+  useEffect(() => {
+    if (isSavingFromDialog) {
+      setIsSavingFromDialog(false);
+      handleSaveDraft();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSavingFromDialog]);
 
   // ============================================================
   // SUBMIT REQUEST (Parent-Child Structure)
@@ -884,6 +973,7 @@ export default function NewRequest() {
         );
       }
 
+      allowExitRef.current = true;
       navigate('/requests');
     } catch (error: any) {
       console.error('Error submitting request:', error);
@@ -1013,7 +1103,7 @@ export default function NewRequest() {
           <div className="flex items-center gap-3 sm:gap-4">
             <Button
               variant="ghost"
-              onClick={() => navigate('/requests')}
+              onClick={handleExitAttempt}
               className="md:hidden min-h-[44px] px-3 gap-2 text-slate-600 hover:bg-slate-100"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -1032,7 +1122,7 @@ export default function NewRequest() {
             </div>
             <Button
               variant="outline"
-              onClick={() => navigate('/requests')}
+              onClick={handleExitAttempt}
               className="hidden md:flex min-h-[44px] px-4 gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -1549,7 +1639,7 @@ export default function NewRequest() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/requests')}
+              onClick={handleExitAttempt}
               disabled={isSubmitting}
               className="w-full sm:w-auto min-h-[48px] px-6 text-base font-medium border-slate-200 hover:bg-slate-50 transition-all"
             >
@@ -1626,6 +1716,46 @@ export default function NewRequest() {
           </div>
         </div>
       </form>
+
+      {/* Exit Warning Modal */}
+      <Dialog open={showExitWarning} onOpenChange={(open) => { if (!open) handleKeepEditing(); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Unsaved Changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved work on this form. What would you like to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            {!isResubmitMode && (
+              <Button
+                onClick={handleSaveDraftAndExit}
+                disabled={isSubmitting}
+                className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Save className="h-4 w-4" />
+                Save Draft & Exit
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={handleExitWithoutSaving}
+              className="w-full gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            >
+              <LogOut className="h-4 w-4" />
+              Exit Without Saving
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleKeepEditing}
+              className="w-full gap-2 text-slate-600"
+            >
+              <FileText className="h-4 w-4" />
+              Keep Editing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
