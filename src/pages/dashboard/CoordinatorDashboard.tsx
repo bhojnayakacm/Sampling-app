@@ -385,9 +385,17 @@ export default function CoordinatorDashboard() {
   const productType = searchParams.get('type') || null;
   const activeCard = searchParams.get('card') || null;
 
+  // Stabilise setSearchParams via a ref so that downstream callbacks
+  // (updateParams → handleSearchChange → etc.) never change identity.
+  // Without this, every setSearchParams call recreates the function,
+  // which cascades through useCallback deps and re-triggers the
+  // toolbar's debounced search effect — resetting the page to 1.
+  const setSearchParamsRef = useRef(setSearchParams);
+  setSearchParamsRef.current = setSearchParams;
+
   // Helper to update URL params (merges with existing, removes empty values)
   const updateParams = useCallback((updates: Record<string, string | null>) => {
-    setSearchParams((prev) => {
+    setSearchParamsRef.current((prev) => {
       const next = new URLSearchParams(prev);
       for (const [key, val] of Object.entries(updates)) {
         if (val === null || val === '' || val === 'false') {
@@ -398,12 +406,11 @@ export default function CoordinatorDashboard() {
       }
       return next;
     });
-  }, [setSearchParams]);
+  }, []); // stable — no deps
 
   const setActiveTab = useCallback((tab: string) => {
-    // When switching tabs, preserve only the tab param
-    setSearchParams({ tab });
-  }, [setSearchParams]);
+    setSearchParamsRef.current({ tab });
+  }, []); // stable
 
   const setPage = useCallback((p: number) => {
     updateParams({ page: p > 1 ? String(p) : null });
@@ -427,7 +434,7 @@ export default function CoordinatorDashboard() {
 
   const deleteDraft = useDeleteDraft();
 
-  const { data: result, isLoading: requestsLoading } = usePaginatedRequests({
+  const filters = useMemo(() => ({
     page,
     pageSize: 20,
     search,
@@ -437,7 +444,9 @@ export default function CoordinatorDashboard() {
     productType,
     userId: profile?.id,
     userRole: profile?.role,
-  });
+  }), [page, search, status, priority, overdue, productType, profile?.id, profile?.role]);
+
+  const { data: result, isLoading: requestsLoading } = usePaginatedRequests(filters);
 
   const requests = result?.data || [];
   const totalPages = result?.totalPages || 0;
