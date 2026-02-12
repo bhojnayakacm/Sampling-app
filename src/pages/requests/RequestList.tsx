@@ -23,8 +23,9 @@ import { usePaginatedRequests, useDeleteDraft } from '@/lib/api/requests';
 import { formatDate } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, Plus, LogOut, List, Phone } from 'lucide-react';
+import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, LogOut, List, Phone, Clock } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
+import { Card, CardContent } from '@/components/ui/card';
 import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 
@@ -67,6 +68,8 @@ export default function RequestList() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<RequestStatus | RequestStatus[] | null>(null);
   const [priority, setPriority] = useState<Priority | null>(null);
+  const [overdue, setOverdue] = useState(false);
+  const [productType, setProductType] = useState<string | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
 
   // Extract primitive values from searchParams for stable useEffect dependencies
@@ -97,6 +100,8 @@ export default function RequestList() {
     search,
     status,
     priority,
+    overdue,
+    productType,
     userId: profile?.id,
     userRole: profile?.role,
   });
@@ -151,6 +156,8 @@ export default function RequestList() {
     setSearch('');
     setStatus(null);
     setPriority(null);
+    setOverdue(false);
+    setProductType(null);
     setPage(1);
   }, []);
 
@@ -169,20 +176,30 @@ export default function RequestList() {
     setPage(1);
   }, []);
 
-  // Get status bar color for mobile cards
-  const getStatusBarColor = (status: string) => {
+  const handleOverdueChange = useCallback((value: boolean) => {
+    setOverdue(value);
+    setPage(1);
+  }, []);
+
+  const handleProductTypeChange = useCallback((value: string | null) => {
+    setProductType(value);
+    setPage(1);
+  }, []);
+
+  // Left border accent color for mobile cards (matches Coordinator design)
+  const getStatusAccent = (status: string) => {
     const colors: Record<string, string> = {
-      draft: 'bg-slate-400',
-      pending_approval: 'bg-amber-500',
-      approved: 'bg-sky-500',
-      assigned: 'bg-indigo-500',
-      in_production: 'bg-violet-500',
-      ready: 'bg-teal-500',
-      dispatched: 'bg-emerald-500',
-      received: 'bg-green-500',
-      rejected: 'bg-red-500',
+      draft: 'border-l-slate-400',
+      pending_approval: 'border-l-amber-500',
+      approved: 'border-l-sky-500',
+      assigned: 'border-l-indigo-500',
+      in_production: 'border-l-violet-500',
+      ready: 'border-l-teal-500',
+      dispatched: 'border-l-emerald-500',
+      received: 'border-l-green-500',
+      rejected: 'border-l-red-500',
     };
-    return colors[status] || 'bg-slate-400';
+    return colors[status] || 'border-l-slate-400';
   };
 
   return (
@@ -228,31 +245,24 @@ export default function RequestList() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        {/* Mobile Quick Action - New Request button */}
-        {isRequesterUser && (
-          <div className="md:hidden">
-            <Button
-              onClick={() => navigate('/requests/new')}
-              className="w-full min-h-[52px] gap-3 font-semibold text-base bg-indigo-600 hover:bg-indigo-700"
-            >
-              <Plus className="h-5 w-5" />
-              New Request
-            </Button>
-          </div>
-        )}
-
         {/* Toolbar with Search and Filters */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <RequestToolbar
-            search={search}
-            status={Array.isArray(status) ? null : status}
-            priority={priority}
-            onSearchChange={handleSearchChange}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onReset={handleReset}
-          />
-        </div>
+        <Card className="bg-white border border-slate-200 shadow-sm">
+          <CardContent className="p-4">
+            <RequestToolbar
+              search={search}
+              status={Array.isArray(status) ? null : status}
+              priority={priority}
+              productType={productType}
+              overdue={overdue}
+              onSearchChange={handleSearchChange}
+              onStatusChange={handleStatusChange}
+              onPriorityChange={handlePriorityChange}
+              onProductTypeChange={handleProductTypeChange}
+              onOverdueChange={handleOverdueChange}
+              onReset={handleReset}
+            />
+          </CardContent>
+        </Card>
 
         {/* Header with count and actions - Desktop */}
         <div className="flex justify-between items-center">
@@ -281,15 +291,6 @@ export default function RequestList() {
               <ChevronLeft className="h-4 w-4" />
               Dashboard
             </Button>
-            {isRequesterUser && (
-              <Button
-                onClick={() => navigate('/requests/new')}
-                className="h-11 gap-2 font-semibold bg-indigo-600 hover:bg-indigo-700"
-              >
-                <Plus className="h-4 w-4" />
-                New Request
-              </Button>
-            )}
           </div>
         </div>
 
@@ -309,7 +310,7 @@ export default function RequestList() {
               <Package className="h-10 w-10 text-slate-400" />
             </div>
             <p className="text-slate-600 text-lg font-medium">
-              {search || status || priority
+              {search || status || priority || overdue || productType
                 ? 'No requests found matching your filters.'
                 : isRequesterUser
                 ? 'No requests found. Create your first request to get started.'
@@ -317,7 +318,7 @@ export default function RequestList() {
                 ? 'No tasks assigned to you yet.'
                 : 'No requests found in the system.'}
             </p>
-            {(search || status || priority) && (
+            {(search || status || priority || overdue || productType) && (
               <Button
                 variant="outline"
                 onClick={handleReset}
@@ -329,44 +330,49 @@ export default function RequestList() {
           </div>
         ) : (
           <>
-            {/* Mobile Card View */}
+            {/* Mobile Card View — Unified design matching Coordinator Dashboard */}
             <div className="md:hidden space-y-3">
               {requests.map((request) => {
                 const isDraft = request.status === 'draft';
-                const summary = getItemSummary(request);
+                const itemCount = request.item_count || 1;
+
                 return (
-                  <div
+                  <Card
                     key={request.id}
                     onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
-                    className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden transition-all duration-200 ${
-                      !isDraft ? 'cursor-pointer hover:shadow-md active:scale-[0.99]' : ''
+                    className={`bg-white border border-slate-200 shadow-sm overflow-hidden border-l-4 ${getStatusAccent(request.status)} ${
+                      !isDraft ? 'cursor-pointer active:bg-slate-50' : ''
                     }`}
                   >
-                    {/* Status Bar */}
-                    <div className={`h-1.5 ${getStatusBarColor(request.status)}`} />
+                    <CardContent className="p-4">
+                      {/* Row 1: Request # (left) + Priority & Status badges (right) */}
+                      <div className="flex items-center justify-between mb-2">
+                        <code className="text-sm font-mono font-bold text-indigo-600">
+                          {request.request_number}
+                        </code>
+                        <div className="flex items-center gap-2">
+                          {request.priority === 'urgent' && getPriorityBadge(request.priority)}
+                          {getStatusBadge(request.status)}
+                        </div>
+                      </div>
 
-                    <div className="p-4">
-                      {/* Header Row */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <code className="text-sm font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
-                              {request.request_number}
-                            </code>
-                            {request.priority === 'urgent' && (
-                              <span className="px-1.5 py-0.5 bg-gradient-to-r from-red-500 to-rose-500 text-white text-[10px] font-bold rounded uppercase">
-                                Urgent
-                              </span>
-                            )}
-                          </div>
+                      {/* Row 2: Role-aware hero content */}
+                      {isRequesterUser ? (
+                        /* Requester: Client/Project is the hero (they know who they are) */
+                        <p className="text-base font-semibold text-slate-900 truncate mb-1">
+                          {request.client_contact_name} — {request.firm_name}
+                        </p>
+                      ) : (
+                        /* Staff: Requester name is the hero + call button */
+                        <>
                           {request.creator && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 mb-1">
                               <div className="flex items-baseline gap-1.5 flex-wrap min-w-0 flex-1">
-                                <p className="text-lg font-semibold text-gray-900 truncate">
+                                <p className="text-base font-semibold text-slate-900 truncate">
                                   {request.creator.full_name}
                                 </p>
                                 {request.creator.department && (
-                                  <span className="text-xs text-gray-500 font-normal whitespace-nowrap">
+                                  <span className="text-xs text-slate-500 font-normal whitespace-nowrap">
                                     • {request.creator.department}
                                   </span>
                                 )}
@@ -375,77 +381,80 @@ export default function RequestList() {
                                 <a
                                   href={`tel:${request.creator.phone}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="flex-shrink-0 h-8 w-8 rounded-full bg-green-50 hover:bg-green-100 flex items-center justify-center transition-colors md:hidden"
+                                  className="flex-shrink-0 h-8 w-8 rounded-full bg-green-50 hover:bg-green-100 flex items-center justify-center transition-colors"
                                 >
                                   <Phone className="h-4 w-4 text-green-600" />
                                 </a>
                               )}
                             </div>
                           )}
-                          <p className="text-sm text-gray-500 truncate">
-                            {request.client_contact_name} — {request.firm_name}
+                          <p className="text-sm text-slate-500 truncate mb-1">
+                            {request.client_contact_name} — {request.firm_name || '—'}
                           </p>
-                        </div>
+                        </>
+                      )}
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-0.5 ml-2 flex-shrink-0">
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <TrackingDialog
-                              request={request}
-                              trigger={
-                                <Button variant="ghost" size="sm" className="h-11 w-11 p-0 hover:bg-indigo-50">
-                                  <MapPin className="h-5 w-5 text-indigo-500" />
-                                </Button>
-                              }
-                            />
-                          </div>
+                      {/* Row 3: Date + Item count */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatDate(request.created_at)}</span>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
+                          itemCount > 1
+                            ? 'bg-indigo-50 text-indigo-600 font-medium'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {itemCount > 1 && <Package className="h-3 w-3" />}
+                          {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+
+                      {/* Row 4: Bottom action bar */}
+                      <div className="flex items-center justify-end pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          {/* Draft Actions */}
                           {isRequesterUser && isDraft && (
                             <>
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/requests/edit/${request.id}`);
-                                }}
-                                className="h-11 w-11 p-0 hover:bg-sky-50"
+                                variant="outline"
+                                onClick={() => navigate(`/requests/edit/${request.id}`)}
+                                className="h-11 px-3 text-xs"
                               >
-                                <Edit className="h-5 w-5 text-sky-600" />
+                                <Edit className="h-4 w-4 mr-1" />
+                                Edit
                               </Button>
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDraftToDelete({ id: request.id, number: request.request_number });
-                                }}
-                                className="h-11 w-11 p-0 hover:bg-red-50"
+                                variant="outline"
+                                onClick={() => setDraftToDelete({ id: request.id, number: request.request_number })}
+                                className="h-11 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
                               >
-                                <Trash2 className="h-5 w-5 text-red-500" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </>
                           )}
+                          {/* Track Button — 44px touch target */}
+                          {!isDraft && (
+                            <TrackingDialog
+                              request={request}
+                              trigger={
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-11 px-4 text-xs font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                >
+                                  <MapPin className="h-4 w-4 mr-1.5" />
+                                  Track
+                                </Button>
+                              }
+                            />
+                          )}
                         </div>
                       </div>
-
-                      {/* Status Badge */}
-                      <div className="mb-3">
-                        {getStatusBadge(request.status)}
-                      </div>
-
-                      {/* Details Row */}
-                      <div className="flex items-center justify-between text-xs bg-slate-50 -mx-4 px-4 py-2.5 border-t border-slate-100">
-                        <div className="flex items-center gap-1.5 text-slate-600">
-                          <Package className="h-3.5 w-3.5 text-slate-400" />
-                          <span className={summary.isMulti ? 'font-semibold text-indigo-600' : ''}>
-                            {summary.text}
-                          </span>
-                        </div>
-                        <span className="text-slate-400 font-medium">{formatDate(request.created_at)}</span>
-                      </div>
-
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 );
               })}
             </div>
