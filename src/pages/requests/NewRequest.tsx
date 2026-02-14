@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -343,6 +344,7 @@ export default function NewRequest() {
   const location = useLocation();
   const { id: draftId } = useParams<{ id: string }>();
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
 
   // Where to go when the user exits the form
   const exitPath = (location.state as any)?.from || '/';
@@ -779,6 +781,10 @@ export default function NewRequest() {
         toast.success('Request saved as draft');
       }
 
+      // Invalidate cached lists so the new/updated draft appears immediately
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+
       allowExitRef.current = true;
       navigate('/requests');
     } catch (error: any) {
@@ -972,6 +978,11 @@ export default function NewRequest() {
           </div>
         );
       }
+
+      // Invalidate cached lists so the submitted request appears immediately
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
 
       allowExitRef.current = true;
       navigate('/requests');
@@ -1192,7 +1203,7 @@ export default function NewRequest() {
                 {/* Priority */}
                 <div>
                   <Label htmlFor="priority" className="text-slate-700 font-semibold">Priority *</Label>
-                  <Select onValueChange={(value) => setValue('priority', value as 'urgent' | 'normal')} defaultValue="normal">
+                  <Select value={watch('priority') || 'normal'} onValueChange={(value) => setValue('priority', value as 'urgent' | 'normal')}>
                     <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                       <SelectValue />
                     </SelectTrigger>
@@ -1217,7 +1228,7 @@ export default function NewRequest() {
                 {/* Pickup Responsibility - Restricted options for Requesters */}
                 <div>
                   <Label htmlFor="pickup_responsibility" className="text-slate-700 font-semibold">Pickup Responsibility *</Label>
-                  <Select onValueChange={(value) => setValue('pickup_responsibility', value as PickupResponsibility)}>
+                  <Select value={watch('pickup_responsibility') || ''} onValueChange={(value) => setValue('pickup_responsibility', value as PickupResponsibility)}>
                     <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                       <SelectValue placeholder="Select pickup method" />
                     </SelectTrigger>
@@ -1557,7 +1568,7 @@ export default function NewRequest() {
                   {/* Purpose */}
                   <div>
                     <Label htmlFor="purpose" className="text-slate-700 font-semibold">Purpose of Sample *</Label>
-                    <Select onValueChange={(value) => setValue('purpose', value as Purpose)}>
+                    <Select value={watch('purpose') || ''} onValueChange={(value) => setValue('purpose', value as Purpose)}>
                       <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                         <SelectValue placeholder="Select purpose" />
                       </SelectTrigger>
@@ -1573,7 +1584,7 @@ export default function NewRequest() {
                   {/* Packing Details */}
                   <div>
                     <Label htmlFor="packing_details" className="text-slate-700 font-semibold">Packing *</Label>
-                    <Select onValueChange={(value) => setValue('packing_details', value as PackingType)}>
+                    <Select value={watch('packing_details') || ''} onValueChange={(value) => setValue('packing_details', value as PackingType)}>
                       <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
                         <SelectValue placeholder="Select packing type" />
                       </SelectTrigger>
