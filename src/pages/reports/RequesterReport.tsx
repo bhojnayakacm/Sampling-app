@@ -57,8 +57,6 @@ function useRequesterReport() {
         .select(`
           id,
           created_by,
-          product_type,
-          quantity,
           item_count,
           creator:profiles!created_by (
             id,
@@ -114,7 +112,7 @@ function useRequesterReport() {
         const requestItems = itemsMap.get(request.id);
 
         if (requestItems && requestItems.length > 0) {
-          // Multi-product: aggregate from items
+          // Aggregate from items
           requestItems.forEach((item) => {
             existing.totalItems += item.quantity;
             const productType = item.product_type.toLowerCase() as 'marble' | 'tile' | 'terrazzo' | 'quartz';
@@ -122,13 +120,6 @@ function useRequesterReport() {
               existing[productType] += item.quantity;
             }
           });
-        } else {
-          // Legacy single-product request
-          existing.totalItems += request.quantity || 0;
-          const productType = (request.product_type || '').toLowerCase() as 'marble' | 'tile' | 'terrazzo' | 'quartz';
-          if (existing[productType] !== undefined) {
-            existing[productType] += request.quantity || 0;
-          }
         }
 
         requesterMap.set(requesterId, existing);

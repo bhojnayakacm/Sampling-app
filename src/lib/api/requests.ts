@@ -2,6 +2,38 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { supabase } from '@/lib/supabase';
 import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput, RequiredByHistoryEntry } from '@/types';
 
+// ============================================================
+// VALID COLUMNS — Only these fields exist on the requests table.
+// This allowlist prevents stale/legacy columns from reaching Supabase.
+// ============================================================
+const VALID_REQUEST_COLUMNS = new Set([
+  'created_by', 'assigned_to', 'status', 'priority',
+  'department', 'mobile_no', 'pickup_responsibility', 'pickup_remarks',
+  'delivery_method_remark', 'is_delivery_method_edited',
+  'delivery_address', 'is_address_edited', 'address_edit_remark',
+  'required_by', 'required_by_history',
+  'client_type', 'client_type_remarks',
+  'client_contact_name', 'client_phone', 'client_email',
+  'firm_name', 'site_location',
+  'supporting_architect_name', 'architect_firm_name',
+  'project_type', 'project_type_custom', 'project_placeholder',
+  'purpose', 'packing_details', 'packing_remarks',
+  'requester_message', 'coordinator_message', 'dispatch_notes',
+  'item_count', 'received_by',
+  'completed_at', 'dispatched_at', 'received_at',
+]);
+
+/** Strip any keys that are not actual columns on the requests table. */
+function sanitizeRequestData(data: Record<string, any>): Record<string, any> {
+  const sanitized: Record<string, any> = {};
+  for (const key of Object.keys(data)) {
+    if (VALID_REQUEST_COLUMNS.has(key)) {
+      sanitized[key] = data[key];
+    }
+  }
+  return sanitized;
+}
+
 // Pagination and filtering parameters
 export interface RequestFilters {
   page?: number;
@@ -880,64 +912,6 @@ export function useRequestsTimeline(requestIds: string[]) {
 }
 
 // ============================================================
-// DUPLICATE REQUEST DETECTION
-// ============================================================
-
-export interface DuplicateCheckParams {
-  client_name: string;
-  client_phone: string;
-  quality: string;
-  sample_size: string;
-  thickness: string;
-  quantity: number;
-}
-
-export interface ExistingRequest {
-  request_number: string;
-  created_at: string;
-  requester_name: string;
-  status: RequestStatus;
-  client_contact_name: string;
-  product_type: string;
-  quality: string;
-  sample_size: string;
-  thickness: string;
-  quantity: number;
-}
-
-export interface DuplicateCheckResult {
-  is_duplicate: boolean;
-  duplicate_type: 'exact_match' | 'client_match' | null;
-  existing_request: ExistingRequest | null;
-}
-
-// Check for duplicate requests before submission
-export async function checkForDuplicates(params: DuplicateCheckParams): Promise<DuplicateCheckResult> {
-  const { data, error } = await supabase.rpc('check_for_duplicates', {
-    p_client_name: params.client_name,
-    p_client_phone: params.client_phone,
-    p_quality: params.quality,
-    p_sample_size: params.sample_size,
-    p_thickness: params.thickness,
-    p_quantity: params.quantity,
-  });
-
-  if (error) {
-    console.error('Error checking for duplicates:', error);
-    throw error;
-  }
-
-  // RPC returns an array with a single row
-  const result = data?.[0] || { is_duplicate: false, duplicate_type: null, existing_request: null };
-
-  return {
-    is_duplicate: result.is_duplicate || false,
-    duplicate_type: result.duplicate_type || null,
-    existing_request: result.existing_request || null,
-  };
-}
-
-// ============================================================
 // REQUEST ITEMS (MULTI-PRODUCT SUPPORT)
 // ============================================================
 
@@ -1020,13 +994,11 @@ export async function createRequestWithItems(
   console.log('[API] Item quantities:', items.map(i => i.quantity));
 
   // Step 1: Insert EXACTLY ONE parent request
+  const cleanData = sanitizeRequestData({ ...requestData, item_count: items.length });
   console.log('[API] Inserting ONE parent request...');
   const { data: request, error: requestError } = await supabase
     .from('requests')
-    .insert([{
-      ...requestData,
-      item_count: items.length,
-    }])
+    .insert([cleanData])
     .select()
     .single();
 
@@ -1075,12 +1047,10 @@ export async function updateRequestWithItems(
   items: Omit<CreateRequestItemInput, 'request_id'>[]
 ): Promise<{ request: Request; items: RequestItemDB[] }> {
   // Step 1: Update the parent request
+  const cleanData = sanitizeRequestData({ ...requestData, item_count: items.length });
   const { data: request, error: requestError } = await supabase
     .from('requests')
-    .update({
-      ...requestData,
-      item_count: items.length,
-    })
+    .update(cleanData)
     .eq('id', requestId)
     .select()
     .single();

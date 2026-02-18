@@ -43,7 +43,6 @@ import {
   CheckCircle,
   XCircle,
   ChevronLeft,
-  Image as ImageIcon,
   Truck,
   Loader2,
   Pencil,
@@ -443,54 +442,6 @@ export default function RequestDetail() {
     );
   };
 
-  // =============================================
-  // LEGACY PRODUCT CARD (for single-item requests)
-  // =============================================
-  const LegacyProductCard = () => {
-    if (!request) return null;
-    const showFinish = request.product_type === 'marble' || request.product_type === 'tile' || request.product_type === 'magro_stone';
-
-    return (
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-slate-900 capitalize">{request.product_type}</span>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
-              Qty: {request.quantity}
-            </span>
-            {request.image_url && (
-              <button
-                onClick={() => setPreviewImage(request.image_url)}
-                className="h-8 w-8 rounded border border-slate-200 overflow-hidden"
-              >
-                <img src={request.image_url} alt="Ref" className="h-full w-full object-cover" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Quality</span>
-            <p className="text-sm text-slate-900 mt-0.5">{request.quality}</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Size</span>
-            <p className="text-sm text-slate-900 mt-0.5">{request.sample_size}</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Finish</span>
-            <p className="text-sm text-slate-900 mt-0.5">{showFinish && request.finish ? request.finish : '—'}</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Thickness</span>
-            <p className="text-sm text-slate-900 mt-0.5">{request.thickness}</p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Loading state
   if (isLoading) {
     return (
@@ -778,7 +729,7 @@ export default function RequestDetail() {
                     onClick={async () => {
                       const qualities = hasItems
                         ? request.items!.map((item) => item.quality_custom || item.quality).filter(Boolean)
-                        : request.quality ? [request.quality] : [];
+                        : [];
                       if (qualities.length === 0) return;
                       await navigator.clipboard.writeText(qualities.join(', '));
                       setQualitiesCopied(true);
@@ -858,49 +809,9 @@ export default function RequestDetail() {
                     </div>
                   </>
                 ) : (
-                  <>
-                    {/* DESKTOP: Legacy Table */}
-                    <div className="hidden md:block p-4">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50 hover:bg-slate-50">
-                            <TableHead className="text-xs font-medium text-slate-500">Type</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Quality</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Size</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Finish</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Thickness</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500 text-right">Qty</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow className="hover:bg-slate-50/50">
-                            <TableCell className="text-sm text-slate-900 capitalize font-medium">{request.product_type}</TableCell>
-                            <TableCell className="text-sm text-slate-700">{request.quality}</TableCell>
-                            <TableCell className="text-sm text-slate-700">{request.sample_size}</TableCell>
-                            <TableCell className="text-sm text-slate-700">{request.finish || '—'}</TableCell>
-                            <TableCell className="text-sm text-slate-700">{request.thickness}</TableCell>
-                            <TableCell className="text-sm text-slate-900 font-medium text-right">{request.quantity}</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                      {request.image_url && (
-                        <div className="mt-4 pt-4 border-t border-slate-100">
-                          <button
-                            onClick={() => setPreviewImage(request.image_url)}
-                            className="flex items-center gap-2 text-sm text-indigo-600"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                            View Reference Image
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* MOBILE: Legacy Card */}
-                    <div className="md:hidden p-3">
-                      <LegacyProductCard />
-                    </div>
-                  </>
+                  <div className="p-6 text-center text-slate-500 text-sm">
+                    No product items found for this request.
+                  </div>
                 )}
               </CardContent>
             </Card>

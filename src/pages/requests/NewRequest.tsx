@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -308,10 +308,13 @@ function explodeProducts(products: ProductItem[]): ExplodedItem[] {
       : [];
     const verifiedSet = new Set(verifiedQualities);
 
-    if (product.selected_qualities.length > 0) {
+    // Deduplicate selected_qualities (safety net against UI bugs)
+    const uniqueQualities = [...new Set(product.selected_qualities)];
+
+    if (uniqueQualities.length > 0) {
       // Unified mode: each selected quality becomes a separate item
       // Custom detection: if the quality is NOT in the verified DB list
-      product.selected_qualities.forEach((quality, qualityIndex) => {
+      uniqueQualities.forEach((quality, qualityIndex) => {
         exploded.push({
           product,
           quality,
@@ -371,6 +374,8 @@ export default function NewRequest() {
     handleSubmit,
     watch,
     setValue,
+    reset,
+    control,
     formState: { errors, isDirty },
   } = useForm<RequestFormData>({
     defaultValues: {
@@ -383,33 +388,50 @@ export default function NewRequest() {
   const clientType = watch('client_type');
   const packingDetails = watch('packing_details');
 
-  // Load draft data when editing
+  // Load draft data when editing — use reset() for atomic form population
   useEffect(() => {
     if (isEditMode && existingDraft) {
-      // Load form fields
-      setValue('client_type', existingDraft.client_type as ClientType);
-      setValue('client_type_remarks', existingDraft.client_type_remarks || '');
-      setValue('client_contact_name', existingDraft.client_contact_name);
-      setValue('client_phone', existingDraft.client_phone);
-      setValue('client_email', existingDraft.client_email || '');
-      setValue('firm_name', existingDraft.firm_name || '');
-      setValue('site_location', existingDraft.site_location);
+      // Parse required_by safely
+      let requiredBy = '';
+      try {
+        if (existingDraft.required_by) {
+          requiredBy = new Date(existingDraft.required_by).toISOString();
+        }
+      } catch (e) {
+        console.warn('[Draft Load] Invalid required_by date:', existingDraft.required_by);
+      }
 
-      // Load dynamic client type fields
-      setValue('supporting_architect_name', existingDraft.supporting_architect_name || '');
-      setValue('architect_firm_name', existingDraft.architect_firm_name || '');
-      setValue('project_type', existingDraft.project_type || '');
-      setValue('project_type_custom', existingDraft.project_type_custom || '');
-      setValue('project_placeholder', existingDraft.project_placeholder || '');
-      setValue('priority', existingDraft.priority as 'urgent' | 'normal');
-      setValue('required_by', existingDraft.required_by ? new Date(existingDraft.required_by).toISOString() : '');
-      setValue('pickup_responsibility', existingDraft.pickup_responsibility as PickupResponsibility);
-      setValue('pickup_remarks', existingDraft.pickup_remarks || '');
-      setValue('delivery_address', existingDraft.delivery_address || '');
-      setValue('purpose', existingDraft.purpose as Purpose);
-      setValue('packing_details', existingDraft.packing_details as PackingType);
-      setValue('packing_remarks', existingDraft.packing_remarks || '');
-      setValue('requester_message', existingDraft.requester_message || '');
+      // Atomically reset all form fields at once — avoids race conditions with setValue
+      reset({
+        // Section 1: Requester Details
+        priority: (existingDraft.priority as 'urgent' | 'normal') || 'normal',
+        pickup_responsibility: (existingDraft.pickup_responsibility as PickupResponsibility) || undefined,
+        pickup_remarks: existingDraft.pickup_remarks || '',
+        delivery_address: existingDraft.delivery_address || '',
+        required_by: requiredBy,
+
+        // Section 2: Client Project Details
+        client_type: (existingDraft.client_type as ClientType) || undefined,
+        client_type_remarks: existingDraft.client_type_remarks || '',
+        client_contact_name: existingDraft.client_contact_name || '',
+        client_phone: existingDraft.client_phone || '',
+        client_email: existingDraft.client_email || '',
+        firm_name: existingDraft.firm_name || '',
+        site_location: existingDraft.site_location || '',
+
+        // Dynamic client type fields
+        supporting_architect_name: existingDraft.supporting_architect_name || '',
+        architect_firm_name: existingDraft.architect_firm_name || '',
+        project_type: existingDraft.project_type || '',
+        project_type_custom: existingDraft.project_type_custom || '',
+        project_placeholder: existingDraft.project_placeholder || '',
+
+        // Section 3: Shared Details
+        purpose: (existingDraft.purpose as Purpose) || undefined,
+        packing_details: (existingDraft.packing_details as PackingType) || undefined,
+        packing_remarks: existingDraft.packing_remarks || '',
+        requester_message: existingDraft.requester_message || '',
+      });
 
       // Load items from request_items table (new structure)
       if (existingDraft.items && existingDraft.items.length > 0) {
@@ -418,17 +440,14 @@ export default function NewRequest() {
           const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
 
           // Determine the quality to load into selected_qualities
-          // Both verified and custom qualities go into the same array now
           const qualityToLoad = item.quality_custom || item.quality;
 
           return {
             id: generateId(),
             product_type: productType,
-            // Unified quality: all entries go into selected_qualities
             selected_qualities: qualityToLoad ? [qualityToLoad] : [],
             quality_custom: '',
             use_custom_quality: false,
-            // Legacy field for backward compatibility
             quality: item.quality || '',
             sample_size: item.sample_size,
             sample_size_remarks: item.sample_size_remarks || '',
@@ -442,34 +461,9 @@ export default function NewRequest() {
           };
         });
         setProducts(loadedProducts);
-      } else if (existingDraft.product_type) {
-        // Backward compatibility: Load from legacy columns
-        const productType = existingDraft.product_type as ProductType;
-        const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
-        const quality = existingDraft.quality || '';
-
-        setProducts([{
-          id: generateId(),
-          product_type: productType,
-          // New multi-select fields - load legacy quality into array
-          selected_qualities: quality ? [quality] : [],
-          quality_custom: '',
-          use_custom_quality: false,
-          // Legacy field
-          quality: quality,
-          sample_size: existingDraft.sample_size || '',
-          sample_size_remarks: existingDraft.sample_size_remarks || '',
-          thickness: existingDraft.thickness || '',
-          thickness_remarks: existingDraft.thickness_remarks || '',
-          finish: hasFinish ? (existingDraft.finish || 'Polish') : '',
-          finish_remarks: existingDraft.finish_remarks || '',
-          quantity: existingDraft.quantity || 1,
-          image_url: existingDraft.image_url,
-          image_preview: existingDraft.image_url,
-        }]);
       }
     }
-  }, [isEditMode, existingDraft, setValue]);
+  }, [isEditMode, existingDraft, reset]);
 
   // ============================================================
   // DIRTY FORM PROTECTION — Intercept browser back button
@@ -691,6 +685,13 @@ export default function NewRequest() {
       return;
     }
 
+    // Prevent concurrent draft save + submit
+    if (isSubmittingRef.current) {
+      console.warn('[NewRequest] Blocked concurrent draft save');
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -702,11 +703,7 @@ export default function NewRequest() {
       // Step 2: Explode batch entries into individual items
       const explodedItems = explodeProducts(products);
 
-      // Step 3: Get the first quality for legacy columns
-      const firstProduct = products[0];
-      const firstQuality = firstProduct?.selected_qualities[0] || firstProduct?.quality || null;
-
-      // Step 4: Prepare request data (parent)
+      // Step 3: Prepare request data (parent)
       const requestData = {
         created_by: profile.id,
         status: 'draft',
@@ -743,18 +740,6 @@ export default function NewRequest() {
 
         // Requester message (optional)
         requester_message: formValues.requester_message || null,
-
-        // Legacy columns (set to first product for backward compatibility)
-        product_type: firstProduct?.product_type || null,
-        quality: firstQuality,
-        sample_size: firstProduct?.sample_size || null,
-        sample_size_remarks: firstProduct?.sample_size === 'Custom' ? (firstProduct?.sample_size_remarks || null) : null,
-        thickness: firstProduct?.thickness || null,
-        thickness_remarks: firstProduct?.thickness === 'Custom' ? (firstProduct?.thickness_remarks || null) : null,
-        finish: firstProduct?.finish || null,
-        finish_remarks: (firstProduct?.finish === 'Custom' || firstProduct?.finish === 'Customize') ? (firstProduct?.finish_remarks || null) : null,
-        quantity: firstProduct?.quantity || null,
-        image_url: imageUrlMap.get(0) || firstProduct?.image_url || null,
       };
 
       // Step 5: Prepare items data from exploded entries
@@ -781,9 +766,15 @@ export default function NewRequest() {
         toast.success('Request saved as draft');
       }
 
-      // Invalidate cached lists so the new/updated draft appears immediately
+      // Invalidate cached data so re-opening this draft shows fresh values
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      if (draftId) {
+        queryClient.invalidateQueries({ queryKey: ['request-with-items', draftId] });
+        queryClient.invalidateQueries({ queryKey: ['request', draftId] });
+        queryClient.invalidateQueries({ queryKey: ['request-items', draftId] });
+      }
 
       allowExitRef.current = true;
       navigate('/requests');
@@ -798,6 +789,7 @@ export default function NewRequest() {
         { duration: 5000 }
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -872,11 +864,7 @@ export default function NewRequest() {
       const explodedItems = explodeProducts(products);
       console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
 
-      // Step 3: Get the first quality for legacy columns
-      const firstProduct = products[0];
-      const firstQuality = firstProduct?.selected_qualities[0] || firstProduct?.quality || null;
-
-      // Step 4: Prepare request data (parent - EXACTLY ONE request)
+      // Step 3: Prepare request data (parent - EXACTLY ONE request)
       const requestData = {
         created_by: profile.id,
         status: 'pending_approval',
@@ -913,18 +901,6 @@ export default function NewRequest() {
 
         // Requester message (optional)
         requester_message: data.requester_message || null,
-
-        // Legacy columns (set to first product for backward compatibility)
-        product_type: firstProduct?.product_type || null,
-        quality: firstQuality,
-        sample_size: firstProduct?.sample_size || null,
-        sample_size_remarks: firstProduct?.sample_size === 'Custom' ? (firstProduct?.sample_size_remarks || null) : null,
-        thickness: firstProduct?.thickness || null,
-        thickness_remarks: firstProduct?.thickness === 'Custom' ? (firstProduct?.thickness_remarks || null) : null,
-        finish: firstProduct?.finish || null,
-        finish_remarks: (firstProduct?.finish === 'Custom' || firstProduct?.finish === 'Customize') ? (firstProduct?.finish_remarks || null) : null,
-        quantity: firstProduct?.quantity || null,
-        image_url: imageUrlMap.get(0) || firstProduct?.image_url || null,
       };
 
       // Step 5: Prepare items data from exploded entries
@@ -979,10 +955,16 @@ export default function NewRequest() {
         );
       }
 
-      // Invalidate cached lists so the submitted request appears immediately
+      // Invalidate cached data so re-opening this request shows fresh values
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['all-requests-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['my-requests'] });
+      if (draftId) {
+        queryClient.invalidateQueries({ queryKey: ['request-with-items', draftId] });
+        queryClient.invalidateQueries({ queryKey: ['request', draftId] });
+        queryClient.invalidateQueries({ queryKey: ['request-items', draftId] });
+      }
 
       allowExitRef.current = true;
       navigate('/requests');
@@ -1203,15 +1185,21 @@ export default function NewRequest() {
                 {/* Priority */}
                 <div>
                   <Label htmlFor="priority" className="text-slate-700 font-semibold">Priority *</Label>
-                  <Select value={watch('priority') || 'normal'} onValueChange={(value) => setValue('priority', value as 'urgent' | 'normal')}>
-                    <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="priority"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value || 'normal'} onValueChange={field.onChange}>
+                        <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                          <SelectItem value="normal">Normal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
 
                 {/* Required By */}
@@ -1228,18 +1216,24 @@ export default function NewRequest() {
                 {/* Pickup Responsibility - Restricted options for Requesters */}
                 <div>
                   <Label htmlFor="pickup_responsibility" className="text-slate-700 font-semibold">Pickup Responsibility *</Label>
-                  <Select value={watch('pickup_responsibility') || ''} onValueChange={(value) => setValue('pickup_responsibility', value as PickupResponsibility)}>
-                    <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
-                      <SelectValue placeholder="Select pickup method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="self_pickup">Self Pickup</SelectItem>
-                      <SelectItem value="courier">Courier</SelectItem>
-                      <SelectItem value="company_vehicle">Company Vehicle</SelectItem>
-                      <SelectItem value="field_boy">Field Boy</SelectItem>
-                      {/* Note: "3rd Party" and "Other" are restricted to Coordinator only */}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="pickup_responsibility"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value || ''} onValueChange={field.onChange}>
+                        <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
+                          <SelectValue placeholder="Select pickup method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="self_pickup">Self Pickup</SelectItem>
+                          <SelectItem value="courier">Courier</SelectItem>
+                          <SelectItem value="company_vehicle">Company Vehicle</SelectItem>
+                          <SelectItem value="field_boy">Field Boy</SelectItem>
+                          {/* Note: "3rd Party" and "Other" are restricted to Coordinator only */}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
 
                 {/* Pickup Remarks */}
@@ -1295,20 +1289,23 @@ export default function NewRequest() {
                 {/* Client Type */}
                 <div>
                   <Label htmlFor="client_type" className="text-slate-700 font-semibold">Client Type *</Label>
-                  <Select
-                    value={clientType || ''}
-                    onValueChange={(value) => setValue('client_type', value as ClientType)}
-                  >
-                    <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
-                      <SelectValue placeholder="Select client type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="retail">Retail</SelectItem>
-                      <SelectItem value="architect">Architect</SelectItem>
-                      <SelectItem value="project">Project</SelectItem>
-                      <SelectItem value="others">Others</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="client_type"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value || ''} onValueChange={field.onChange}>
+                        <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
+                          <SelectValue placeholder="Select client type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="architect">Architect</SelectItem>
+                          <SelectItem value="project">Project</SelectItem>
+                          <SelectItem value="others">Others</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
 
                 {/* Client Type Remarks - Show for "Others" */}
@@ -1568,34 +1565,46 @@ export default function NewRequest() {
                   {/* Purpose */}
                   <div>
                     <Label htmlFor="purpose" className="text-slate-700 font-semibold">Purpose of Sample *</Label>
-                    <Select value={watch('purpose') || ''} onValueChange={(value) => setValue('purpose', value as Purpose)}>
-                      <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
-                        <SelectValue placeholder="Select purpose" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="new_launch">New Launch</SelectItem>
-                        <SelectItem value="client_presentation">Client Presentation</SelectItem>
-                        <SelectItem value="mock_up">Mock UP</SelectItem>
-                        <SelectItem value="approval">Approval</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Controller
+                      name="purpose"
+                      control={control}
+                      render={({ field }) => (
+                        <Select value={field.value || ''} onValueChange={field.onChange}>
+                          <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
+                            <SelectValue placeholder="Select purpose" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="new_launch">New Launch</SelectItem>
+                            <SelectItem value="client_presentation">Client Presentation</SelectItem>
+                            <SelectItem value="mock_up">Mock UP</SelectItem>
+                            <SelectItem value="approval">Approval</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
                   </div>
 
                   {/* Packing Details */}
                   <div>
                     <Label htmlFor="packing_details" className="text-slate-700 font-semibold">Packing *</Label>
-                    <Select value={watch('packing_details') || ''} onValueChange={(value) => setValue('packing_details', value as PackingType)}>
-                      <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
-                        <SelectValue placeholder="Select packing type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="wooden_crate">Wooden Crate</SelectItem>
-                        <SelectItem value="cardboard">Cardboard</SelectItem>
-                        <SelectItem value="bubble_wrap">Bubble Wrap</SelectItem>
-                        <SelectItem value="foam">Foam</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Controller
+                      name="packing_details"
+                      control={control}
+                      render={({ field }) => (
+                        <Select value={field.value || ''} onValueChange={field.onChange}>
+                          <SelectTrigger className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500">
+                            <SelectValue placeholder="Select packing type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="wooden_crate">Wooden Crate</SelectItem>
+                            <SelectItem value="cardboard">Cardboard</SelectItem>
+                            <SelectItem value="bubble_wrap">Bubble Wrap</SelectItem>
+                            <SelectItem value="foam">Foam</SelectItem>
+                            <SelectItem value="custom">Custom</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
                   </div>
 
                   {/* Packing Remarks */}

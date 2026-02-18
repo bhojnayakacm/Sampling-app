@@ -19,11 +19,13 @@ import type { Request } from '@/types';
 
 // Get item summary for job cards
 function getItemSummary(request: Request): string {
-  const itemCount = request.item_count || 1;
-  if (itemCount === 1) {
-    const productType = request.product_type || 'Unknown';
-    return `${productType.charAt(0).toUpperCase() + productType.slice(1)} - ${request.quality || 'N/A'}`;
+  const itemCount = request.item_count || 0;
+  if (itemCount === 1 && request.items && request.items.length > 0) {
+    const item = request.items[0];
+    const productType = item.product_type || 'Unknown';
+    return `${productType.charAt(0).toUpperCase() + productType.slice(1)} - ${item.quality_custom || item.quality || 'N/A'}`;
   }
+  if (itemCount <= 1) return '1 Product';
   return `${itemCount} Products`;
 }
 
@@ -187,15 +189,9 @@ export default function MakerDashboard() {
                             <p className="text-slate-900 font-medium">{getItemSummary(task)}</p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-slate-50 rounded-lg p-3">
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Size</p>
-                            <p className="text-slate-900 font-medium text-sm">{task.sample_size || 'N/A'}</p>
-                          </div>
-                          <div className="bg-slate-50 rounded-lg p-3">
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Quantity</p>
-                            <p className="text-slate-900 font-medium text-sm">{task.quantity || 1} pcs</p>
-                          </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-xs text-slate-500 uppercase tracking-wide">Total Items</p>
+                          <p className="text-slate-900 font-medium text-sm">{task.item_count || 1}</p>
                         </div>
                       </div>
 
@@ -272,15 +268,9 @@ export default function MakerDashboard() {
                             <p className="text-slate-900 font-medium">{getItemSummary(task)}</p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-slate-50 rounded-lg p-3">
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Size</p>
-                            <p className="text-slate-900 font-medium text-sm">{task.sample_size || 'N/A'}</p>
-                          </div>
-                          <div className="bg-slate-50 rounded-lg p-3">
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Quantity</p>
-                            <p className="text-slate-900 font-medium text-sm">{task.quantity || 1} pcs</p>
-                          </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-xs text-slate-500 uppercase tracking-wide">Total Items</p>
+                          <p className="text-slate-900 font-medium text-sm">{task.item_count || 1}</p>
                         </div>
                       </div>
 

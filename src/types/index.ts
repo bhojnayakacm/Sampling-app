@@ -187,25 +187,12 @@ export interface Request {
   project_type_custom: string | null;  // For Project clients when "Other" is selected
   project_placeholder: string | null;  // For Project clients
 
-  // Section 3: Sample Request Details (DEPRECATED - kept for backward compatibility)
-  // New requests store product data in request_items table
-  product_type: string;  // ProductType
-  quality: string;  // Quality
-  sample_size: string;
-  sample_size_remarks: string | null;
-  finish: string | null;  // Not required for terrazzo/quartz
-  finish_remarks: string | null;
-  thickness: string;
-  thickness_remarks: string | null;
-  quantity: number;
+  // Section 3: Sample Request Details
   purpose: string;  // Purpose type
   packing_details: string;  // PackingType
   packing_remarks: string | null;
 
-  // Image (DEPRECATED - kept for backward compatibility)
-  image_url: string | null;
-
-  // Multi-product support (new)
+  // Multi-product support
   item_count: number;  // Number of items in this request
   items?: RequestItemDB[];  // Populated via join with request_items
 
@@ -243,48 +230,6 @@ export interface Request {
     role: UserRole;
     department: string | null;
   };
-}
-
-// ============================================================
-// FORM INPUT FOR CREATING NEW REQUEST
-// ============================================================
-
-export interface CreateRequestInput {
-  // Section 1: Requester Details
-  // name is auto-filled from profile (not in form)
-  department: Department;
-  mobile_no: string;
-  pickup_responsibility: PickupResponsibility;
-  pickup_remarks?: string;  // Required if pickup_responsibility === 'other'
-  delivery_address?: string;  // Not required if pickup_responsibility === 'self_pickup'
-  required_by: string;  // datetime-local format
-  priority: Priority;
-
-  // Section 2: Client Project Details
-  client_type: ClientType;
-  client_type_remarks?: string;  // Required if client_type === 'others'
-  client_contact_name: string;  // Name of client/architect/contacted person based on client_type
-  client_phone: string;
-  client_email?: string;
-  firm_name: string;  // Company or firm name
-  site_location: string;
-
-  // Section 3: Sample Request Details
-  product_type: ProductType;
-  quality: Quality;
-  sample_size: string;
-  sample_size_remarks?: string;  // Required if sample_size === 'custom'
-  finish?: string;  // Not required for terrazzo/quartz
-  finish_remarks?: string;  // Required if finish === 'custom'
-  thickness: string;
-  thickness_remarks?: string;  // Required if thickness === 'custom'
-  quantity: number;
-  purpose: Purpose;
-  packing_details: PackingType;
-  packing_remarks?: string;  // Required if packing_details === 'custom'
-
-  // Image (optional)
-  image?: File;
 }
 
 // ============================================================

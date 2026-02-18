@@ -52,20 +52,29 @@ function Chip({ label, variant = 'verified', onRemove, disabled }: ChipProps) {
         </span>
       )}
       {!disabled && (
-        <button
-          type="button"
+        <span
+          role="button"
+          tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
+            e.preventDefault();
             onRemove();
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation();
+              e.preventDefault();
+              onRemove();
+            }
+          }}
           className={cn(
-            'shrink-0 rounded-full p-0.5 transition-colors',
+            'shrink-0 rounded-full p-0.5 transition-colors cursor-pointer',
             isCustom ? 'hover:bg-amber-200' : 'hover:bg-indigo-200'
           )}
           aria-label={`Remove ${label}`}
         >
           <X className="h-3 w-3" />
-        </button>
+        </span>
       )}
     </span>
   );

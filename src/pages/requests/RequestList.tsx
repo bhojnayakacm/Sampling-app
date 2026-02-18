@@ -39,15 +39,23 @@ const STATUS_FILTERS: Record<string, RequestStatus[]> = {
 
 // Helper function to generate smart item summary for table display
 function getItemSummary(request: Request): { text: string; tooltip: string; isMulti: boolean } {
-  const itemCount = request.item_count || 1;
-  const totalQuantity = request.quantity || 0;
+  const itemCount = request.item_count || 0;
 
-  if (itemCount === 1) {
-    const productType = request.product_type || 'Unknown';
+  if (itemCount === 1 && request.items && request.items.length > 0) {
+    const item = request.items[0];
+    const productType = item.product_type || 'Unknown';
     const capitalizedType = productType.charAt(0).toUpperCase() + productType.slice(1);
     return {
-      text: `${capitalizedType} (${totalQuantity} pcs)`,
-      tooltip: `${capitalizedType} - ${request.quality || 'N/A'}`,
+      text: `${capitalizedType} (${item.quantity} pcs)`,
+      tooltip: `${capitalizedType} - ${item.quality_custom || item.quality || 'N/A'}`,
+      isMulti: false,
+    };
+  }
+
+  if (itemCount <= 1) {
+    return {
+      text: `${itemCount} Product`,
+      tooltip: 'Click to view product details',
       isMulti: false,
     };
   }
