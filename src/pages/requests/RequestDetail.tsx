@@ -61,6 +61,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { RequestItemDB } from '@/types';
+import { RequestDetailSkeleton } from '@/components/skeletons';
 
 export default function RequestDetail() {
   const { profile, signOut } = useAuth();
@@ -414,28 +415,21 @@ export default function RequestDetail() {
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
           <div>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Quality</span>
-            <p className="text-sm text-slate-900 mt-0.5">{item.quality_custom || item.quality}</p>
+            <p className="text-sm text-slate-900 mt-0.5">{item.quality}</p>
           </div>
           <div>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Size</span>
-            <p className="text-sm text-slate-900 mt-0.5">
-              {item.sample_size}
-              {item.sample_size_remarks && <span className="text-slate-400 text-xs block">{item.sample_size_remarks}</span>}
-            </p>
+            <p className="text-sm text-slate-900 mt-0.5">{item.sample_size}</p>
           </div>
           <div>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Finish</span>
             <p className="text-sm text-slate-900 mt-0.5">
               {showFinish && item.finish ? item.finish : '—'}
-              {item.finish_remarks && <span className="text-slate-400 text-xs block">{item.finish_remarks}</span>}
             </p>
           </div>
           <div>
             <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Thickness</span>
-            <p className="text-sm text-slate-900 mt-0.5">
-              {item.thickness}
-              {item.thickness_remarks && <span className="text-slate-400 text-xs block">{item.thickness_remarks}</span>}
-            </p>
+            <p className="text-sm text-slate-900 mt-0.5">{item.thickness}</p>
           </div>
         </div>
       </div>
@@ -444,14 +438,7 @@ export default function RequestDetail() {
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-          <p className="text-slate-500 text-sm">Loading...</p>
-        </div>
-      </div>
-    );
+    return <RequestDetailSkeleton />;
   }
 
   // Error state
@@ -728,7 +715,7 @@ export default function RequestDetail() {
                   <button
                     onClick={async () => {
                       const qualities = hasItems
-                        ? request.items!.map((item) => item.quality_custom || item.quality).filter(Boolean)
+                        ? request.items!.map((item) => item.quality).filter(Boolean)
                         : [];
                       if (qualities.length === 0) return;
                       await navigator.clipboard.writeText(qualities.join(', '));
@@ -769,19 +756,10 @@ export default function RequestDetail() {
                             <TableRow key={item.id} className="hover:bg-slate-50/50">
                               <TableCell className="text-sm font-medium text-slate-600">{index + 1}</TableCell>
                               <TableCell className="text-sm text-slate-900 capitalize font-medium">{item.product_type}</TableCell>
-                              <TableCell className="text-sm text-slate-700">{item.quality_custom || item.quality}</TableCell>
-                              <TableCell className="text-sm text-slate-700">
-                                {item.sample_size}
-                                {item.sample_size_remarks && <span className="block text-xs text-slate-400">{item.sample_size_remarks}</span>}
-                              </TableCell>
-                              <TableCell className="text-sm text-slate-700">
-                                {item.finish || '—'}
-                                {item.finish_remarks && <span className="block text-xs text-slate-400">{item.finish_remarks}</span>}
-                              </TableCell>
-                              <TableCell className="text-sm text-slate-700">
-                                {item.thickness}
-                                {item.thickness_remarks && <span className="block text-xs text-slate-400">{item.thickness_remarks}</span>}
-                              </TableCell>
+                              <TableCell className="text-sm text-slate-700">{item.quality}</TableCell>
+                              <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
+                              <TableCell className="text-sm text-slate-700">{item.finish || '—'}</TableCell>
+                              <TableCell className="text-sm text-slate-700">{item.thickness}</TableCell>
                               <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
                               <TableCell>
                                 {item.image_url ? (
@@ -1024,14 +1002,6 @@ export default function RequestDetail() {
                   </div>
                 )}
 
-                {request.pickup_remarks && (
-                  <div className="pt-3 border-t border-slate-100">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">
-                      Pickup Remarks
-                    </label>
-                    <p className="text-sm text-slate-600">{request.pickup_remarks}</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -1189,7 +1159,7 @@ export default function RequestDetail() {
                     {request.client_type === 'retail' && 'Client Name'}
                     {request.client_type === 'architect' && 'Architect Name'}
                     {request.client_type === 'project' && 'Contacted Person'}
-                    {(!request.client_type || request.client_type === 'others') && 'Contact Name'}
+                    {(!request.client_type || !['retail', 'architect', 'project'].includes(request.client_type)) && 'Contact Name'}
                   </label>
                   <p className="text-sm text-slate-900 font-medium">{request.client_contact_name}</p>
                 </div>

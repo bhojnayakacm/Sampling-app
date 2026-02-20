@@ -29,7 +29,6 @@ import {
   ChevronLeft,
   ChevronRight,
   MapPin,
-  Loader2,
   AlertCircle,
   Truck,
   CheckCircle,
@@ -42,6 +41,7 @@ import {
 } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 import { formatDate } from '@/lib/utils';
+import { CoordinatorStatsSkeleton, RequestListSkeleton } from '@/components/skeletons';
 
 // ============================================================
 // BUSINESS HOURS SLA CALCULATION
@@ -511,68 +511,73 @@ export default function CoordinatorDashboard() {
       return (
         <div className="p-4 sm:p-6 space-y-6">
           {/* Stats Cards — Mobile: horizontal scroll | Desktop: grid */}
+          {statsLoading ? (
+            <CoordinatorStatsSkeleton />
+          ) : (
+            <>
+              {/* Mobile 3x3 Grid */}
+              <div className="md:hidden grid grid-cols-3 gap-2">
+                {statCards.map((card) => {
+                  const Icon = card.icon;
+                  const value = card.getValue(stats);
+                  const isActive = activeCard === card.key;
 
-          {/* Mobile 3x3 Grid */}
-          <div className="md:hidden grid grid-cols-3 gap-2">
-            {statCards.map((card) => {
-              const Icon = card.icon;
-              const value = card.getValue(stats);
-              const isActive = activeCard === card.key;
+                  return (
+                    <Card
+                      key={card.key}
+                      onClick={() => handleCardClick(card)}
+                      className={`bg-white border shadow-sm transition-all cursor-pointer ${
+                        isActive
+                          ? 'border-indigo-500 ring-2 ring-indigo-200'
+                          : 'border-slate-200'
+                      }`}
+                    >
+                      <CardContent className="p-2 text-center">
+                        <div className={`h-7 w-7 rounded-lg ${card.iconBg} flex items-center justify-center mx-auto mb-1`}>
+                          <Icon className={`h-3.5 w-3.5 ${card.iconColor}`} />
+                        </div>
+                        <p className="text-lg font-bold text-slate-900 leading-none">
+                          {value}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5 leading-tight whitespace-normal">{card.label}</p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
 
-              return (
-                <Card
-                  key={card.key}
-                  onClick={() => handleCardClick(card)}
-                  className={`bg-white border shadow-sm transition-all cursor-pointer ${
-                    isActive
-                      ? 'border-indigo-500 ring-2 ring-indigo-200'
-                      : 'border-slate-200'
-                  }`}
-                >
-                  <CardContent className="p-2 text-center">
-                    <div className={`h-7 w-7 rounded-lg ${card.iconBg} flex items-center justify-center mx-auto mb-1`}>
-                      <Icon className={`h-3.5 w-3.5 ${card.iconColor}`} />
-                    </div>
-                    <p className="text-lg font-bold text-slate-900 leading-none">
-                      {statsLoading ? '...' : value}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-tight whitespace-normal">{card.label}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+              {/* Desktop Grid */}
+              <div className="hidden md:grid grid-cols-5 xl:grid-cols-9 gap-3">
+                {statCards.map((card) => {
+                  const Icon = card.icon;
+                  const value = card.getValue(stats);
+                  const isActive = activeCard === card.key;
 
-          {/* Desktop Grid */}
-          <div className="hidden md:grid grid-cols-5 xl:grid-cols-9 gap-3">
-            {statCards.map((card) => {
-              const Icon = card.icon;
-              const value = card.getValue(stats);
-              const isActive = activeCard === card.key;
-
-              return (
-                <Card
-                  key={card.key}
-                  onClick={() => handleCardClick(card)}
-                  className={`bg-white border shadow-sm hover:shadow-md transition-all cursor-pointer group ${
-                    isActive
-                      ? 'border-indigo-500 ring-2 ring-indigo-200'
-                      : 'border-slate-200'
-                  }`}
-                >
-                  <CardContent className="p-3">
-                    <div className={`h-8 w-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-2`}>
-                      <Icon className={`h-4 w-4 ${card.iconColor}`} />
-                    </div>
-                    <p className="text-xl font-bold text-slate-900 leading-none">
-                      {statsLoading ? '...' : value}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{card.label}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  return (
+                    <Card
+                      key={card.key}
+                      onClick={() => handleCardClick(card)}
+                      className={`bg-white border shadow-sm hover:shadow-md transition-all cursor-pointer group ${
+                        isActive
+                          ? 'border-indigo-500 ring-2 ring-indigo-200'
+                          : 'border-slate-200'
+                      }`}
+                    >
+                      <CardContent className="p-3">
+                        <div className={`h-8 w-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-2`}>
+                          <Icon className={`h-4 w-4 ${card.iconColor}`} />
+                        </div>
+                        <p className="text-xl font-bold text-slate-900 leading-none">
+                          {value}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1 truncate">{card.label}</p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {/* Toolbar with filters */}
           <div ref={listSectionRef}>
@@ -598,7 +603,7 @@ export default function CoordinatorDashboard() {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                {requestsLoading ? 'Loading...' : `${totalCount} Request${totalCount !== 1 ? 's' : ''}`}
+                {requestsLoading ? '\u00A0' : `${totalCount} Request${totalCount !== 1 ? 's' : ''}`}
               </h2>
               {!requestsLoading && totalPages > 0 && (
                 <p className="text-sm text-slate-500">
@@ -620,12 +625,7 @@ export default function CoordinatorDashboard() {
 
           {/* Request Data */}
           {requestsLoading ? (
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardContent className="p-12 text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
-                <p className="text-slate-500">Loading requests...</p>
-              </CardContent>
-            </Card>
+            <RequestListSkeleton rows={5} />
           ) : requests.length === 0 ? (
             <Card className="bg-white border border-slate-200 shadow-sm">
               <CardContent className="p-12 text-center">

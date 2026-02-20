@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'sonner';
 import { useExitPrompt } from '@/hooks/useExitPrompt';
+import { FullPageSkeleton } from '@/components/skeletons';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,17 +33,8 @@ import RequesterReport from '@/pages/reports/RequesterReport';
 import NotFound from '@/pages/NotFound';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 
-// Loading spinner component
-function LoadingScreen() {
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50">
-      <div className="flex flex-col items-center gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    </div>
-  );
-}
+// Loading skeleton component
+const LoadingScreen = FullPageSkeleton;
 
 // Error recovery screen (shown when profile fetch fails)
 function ProfileErrorScreen() {

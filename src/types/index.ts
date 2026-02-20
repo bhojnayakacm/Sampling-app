@@ -39,7 +39,7 @@ export type PickupResponsibility =
   | 'other';
 
 // Section 2: Client Project Details
-export type ClientType = 'retail' | 'architect' | 'project' | 'others';
+export type ClientType = 'retail' | 'architect' | 'project' | 'other' | string;
 
 // Section 3: Sample Request Details
 export type ProductType = 'marble' | 'tile' | 'magro_stone' | 'terrazzo' | 'quartz';
@@ -73,18 +73,17 @@ export interface ProductItem {
 
   // Multi-select quality support (Batch Entry feature)
   selected_qualities: string[]; // Array of selected verified qualities from database
-  quality_custom?: string; // Free text for unlisted quality (one-off, never saved to master DB)
-  use_custom_quality?: boolean; // Toggle: true = using manual entry instead of multi-select
 
   // Legacy single quality field (kept for backward compatibility when loading drafts)
   quality: string;
 
+  // Primary attribute fields — store custom text directly when "Other" is selected
   sample_size: string;
-  sample_size_remarks?: string;
+  sample_size_custom?: string; // UI-only: custom text when sample_size select = "Other"
   thickness: string;
-  thickness_remarks?: string;
+  thickness_custom?: string;   // UI-only: custom text when thickness select = "Other"
   finish: string;
-  finish_remarks?: string;
+  finish_custom?: string;      // UI-only: custom text when finish select = "Other"
   quantity: number;
   image_file?: File | null;
   image_preview?: string | null;
@@ -98,13 +97,9 @@ export interface RequestItemDB {
   item_index: number;
   product_type: string;
   quality: string;
-  quality_custom: string | null;
   sample_size: string;
-  sample_size_remarks: string | null;
   thickness: string;
-  thickness_remarks: string | null;
   finish: string | null;
-  finish_remarks: string | null;
   quantity: number;
   image_url: string | null;
   created_at: string;
@@ -117,13 +112,9 @@ export interface CreateRequestItemInput {
   item_index: number;
   product_type: string;
   quality: string;
-  quality_custom?: string | null;
   sample_size: string;
-  sample_size_remarks?: string | null;
   thickness: string;
-  thickness_remarks?: string | null;
   finish?: string | null;
-  finish_remarks?: string | null;
   quantity: number;
   image_url?: string | null;
 }
@@ -162,7 +153,6 @@ export interface Request {
   department: string;  // Department type
   mobile_no: string;
   pickup_responsibility: string;  // PickupResponsibility type
-  pickup_remarks: string | null;
   delivery_method_remark: string | null;  // Coordinator's remark when changing delivery method
   is_delivery_method_edited: boolean | null;  // True if coordinator modified the pickup method
   delivery_address: string | null;  // Not required if self_pickup
@@ -172,8 +162,7 @@ export interface Request {
   priority: Priority;
 
   // Section 2: Client Project Details
-  client_type: string;  // ClientType
-  client_type_remarks: string | null;
+  client_type: string;  // ClientType — stores custom text directly when "Other" is selected
   client_contact_name: string;  // Name of client/architect/contacted person based on client_type
   client_phone: string;
   client_email: string | null;
@@ -183,8 +172,7 @@ export interface Request {
   // Dynamic fields based on client_type
   supporting_architect_name: string | null;  // For Retail clients
   architect_firm_name: string | null;  // For Retail clients
-  project_type: string | null;  // For Project clients (Hotel, Resort, Hospital, Other)
-  project_type_custom: string | null;  // For Project clients when "Other" is selected
+  project_type: string | null;  // For Project clients — stores custom text directly when "Other" is selected
   project_placeholder: string | null;  // For Project clients
 
   // Section 3: Sample Request Details
@@ -250,29 +238,29 @@ export interface DashboardStats {
 
 // Size options by product type
 export const PRODUCT_SIZE_OPTIONS: Record<ProductType, string[]> = {
-  marble: ['12x12', '6x4', '6x6', '12x9', 'A4', '2x2', '24x24', 'Custom'],
-  tile: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Custom'],
-  magro_stone: ['4x4', 'Custom'],
-  terrazzo: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Custom'],
-  quartz: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Custom'],
+  marble: ['12x12', '6x4', '6x6', '12x9', 'A4', '2x2', '24x24', 'Other'],
+  tile: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
+  magro_stone: ['4x4', 'Other'],
+  terrazzo: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
+  quartz: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
 };
 
 // Finish options by product type
 export const PRODUCT_FINISH_OPTIONS: Record<ProductType, string[] | null> = {
-  marble: ['Polish', 'Honed', 'Leather/Brushed', 'Sandblasted', 'Lappato', 'Satin', 'Custom'],
-  tile: ['Matt', 'Satin', 'Glossy', 'High Glossy', 'Textured', 'Carvin', 'Lappato', 'Rustic', 'Grew', 'Customize'],
-  magro_stone: ['Semi gloss', 'Gloss', 'Matt', 'Custom'],
+  marble: ['Polish', 'Honed', 'Leather/Brushed', 'Sandblasted', 'Lappato', 'Satin', 'Other'],
+  tile: ['Matt', 'Satin', 'Glossy', 'High Glossy', 'Textured', 'Carvin', 'Lappato', 'Rustic', 'Grew', 'Other'],
+  magro_stone: ['Semi gloss', 'Gloss', 'Matt', 'Other'],
   terrazzo: null,  // No finish for terrazzo
   quartz: null,    // No finish for quartz
 };
 
 // Thickness options by product type
 export const PRODUCT_THICKNESS_OPTIONS: Record<ProductType, string[]> = {
-  marble: ['20mm', '18mm', '16mm', 'Custom'],
-  tile: ['5mm', '6mm', '9mm', '12mm', '15mm', '16mm', '20mm', 'Custom'],
-  magro_stone: ['20mm', 'Custom'],
-  terrazzo: ['20mm', 'Custom'],
-  quartz: ['16mm', 'Custom'],
+  marble: ['20mm', '18mm', '16mm', 'Other'],
+  tile: ['5mm', '6mm', '9mm', '12mm', '15mm', '16mm', '20mm', 'Other'],
+  magro_stone: ['20mm', 'Other'],
+  terrazzo: ['20mm', 'Other'],
+  quartz: ['16mm', 'Other'],
 };
 
 // ============================================================

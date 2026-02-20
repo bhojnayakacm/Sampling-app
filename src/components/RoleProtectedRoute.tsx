@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
+import { FullPageSkeleton } from '@/components/skeletons';
 
 interface RoleProtectedRouteProps {
   children: React.ReactNode;
@@ -24,13 +25,9 @@ export default function RoleProtectedRoute({ children, allowedRoles }: RoleProte
     }
   }, [loading, profile, allowedRoles, hasShownToast]);
 
-  // Show loading spinner while checking auth
+  // Show loading skeleton while checking auth
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <FullPageSkeleton />;
   }
 
   // Check if user has required role

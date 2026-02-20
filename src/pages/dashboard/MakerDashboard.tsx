@@ -10,12 +10,12 @@ import {
   ArrowRight,
   LogOut,
   Package,
-  Loader2,
   Clock,
   Eye,
   LayoutDashboard
 } from 'lucide-react';
 import type { Request } from '@/types';
+import { MakerStatsSkeleton, MakerJobCardsSkeleton } from '@/components/skeletons';
 
 // Get item summary for job cards
 function getItemSummary(request: Request): string {
@@ -23,7 +23,7 @@ function getItemSummary(request: Request): string {
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
     const productType = item.product_type || 'Unknown';
-    return `${productType.charAt(0).toUpperCase() + productType.slice(1)} - ${item.quality_custom || item.quality || 'N/A'}`;
+    return `${productType.charAt(0).toUpperCase() + productType.slice(1)} - ${item.quality || 'N/A'}`;
   }
   if (itemCount <= 1) return '1 Product';
   return `${itemCount} Products`;
@@ -83,64 +83,68 @@ export default function MakerDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Stats Overview - Clean Cards */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
-          {/* Assigned to Me */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?status=assigned')}
-          >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <Inbox className="h-5 w-5 text-blue-600" />
+        {statsLoading ? (
+          <MakerStatsSkeleton />
+        ) : (
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
+            {/* Assigned to Me */}
+            <Card
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate('/requests?status=assigned')}
+            >
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                    <Inbox className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-slate-900">
-                {statsLoading ? '...' : stats?.assigned || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">New Tasks</p>
-            </CardContent>
-          </Card>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-900">
+                  {stats?.assigned || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">New Tasks</p>
+              </CardContent>
+            </Card>
 
-          {/* In Progress */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?status=in_production')}
-          >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                  <Hammer className="h-5 w-5 text-amber-600" />
+            {/* In Progress */}
+            <Card
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate('/requests?status=in_production')}
+            >
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
+                    <Hammer className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-slate-900">
-                {statsLoading ? '...' : stats?.in_progress || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">In Progress</p>
-            </CardContent>
-          </Card>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-900">
+                  {stats?.in_progress || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">In Progress</p>
+              </CardContent>
+            </Card>
 
-          {/* Completed */}
-          <Card
-            className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate('/requests?status=completed')}
-          >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-emerald-600" />
+            {/* Completed */}
+            <Card
+              className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => navigate('/requests?status=completed')}
+            >
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
                 </div>
-                <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 transition-colors" />
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-slate-900">
-                {statsLoading ? '...' : stats?.completed || 0}
-              </p>
-              <p className="text-sm text-slate-500 mt-1">Completed</p>
-            </CardContent>
-          </Card>
-        </div>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-900">
+                  {stats?.completed || 0}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Completed</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Job Cards Section - New Tasks */}
         {(assignedTasks.length > 0 || assignedLoading) && (
@@ -153,11 +157,7 @@ export default function MakerDashboard() {
             </div>
 
             {assignedLoading ? (
-              <Card className="bg-white border border-slate-200 shadow-sm">
-                <CardContent className="p-8 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
-                </CardContent>
-              </Card>
+              <MakerJobCardsSkeleton count={2} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {assignedTasks.map((task) => (
@@ -231,11 +231,7 @@ export default function MakerDashboard() {
             </div>
 
             {inProgressLoading ? (
-              <Card className="bg-white border border-slate-200 shadow-sm">
-                <CardContent className="p-8 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-amber-600 mx-auto" />
-                </CardContent>
-              </Card>
+              <MakerJobCardsSkeleton count={2} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {inProgressTasks.map((task) => (

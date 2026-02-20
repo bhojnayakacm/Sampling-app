@@ -96,10 +96,10 @@ export default function ProductItemCard({
     });
   };
 
-  // Helper: Get the first non-custom option if only one exists
+  // Helper: Get the first non-"Other" option if only one exists
   const getAutoSelectValue = (options: string[]): string | null => {
-    const nonCustomOptions = options.filter(opt => opt !== 'Custom' && opt !== 'Customize');
-    return nonCustomOptions.length === 1 ? nonCustomOptions[0] : null;
+    const nonOtherOptions = options.filter(opt => opt !== 'Other');
+    return nonOtherOptions.length === 1 ? nonOtherOptions[0] : null;
   };
 
   // Reset dependent fields when product type changes
@@ -118,15 +118,13 @@ export default function ProductItemCard({
     onUpdate(index, {
       product_type: newProductType,
       selected_qualities: [],
-      quality_custom: '',
-      use_custom_quality: false,
       quality: '',
       sample_size: autoSize || '',
-      sample_size_remarks: '',
+      sample_size_custom: '',
       thickness: autoThickness || '',
-      thickness_remarks: '',
+      thickness_custom: '',
       finish: autoFinish || (hasFinish ? newFinishOptions[0] : ''),
-      finish_remarks: '',
+      finish_custom: '',
     });
   };
 
@@ -296,7 +294,7 @@ export default function ProductItemCard({
                   value={item.sample_size}
                   onValueChange={(value) => onUpdate(index, {
                     sample_size: value,
-                    sample_size_remarks: value === 'Custom' ? '' : undefined
+                    sample_size_custom: value === 'Other' ? '' : undefined
                   })}
                 >
                   <SelectTrigger>
@@ -315,14 +313,14 @@ export default function ProductItemCard({
               )}
             </div>
 
-            {/* Size Remarks - Show when "Custom" is selected */}
-            {item.sample_size === 'Custom' && (
+            {/* Specify Size - Show when "Other" is selected */}
+            {item.sample_size === 'Other' && (
               <div>
-                <Label>Size Remarks *</Label>
+                <Label>Specify Size *</Label>
                 <Input
-                  value={item.sample_size_remarks || ''}
-                  onChange={(e) => onUpdate(index, { sample_size_remarks: e.target.value })}
-                  placeholder="Specify custom size"
+                  value={item.sample_size_custom || ''}
+                  onChange={(e) => onUpdate(index, { sample_size_custom: e.target.value })}
+                  placeholder="Enter custom size"
                 />
               </div>
             )}
@@ -335,7 +333,7 @@ export default function ProductItemCard({
                   value={item.thickness}
                   onValueChange={(value) => onUpdate(index, {
                     thickness: value,
-                    thickness_remarks: value === 'Custom' ? '' : undefined
+                    thickness_custom: value === 'Other' ? '' : undefined
                   })}
                 >
                   <SelectTrigger>
@@ -354,14 +352,14 @@ export default function ProductItemCard({
               )}
             </div>
 
-            {/* Thickness Remarks - Show when "Custom" is selected */}
-            {item.thickness === 'Custom' && (
+            {/* Specify Thickness - Show when "Other" is selected */}
+            {item.thickness === 'Other' && (
               <div>
-                <Label>Thickness Remarks *</Label>
+                <Label>Specify Thickness *</Label>
                 <Input
-                  value={item.thickness_remarks || ''}
-                  onChange={(e) => onUpdate(index, { thickness_remarks: e.target.value })}
-                  placeholder="Specify custom thickness"
+                  value={item.thickness_custom || ''}
+                  onChange={(e) => onUpdate(index, { thickness_custom: e.target.value })}
+                  placeholder="Enter custom thickness"
                 />
               </div>
             )}
@@ -375,7 +373,7 @@ export default function ProductItemCard({
                     value={item.finish}
                     onValueChange={(value) => onUpdate(index, {
                       finish: value,
-                      finish_remarks: (value === 'Custom' || value === 'Customize') ? '' : undefined
+                      finish_custom: value === 'Other' ? '' : undefined
                     })}
                   >
                     <SelectTrigger>
@@ -391,14 +389,14 @@ export default function ProductItemCard({
                   </Select>
                 </div>
 
-                {/* Finish Remarks - Show when "Custom" is selected */}
-                {(item.finish === 'Custom' || item.finish === 'Customize') && (
+                {/* Specify Finish - Show when "Other" is selected */}
+                {item.finish === 'Other' && (
                   <div>
-                    <Label>Finish Remarks *</Label>
+                    <Label>Specify Finish *</Label>
                     <Input
-                      value={item.finish_remarks || ''}
-                      onChange={(e) => onUpdate(index, { finish_remarks: e.target.value })}
-                      placeholder="Specify custom finish"
+                      value={item.finish_custom || ''}
+                      onChange={(e) => onUpdate(index, { finish_custom: e.target.value })}
+                      placeholder="Enter custom finish"
                     />
                   </div>
                 )}

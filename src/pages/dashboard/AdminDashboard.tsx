@@ -18,6 +18,7 @@ import {
   Package,
   PackageCheck,
 } from 'lucide-react';
+import { AdminStatsSkeleton } from '@/components/skeletons';
 
 export default function AdminDashboard() {
   const { profile, signOut } = useAuth();
@@ -71,28 +72,32 @@ export default function AdminDashboard() {
             <h2 className="text-lg font-semibold text-slate-900">System Overview</h2>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
-            {statCards.map((card) => {
-              const Icon = card.icon;
-              return (
-                <Card
-                  key={card.key}
-                  className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(card.status ? `/requests?status=${card.status}` : '/requests')}
-                >
-                  <CardContent className="p-3">
-                    <div className={`h-8 w-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-2`}>
-                      <Icon className={`h-4 w-4 ${card.iconColor}`} />
-                    </div>
-                    <p className="text-xl font-bold text-slate-900 leading-none">
-                      {isLoading ? '...' : card.value}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{card.label}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {isLoading ? (
+            <AdminStatsSkeleton />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 sm:gap-3">
+              {statCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <Card
+                    key={card.key}
+                    className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => navigate(card.status ? `/requests?status=${card.status}` : '/requests')}
+                  >
+                    <CardContent className="p-3">
+                      <div className={`h-8 w-8 rounded-lg ${card.iconBg} flex items-center justify-center mb-2`}>
+                        <Icon className={`h-4 w-4 ${card.iconColor}`} />
+                      </div>
+                      <p className="text-xl font-bold text-slate-900 leading-none">
+                        {card.value}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1 truncate">{card.label}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

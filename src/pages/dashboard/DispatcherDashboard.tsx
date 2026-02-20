@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { formatDateTime, formatDate } from '@/lib/utils';
 import type { Request } from '@/types';
+import { DispatcherStatsSkeleton, DispatcherCardsSkeleton } from '@/components/skeletons';
 
 // Tab type for navigation
 type TabKey = 'ready' | 'today' | 'total';
@@ -303,49 +304,53 @@ export default function DispatcherDashboard() {
         {/* ============================================ */}
         {/* INTERACTIVE TAB CARDS */}
         {/* ============================================ */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
-          {tabCards.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => {
-                  setActiveTab(tab.key);
-                  setSearchQuery('');
-                }}
-                className={`
-                  relative rounded-xl border-2 transition-all duration-200 text-left
-                  ${isActive
-                    ? `${tab.activeBg} ${tab.activeText} border-transparent shadow-lg scale-[1.02]`
-                    : `${tab.inactiveBg} ${tab.inactiveBorder} hover:border-slate-300 hover:shadow-sm`
-                  }
-                `}
-              >
-                <div className="p-2.5 sm:p-3 text-center">
-                  <div
-                    className={`
-                      h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center mx-auto mb-1.5 sm:mb-2
-                      ${isActive ? tab.activeIconBg : tab.iconBg}
-                    `}
-                  >
-                    <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isActive ? tab.activeIconColor : tab.iconColor}`} />
+        {statsLoading ? (
+          <DispatcherStatsSkeleton />
+        ) : (
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+            {tabCards.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    setSearchQuery('');
+                  }}
+                  className={`
+                    relative rounded-xl border-2 transition-all duration-200 text-left
+                    ${isActive
+                      ? `${tab.activeBg} ${tab.activeText} border-transparent shadow-lg scale-[1.02]`
+                      : `${tab.inactiveBg} ${tab.inactiveBorder} hover:border-slate-300 hover:shadow-sm`
+                    }
+                  `}
+                >
+                  <div className="p-2.5 sm:p-3 text-center">
+                    <div
+                      className={`
+                        h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center mx-auto mb-1.5 sm:mb-2
+                        ${isActive ? tab.activeIconBg : tab.iconBg}
+                      `}
+                    >
+                      <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isActive ? tab.activeIconColor : tab.iconColor}`} />
+                    </div>
+                    <p className={`text-xl sm:text-2xl font-bold ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                      {tab.value}
+                    </p>
+                    <p className={`text-[9px] sm:text-[10px] font-medium uppercase tracking-wide mt-0.5 ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
+                      {tab.label}
+                    </p>
                   </div>
-                  <p className={`text-xl sm:text-2xl font-bold ${isActive ? 'text-white' : 'text-slate-900'}`}>
-                    {statsLoading ? '–' : tab.value}
-                  </p>
-                  <p className={`text-[9px] sm:text-[10px] font-medium uppercase tracking-wide mt-0.5 ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
-                    {tab.label}
-                  </p>
-                </div>
-                {/* Active indicator dot */}
-                {isActive && (
-                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-6 rounded-full bg-white/50" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+                  {/* Active indicator dot */}
+                  {isActive && (
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 h-1 w-6 rounded-full bg-white/50" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ============================================ */}
         {/* SEARCH BAR (Only for Total History) */}
@@ -390,10 +395,7 @@ export default function DispatcherDashboard() {
         {/* LOADING STATE */}
         {/* ============================================ */}
         {isLoading && (
-          <div className="py-16 text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto text-slate-400" />
-            <p className="text-sm text-slate-500 mt-3">Loading...</p>
-          </div>
+          <DispatcherCardsSkeleton count={3} />
         )}
 
         {/* ============================================ */}

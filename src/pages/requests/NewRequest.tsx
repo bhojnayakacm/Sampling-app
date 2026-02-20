@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText } from 'lucide-react';
+import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
 import { SaveTemplateDialog } from '@/components/requests/SaveTemplateDialog';
@@ -44,27 +45,28 @@ import type {
   ProductItem,
   CreateRequestItemInput,
 } from '@/types';
-import { PRODUCT_FINISH_OPTIONS } from '@/types';
-import {
-  PRODUCT_QUALITIES_BY_KEY,
-  type ProductTypeKey,
-} from '@/lib/productData';
+import { PRODUCT_FINISH_OPTIONS, PRODUCT_SIZE_OPTIONS, PRODUCT_THICKNESS_OPTIONS } from '@/types';
 
 // ============================================================
 // TYPES
 // ============================================================
 
+// Known client type values — anything else is a custom "Other" entry
+const KNOWN_CLIENT_TYPES = ['retail', 'architect', 'project'] as const;
+
+// Known project type values — anything else is a custom "Other" entry
+const KNOWN_PROJECT_TYPES = ['hotel', 'resort', 'hospital'] as const;
+
 interface RequestFormData {
   // Section 1: Requester Details
   pickup_responsibility: PickupResponsibility;
-  pickup_remarks?: string;
   delivery_address?: string;
   required_by: string;
   priority: 'urgent' | 'normal';
 
   // Section 2: Client Project Details
   client_type: ClientType;
-  client_type_remarks?: string;
+  client_type_custom?: string;  // UI-only: custom text when client_type select = "other"
   client_contact_name: string;  // Dynamic label based on client_type
   client_phone: string;
   client_email?: string;
@@ -74,8 +76,8 @@ interface RequestFormData {
   // Dynamic fields based on client_type
   supporting_architect_name?: string;  // For Retail clients
   architect_firm_name?: string;  // For Retail clients
-  project_type?: string;  // For Project clients
-  project_type_custom?: string;  // For Project when "other" selected
+  project_type?: string;  // For Project clients — select value or "other"
+  project_type_custom?: string;  // UI-only: custom text when project_type select = "other"
   project_placeholder?: string;  // For Project clients
 
   // Section 3: Shared Details
@@ -174,17 +176,14 @@ function createEmptyProduct(): ProductItem {
   return {
     id: generateId(),
     product_type: '',
-    // Multi-select quality support (Batch Entry feature)
     selected_qualities: [],
-    quality_custom: '',
-    use_custom_quality: false,
     quality: '', // Legacy field
     sample_size: '',
-    sample_size_remarks: '',
+    sample_size_custom: '',
     thickness: '',
-    thickness_remarks: '',
+    thickness_custom: '',
     finish: '',
-    finish_remarks: '',
+    finish_custom: '',
     quantity: 1,
     image_file: null,
     image_preview: null,
@@ -236,49 +235,87 @@ async function uploadAllImages(
 
 // Convert ProductItem to CreateRequestItemInput (without request_id)
 // This is called AFTER exploding batch entries, so each item has exactly one quality
+// Hybrid Write: when select = "Other", store the custom text directly in the primary column
 function productToItemInput(
   product: ProductItem,
   imageUrl: string | null,
   qualityOverride?: string, // Used when exploding batch entries
-  isCustomQuality?: boolean // Marks this quality as a one-off custom entry
 ): Omit<CreateRequestItemInput, 'request_id'> {
   const hasFinish = product.product_type &&
     PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
 
   // Determine the quality value
   let qualityValue: string;
-  let qualityCustomValue: string | null = null;
-
   if (qualityOverride) {
     qualityValue = qualityOverride;
-    // If custom, store in quality_custom to flag it as a one-off entry
-    if (isCustomQuality) {
-      qualityCustomValue = qualityOverride;
-    }
   } else if (product.selected_qualities.length > 0) {
     qualityValue = product.selected_qualities[0];
   } else {
-    // Legacy fallback
-    qualityValue = product.quality === 'Custom' ? (product.quality_custom || 'Custom') : product.quality;
-    qualityCustomValue = product.quality === 'Custom' ? (product.quality_custom || null) : null;
+    qualityValue = product.quality;
   }
+
+  // Hybrid Write: resolve "Other" selections to their custom text
+  const resolvedSize = product.sample_size === 'Other'
+    ? (product.sample_size_custom || '')
+    : product.sample_size;
+
+  const resolvedThickness = product.thickness === 'Other'
+    ? (product.thickness_custom || '')
+    : product.thickness;
+
+  const resolvedFinish = hasFinish
+    ? (product.finish === 'Other'
+      ? (product.finish_custom || '')
+      : product.finish)
+    : null;
 
   return {
     item_index: 0, // Will be set by the API function
     product_type: product.product_type,
     quality: qualityValue,
-    quality_custom: qualityCustomValue,
-    sample_size: product.sample_size,
-    sample_size_remarks: product.sample_size === 'Custom' ? product.sample_size_remarks : null,
-    thickness: product.thickness,
-    thickness_remarks: product.thickness === 'Custom' ? product.thickness_remarks : null,
-    finish: hasFinish ? product.finish : null,
-    finish_remarks: (product.finish === 'Custom' || product.finish === 'Customize')
-      ? product.finish_remarks
-      : null,
+    sample_size: resolvedSize,
+    thickness: resolvedThickness,
+    finish: resolvedFinish,
     quantity: product.quantity,
     image_url: imageUrl,
   };
+}
+
+// ============================================================
+// SMART CONSOLIDATION: Merge duplicate items and sum quantities
+// ============================================================
+
+type ItemPayload = Omit<CreateRequestItemInput, 'request_id'>;
+
+function consolidateItems(items: ItemPayload[]): ItemPayload[] {
+  const map = new Map<string, ItemPayload>();
+
+  for (const item of items) {
+    const key = [
+      item.product_type,
+      item.quality,
+      item.sample_size,
+      item.thickness,
+      item.finish ?? '',
+    ].join('||');
+
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+      // Keep the image from whichever entry had one
+      if (!existing.image_url && item.image_url) {
+        existing.image_url = item.image_url;
+      }
+    } else {
+      map.set(key, { ...item });
+    }
+  }
+
+  // Re-index items sequentially
+  return Array.from(map.values()).map((item, i) => ({
+    ...item,
+    item_index: i,
+  }));
 }
 
 // ============================================================
@@ -292,7 +329,6 @@ function productToItemInput(
 interface ExplodedItem {
   product: ProductItem;
   quality: string;
-  isCustom: boolean;
   originalIndex: number; // Track which original product this came from (for image URL mapping)
   isFirstFromCard: boolean; // True for only the first item exploded from each card
 }
@@ -301,24 +337,15 @@ function explodeProducts(products: ProductItem[]): ExplodedItem[] {
   const exploded: ExplodedItem[] = [];
 
   products.forEach((product, originalIndex) => {
-    // Get the verified quality list for this product type
-    const productTypeKey = product.product_type as ProductTypeKey;
-    const verifiedQualities = productTypeKey
-      ? (PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [])
-      : [];
-    const verifiedSet = new Set(verifiedQualities);
-
     // Deduplicate selected_qualities (safety net against UI bugs)
     const uniqueQualities = [...new Set(product.selected_qualities)];
 
     if (uniqueQualities.length > 0) {
       // Unified mode: each selected quality becomes a separate item
-      // Custom detection: if the quality is NOT in the verified DB list
       uniqueQualities.forEach((quality, qualityIndex) => {
         exploded.push({
           product,
           quality,
-          isCustom: !verifiedSet.has(quality),
           originalIndex,
           isFirstFromCard: qualityIndex === 0,
         });
@@ -327,8 +354,7 @@ function explodeProducts(products: ProductItem[]): ExplodedItem[] {
       // Legacy fallback: single quality from old format
       exploded.push({
         product,
-        quality: product.quality === 'Custom' ? (product.quality_custom || 'Custom') : product.quality,
-        isCustom: product.quality === 'Custom',
+        quality: product.quality,
         originalIndex,
         isFirstFromCard: true,
       });
@@ -401,18 +427,26 @@ export default function NewRequest() {
         console.warn('[Draft Load] Invalid required_by date:', existingDraft.required_by);
       }
 
+      // Detect hybrid "Other" values for client_type and project_type
+      // If the stored value is NOT in the known list, it's a custom entry
+      const storedClientType = existingDraft.client_type || '';
+      const isCustomClientType = storedClientType && !(KNOWN_CLIENT_TYPES as readonly string[]).includes(storedClientType);
+
+      const storedProjectType = existingDraft.project_type || '';
+      const isCustomProjectType = storedProjectType && !(KNOWN_PROJECT_TYPES as readonly string[]).includes(storedProjectType);
+
       // Atomically reset all form fields at once — avoids race conditions with setValue
       reset({
         // Section 1: Requester Details
         priority: (existingDraft.priority as 'urgent' | 'normal') || 'normal',
         pickup_responsibility: (existingDraft.pickup_responsibility as PickupResponsibility) || undefined,
-        pickup_remarks: existingDraft.pickup_remarks || '',
         delivery_address: existingDraft.delivery_address || '',
         required_by: requiredBy,
 
         // Section 2: Client Project Details
-        client_type: (existingDraft.client_type as ClientType) || undefined,
-        client_type_remarks: existingDraft.client_type_remarks || '',
+        // Hybrid read: if custom, set select to "other" and populate custom input
+        client_type: isCustomClientType ? 'other' : (storedClientType as ClientType) || undefined,
+        client_type_custom: isCustomClientType ? storedClientType : '',
         client_contact_name: existingDraft.client_contact_name || '',
         client_phone: existingDraft.client_phone || '',
         client_email: existingDraft.client_email || '',
@@ -422,8 +456,9 @@ export default function NewRequest() {
         // Dynamic client type fields
         supporting_architect_name: existingDraft.supporting_architect_name || '',
         architect_firm_name: existingDraft.architect_firm_name || '',
-        project_type: existingDraft.project_type || '',
-        project_type_custom: existingDraft.project_type_custom || '',
+        // Hybrid read: if custom project type, set select to "other" and populate custom input
+        project_type: isCustomProjectType ? 'other' : (storedProjectType || ''),
+        project_type_custom: isCustomProjectType ? storedProjectType : '',
         project_placeholder: existingDraft.project_placeholder || '',
 
         // Section 3: Shared Details
@@ -439,22 +474,28 @@ export default function NewRequest() {
           const productType = item.product_type as ProductType;
           const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
 
-          // Determine the quality to load into selected_qualities
-          const qualityToLoad = item.quality_custom || item.quality;
+          // Hybrid Read: detect custom values by checking against predefined options
+          const sizeOptions = PRODUCT_SIZE_OPTIONS[productType] || [];
+          const thicknessOptions = PRODUCT_THICKNESS_OPTIONS[productType] || [];
+          const finishOptionsList = PRODUCT_FINISH_OPTIONS[productType] || [];
+
+          // If the saved value is NOT in the predefined list, it's a custom "Other" entry
+          const isCustomSize = item.sample_size && !sizeOptions.includes(item.sample_size);
+          const isCustomThickness = item.thickness && !thicknessOptions.includes(item.thickness);
+          const isCustomFinish = hasFinish && item.finish && !finishOptionsList.includes(item.finish);
 
           return {
             id: generateId(),
             product_type: productType,
-            selected_qualities: qualityToLoad ? [qualityToLoad] : [],
-            quality_custom: '',
-            use_custom_quality: false,
+            selected_qualities: item.quality ? [item.quality] : [],
             quality: item.quality || '',
-            sample_size: item.sample_size,
-            sample_size_remarks: item.sample_size_remarks || '',
-            thickness: item.thickness,
-            thickness_remarks: item.thickness_remarks || '',
-            finish: hasFinish ? (item.finish || 'Polish') : '',
-            finish_remarks: item.finish_remarks || '',
+            // Hybrid Read: set select to "Other" and populate custom input for non-standard values
+            sample_size: isCustomSize ? 'Other' : item.sample_size,
+            sample_size_custom: isCustomSize ? item.sample_size : '',
+            thickness: isCustomThickness ? 'Other' : item.thickness,
+            thickness_custom: isCustomThickness ? item.thickness : '',
+            finish: isCustomFinish ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
+            finish_custom: isCustomFinish ? item.finish! : '',
             quantity: item.quantity,
             image_url: item.image_url,
             image_preview: item.image_url,
@@ -583,14 +624,14 @@ export default function NewRequest() {
       if (!product.sample_size) {
         errors.push(`${prefix}Sample Size is required`);
       }
-      if (product.sample_size === 'Custom' && !product.sample_size_remarks) {
-        errors.push(`${prefix}Size Remarks is required for custom size`);
+      if (product.sample_size === 'Other' && !product.sample_size_custom) {
+        errors.push(`${prefix}Please specify the custom size`);
       }
       if (!product.thickness) {
         errors.push(`${prefix}Thickness is required`);
       }
-      if (product.thickness === 'Custom' && !product.thickness_remarks) {
-        errors.push(`${prefix}Thickness Remarks is required for custom thickness`);
+      if (product.thickness === 'Other' && !product.thickness_custom) {
+        errors.push(`${prefix}Please specify the custom thickness`);
       }
 
       // Finish validation (only for marble/tile)
@@ -598,8 +639,8 @@ export default function NewRequest() {
       if (hasFinish && !product.finish) {
         errors.push(`${prefix}Finish is required`);
       }
-      if ((product.finish === 'Custom' || product.finish === 'Customize') && !product.finish_remarks) {
-        errors.push(`${prefix}Finish Remarks is required for custom finish`);
+      if (product.finish === 'Other' && !product.finish_custom) {
+        errors.push(`${prefix}Please specify the custom finish`);
       }
 
       if (!product.quantity || product.quantity <= 0) {
@@ -617,9 +658,6 @@ export default function NewRequest() {
     if (!profile?.department) missingFields.push('Department');
     if (!profile?.phone) missingFields.push('Mobile Number');
     if (!data.pickup_responsibility) missingFields.push('Pickup Responsibility');
-    if (data.pickup_responsibility === 'other' && !data.pickup_remarks) {
-      missingFields.push('Pickup Remarks (required when "Other" is selected)');
-    }
     if (data.pickup_responsibility && data.pickup_responsibility !== 'self_pickup' && !data.delivery_address) {
       missingFields.push('Delivery Address');
     }
@@ -628,8 +666,8 @@ export default function NewRequest() {
 
     // Section 2: Client Project Details
     if (!data.client_type) missingFields.push('Client Type');
-    if (data.client_type === 'others' && !data.client_type_remarks) {
-      missingFields.push('Client Type Remarks (required when "Others" is selected)');
+    if (data.client_type === 'other' && !data.client_type_custom) {
+      missingFields.push('Client Type (please specify when "Other" is selected)');
     }
     if (!data.client_contact_name) missingFields.push('Contact Name');
     // client_phone is optional, but if provided must be exactly 10 digits
@@ -655,7 +693,7 @@ export default function NewRequest() {
     if (data.client_type === 'project') {
       if (!data.project_type) missingFields.push('Type of Project');
       if (data.project_type === 'other' && !data.project_type_custom) {
-        missingFields.push('Project Type (specify "Other")');
+        missingFields.push('Project Type (please specify when "Other" is selected)');
       }
     }
 
@@ -704,6 +742,15 @@ export default function NewRequest() {
       const explodedItems = explodeProducts(products);
 
       // Step 3: Prepare request data (parent)
+      // Hybrid Write: when select = "other", store the custom text directly in the primary column
+      const resolvedClientType = formValues.client_type === 'other'
+        ? (formValues.client_type_custom || null)
+        : (formValues.client_type || null);
+
+      const resolvedProjectType = formValues.client_type === 'project' && formValues.project_type === 'other'
+        ? (formValues.project_type_custom || null)
+        : formValues.client_type === 'project' ? (formValues.project_type || null) : null;
+
       const requestData = {
         created_by: profile.id,
         status: 'draft',
@@ -712,14 +759,12 @@ export default function NewRequest() {
         department: profile.department || null,
         mobile_no: profile.phone || null,
         pickup_responsibility: formValues.pickup_responsibility || null,
-        pickup_remarks: formValues.pickup_remarks || null,
         delivery_address: formValues.delivery_address || null,
         required_by: formValues.required_by ? new Date(formValues.required_by).toISOString() : null,
         priority: formValues.priority || null,
 
         // Client Project Details
-        client_type: formValues.client_type || null,
-        client_type_remarks: formValues.client_type_remarks || null,
+        client_type: resolvedClientType,
         client_contact_name: formValues.client_contact_name || null,
         client_phone: formValues.client_phone || null,
         client_email: formValues.client_email || null,
@@ -729,8 +774,7 @@ export default function NewRequest() {
         // Dynamic client type fields
         supporting_architect_name: formValues.client_type === 'retail' ? (formValues.supporting_architect_name || null) : null,
         architect_firm_name: formValues.client_type === 'retail' ? (formValues.architect_firm_name || null) : null,
-        project_type: formValues.client_type === 'project' ? (formValues.project_type || null) : null,
-        project_type_custom: formValues.client_type === 'project' && formValues.project_type === 'other' ? (formValues.project_type_custom || null) : null,
+        project_type: resolvedProjectType,
         project_placeholder: formValues.client_type === 'project' ? (formValues.project_placeholder || null) : null,
 
         // Shared Details
@@ -744,8 +788,7 @@ export default function NewRequest() {
 
       // Step 5: Prepare items data from exploded entries
       // IMAGE RULE: Only the FIRST item from each batch card gets the image
-      const itemsData = explodedItems.map((explodedItem) => {
-        // Only attach image to the first item exploded from each card
+      const rawItems = explodedItems.map((explodedItem) => {
         const imageUrl = explodedItem.isFirstFromCard
           ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
           : null;
@@ -753,9 +796,11 @@ export default function NewRequest() {
           explodedItem.product,
           imageUrl,
           explodedItem.quality,
-          explodedItem.isCustom
         );
       });
+
+      // Step 5b: Smart Consolidation — merge duplicate items, sum quantities
+      const itemsData = consolidateItems(rawItems);
 
       // Step 6: Save using appropriate method
       if (isEditMode && draftId) {
@@ -865,6 +910,15 @@ export default function NewRequest() {
       console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
 
       // Step 3: Prepare request data (parent - EXACTLY ONE request)
+      // Hybrid Write: when select = "other", store the custom text directly in the primary column
+      const resolvedClientType = data.client_type === 'other'
+        ? (data.client_type_custom || data.client_type)
+        : data.client_type;
+
+      const resolvedProjectType = data.client_type === 'project' && data.project_type === 'other'
+        ? (data.project_type_custom || data.project_type)
+        : data.client_type === 'project' ? (data.project_type || null) : null;
+
       const requestData = {
         created_by: profile.id,
         status: 'pending_approval',
@@ -873,14 +927,12 @@ export default function NewRequest() {
         department: profile.department!,
         mobile_no: profile.phone!,
         pickup_responsibility: data.pickup_responsibility,
-        pickup_remarks: data.pickup_responsibility === 'other' ? data.pickup_remarks : null,
         delivery_address: data.pickup_responsibility === 'self_pickup' ? null : data.delivery_address,
         required_by: new Date(data.required_by).toISOString(),
         priority: data.priority,
 
         // Client Project Details
-        client_type: data.client_type,
-        client_type_remarks: data.client_type === 'others' ? data.client_type_remarks : null,
+        client_type: resolvedClientType,
         client_contact_name: data.client_contact_name,
         client_phone: data.client_phone,
         client_email: data.client_email || null,
@@ -890,8 +942,7 @@ export default function NewRequest() {
         // Dynamic client type fields
         supporting_architect_name: data.client_type === 'retail' ? (data.supporting_architect_name || null) : null,
         architect_firm_name: data.client_type === 'retail' ? (data.architect_firm_name || null) : null,
-        project_type: data.client_type === 'project' ? (data.project_type || null) : null,
-        project_type_custom: data.client_type === 'project' && data.project_type === 'other' ? (data.project_type_custom || null) : null,
+        project_type: resolvedProjectType,
         project_placeholder: data.client_type === 'project' ? (data.project_placeholder || null) : null,
 
         // Shared Details
@@ -905,9 +956,7 @@ export default function NewRequest() {
 
       // Step 5: Prepare items data from exploded entries
       // IMAGE RULE: Only the FIRST item from each batch card gets the image
-      // Each exploded item becomes one row in request_items table
-      const itemsData = explodedItems.map((explodedItem) => {
-        // Only attach image to the first item exploded from each card
+      const rawItems = explodedItems.map((explodedItem) => {
         const imageUrl = explodedItem.isFirstFromCard
           ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
           : null;
@@ -915,11 +964,14 @@ export default function NewRequest() {
           explodedItem.product,
           imageUrl,
           explodedItem.quality,
-          explodedItem.isCustom
         );
       });
 
-      console.log(`[NewRequest] ${submissionId} - Items to insert: ${itemsData.length}`);
+      // Step 5b: Smart Consolidation — merge duplicate items, sum quantities
+      const itemsData = consolidateItems(rawItems);
+
+      // Update item_count to reflect consolidated total
+      console.log(`[NewRequest] ${submissionId} - Exploded: ${rawItems.length}, Consolidated: ${itemsData.length} items`);
       console.log(`[NewRequest] ${submissionId} - Item qualities:`, itemsData.map(i => i.quality));
 
       // Step 6: Create or update - CALLED EXACTLY ONCE
@@ -940,7 +992,7 @@ export default function NewRequest() {
         console.log(`[NewRequest] ${submissionId} - Created request: ${result.request.request_number}`);
 
         // Show appropriate message based on batch vs single entry
-        const itemCount = explodedItems.length;
+        const itemCount = itemsData.length;
         const cardCount = products.length;
         const isBatch = itemCount > cardCount;
 
@@ -996,8 +1048,7 @@ export default function NewRequest() {
     pickupResponsibility &&
     watch('required_by') &&
     watch('priority') &&
-    (pickupResponsibility === 'self_pickup' || watch('delivery_address')) &&
-    (pickupResponsibility !== 'other' || watch('pickup_remarks'))
+    (pickupResponsibility === 'self_pickup' || watch('delivery_address'))
   );
 
   // Section 2: Client Project Details - check required fields (with conditional logic)
@@ -1006,6 +1057,7 @@ export default function NewRequest() {
   const siteLocation = watch('site_location');
   const projectType = watch('project_type');
   const projectTypeCustom = watch('project_type_custom');
+  const clientTypeCustom = watch('client_type_custom');
 
   const isSection2Complete = Boolean(
     clientType &&
@@ -1013,8 +1065,8 @@ export default function NewRequest() {
     siteLocation &&
     // Conditional: Firm Name required for non-Retail
     (clientType === 'retail' || firmName) &&
-    // Conditional: Client Type Remarks required for "Others"
-    (clientType !== 'others' || watch('client_type_remarks')) &&
+    // Conditional: Custom text required when client type is "Other"
+    (clientType !== 'other' || clientTypeCustom) &&
     // Conditional: Project Type required for "Project" client type
     (clientType !== 'project' || projectType) &&
     // Conditional: Project Type Custom required when project_type is "other"
@@ -1037,11 +1089,11 @@ export default function NewRequest() {
         product.product_type &&
         hasValidQuality &&
         product.sample_size &&
-        (product.sample_size !== 'Custom' || product.sample_size_remarks) &&
+        (product.sample_size !== 'Other' || product.sample_size_custom) &&
         product.thickness &&
-        (product.thickness !== 'Custom' || product.thickness_remarks) &&
+        (product.thickness !== 'Other' || product.thickness_custom) &&
         (!hasFinish || product.finish) &&
-        ((product.finish !== 'Custom' && product.finish !== 'Customize') || product.finish_remarks) &&
+        (product.finish !== 'Other' || product.finish_custom) &&
         product.quantity > 0
       );
     }) &&
@@ -1055,14 +1107,7 @@ export default function NewRequest() {
   // ============================================================
 
   if (!profile || (draftId && isDraftLoading)) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-          <p className="text-slate-600 font-medium">Loading...</p>
-        </div>
-      </div>
-    );
+    return <FormSkeleton />;
   }
 
   if (draftId && existingDraft && existingDraft.status !== 'draft' && existingDraft.status !== 'rejected') {
@@ -1236,19 +1281,6 @@ export default function NewRequest() {
                   />
                 </div>
 
-                {/* Pickup Remarks */}
-                {pickupResponsibility === 'other' && (
-                  <div>
-                    <Label htmlFor="pickup_remarks" className="text-slate-700 font-semibold">Pickup Remarks *</Label>
-                    <Input
-                      id="pickup_remarks"
-                      {...register('pickup_remarks')}
-                      placeholder="Please specify pickup method"
-                      className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
-                    />
-                  </div>
-                )}
-
                 {/* Delivery Address - Hidden for Self Pickup */}
                 {pickupResponsibility !== 'self_pickup' && (
                   <div className="md:col-span-2">
@@ -1301,21 +1333,21 @@ export default function NewRequest() {
                           <SelectItem value="retail">Retail</SelectItem>
                           <SelectItem value="architect">Architect</SelectItem>
                           <SelectItem value="project">Project</SelectItem>
-                          <SelectItem value="others">Others</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
                   />
                 </div>
 
-                {/* Client Type Remarks - Show for "Others" */}
-                {clientType === 'others' && (
+                {/* Client Type Custom - Show for "Other" */}
+                {clientType === 'other' && (
                   <div>
-                    <Label htmlFor="client_type_remarks" className="text-slate-700 font-semibold">Client Type Remarks *</Label>
+                    <Label htmlFor="client_type_custom" className="text-slate-700 font-semibold">Specify Client Type *</Label>
                     <Input
-                      id="client_type_remarks"
-                      {...register('client_type_remarks')}
-                      placeholder="Please specify client type"
+                      id="client_type_custom"
+                      {...register('client_type_custom')}
+                      placeholder="Enter client type"
                       className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                     />
                   </div>
@@ -1374,7 +1406,7 @@ export default function NewRequest() {
                     {clientType === 'retail' && 'Client Name *'}
                     {clientType === 'architect' && 'Architect Name *'}
                     {clientType === 'project' && 'Contacted Person / Purchase Manager / Builder Name *'}
-                    {(!clientType || clientType === 'others') && 'Contact Name *'}
+                    {(!clientType || clientType === 'other') && 'Contact Name *'}
                   </Label>
                   <Input
                     id="client_contact_name"

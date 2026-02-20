@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { Edit, Trash2, ChevronLeft, ChevronRight, MapPin, Package, LogOut, List, Phone, Clock } from 'lucide-react';
 import { RequestStatus, Priority, Request } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
+import { RequestListSkeleton } from '@/components/skeletons';
 import RequestToolbar from '@/components/requests/RequestToolbar';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 
@@ -47,7 +48,7 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
     const capitalizedType = productType.charAt(0).toUpperCase() + productType.slice(1);
     return {
       text: `${capitalizedType} (${item.quantity} pcs)`,
-      tooltip: `${capitalizedType} - ${item.quality_custom || item.quality || 'N/A'}`,
+      tooltip: `${capitalizedType} - ${item.quality || 'N/A'}`,
       isMulti: false,
     };
   }
@@ -232,7 +233,7 @@ export default function RequestList() {
               <div>
                 <h1 className="text-lg sm:text-xl font-bold text-slate-900">{getPageTitle()}</h1>
                 <p className="text-xs text-slate-500 sm:hidden">
-                  {isLoading ? 'Loading...' : `${totalCount} request${totalCount !== 1 ? 's' : ''}`}
+                  {isLoading ? '\u00A0' : `${totalCount} request${totalCount !== 1 ? 's' : ''}`}
                 </p>
               </div>
             </div>
@@ -277,7 +278,7 @@ export default function RequestList() {
           <div className="hidden sm:flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
               <h2 className="text-2xl font-bold text-slate-800">
-                {isLoading ? '...' : totalCount}
+                {isLoading ? '\u00A0' : totalCount}
               </h2>
               <span className="text-base text-slate-500 font-medium">
                 Request{totalCount !== 1 ? 's' : ''}
@@ -304,14 +305,7 @@ export default function RequestList() {
 
         {/* Data Display */}
         {isLoading ? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <div className="animate-pulse space-y-4">
-              <div className="h-4 bg-slate-100 rounded w-3/4 mx-auto"></div>
-              <div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div>
-              <div className="h-4 bg-slate-100 rounded w-2/3 mx-auto"></div>
-            </div>
-            <p className="text-slate-500 mt-4 font-medium">Loading requests...</p>
-          </div>
+          <RequestListSkeleton rows={5} />
         ) : requests.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
             <div className="rounded-xl bg-slate-100 p-5 w-fit mx-auto mb-4">

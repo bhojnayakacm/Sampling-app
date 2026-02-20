@@ -8,15 +8,15 @@ import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, Reque
 // ============================================================
 const VALID_REQUEST_COLUMNS = new Set([
   'created_by', 'assigned_to', 'status', 'priority',
-  'department', 'mobile_no', 'pickup_responsibility', 'pickup_remarks',
+  'department', 'mobile_no', 'pickup_responsibility',
   'delivery_method_remark', 'is_delivery_method_edited',
   'delivery_address', 'is_address_edited', 'address_edit_remark',
   'required_by', 'required_by_history',
-  'client_type', 'client_type_remarks',
+  'client_type',
   'client_contact_name', 'client_phone', 'client_email',
   'firm_name', 'site_location',
   'supporting_architect_name', 'architect_firm_name',
-  'project_type', 'project_type_custom', 'project_placeholder',
+  'project_type', 'project_placeholder',
   'purpose', 'packing_details', 'packing_remarks',
   'requester_message', 'coordinator_message', 'dispatch_notes',
   'item_count', 'received_by',
@@ -1046,7 +1046,19 @@ export async function updateRequestWithItems(
   requestData: Record<string, any>,
   items: Omit<CreateRequestItemInput, 'request_id'>[]
 ): Promise<{ request: Request; items: RequestItemDB[] }> {
-  // Step 1: Update the parent request
+  // Step 1: Delete existing items FIRST (while status is still 'draft')
+  // IMPORTANT: Must happen before updating the parent request status,
+  // because the RLS policy on request_items only allows DELETE when
+  // the parent request status = 'draft'. If we update the status to
+  // 'pending_approval' first, the DELETE silently fails (0 rows deleted).
+  const { error: deleteError } = await supabase
+    .from('request_items')
+    .delete()
+    .eq('request_id', requestId);
+
+  if (deleteError) throw deleteError;
+
+  // Step 2: Update the parent request (status changes to 'pending_approval' here)
   const cleanData = sanitizeRequestData({ ...requestData, item_count: items.length });
   const { data: request, error: requestError } = await supabase
     .from('requests')
@@ -1056,14 +1068,6 @@ export async function updateRequestWithItems(
     .single();
 
   if (requestError) throw requestError;
-
-  // Step 2: Delete existing items
-  const { error: deleteError } = await supabase
-    .from('request_items')
-    .delete()
-    .eq('request_id', requestId);
-
-  if (deleteError) throw deleteError;
 
   // Step 3: Insert new items
   const itemsToInsert: CreateRequestItemInput[] = items.map((item, index) => ({

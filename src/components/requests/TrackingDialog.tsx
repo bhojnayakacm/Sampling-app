@@ -27,6 +27,7 @@ import {
   Box,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TrackingTimelineSkeleton } from '@/components/skeletons';
 
 interface TrackingDialogProps {
   request: Request;
@@ -172,10 +173,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
 
           {/* Loading State */}
           {isLoading && (
-            <div className="py-12 text-center">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-              <p className="text-gray-500 mt-4">Loading tracking information...</p>
-            </div>
+            <TrackingTimelineSkeleton />
           )}
 
           {/* Draft/Rejected State */}

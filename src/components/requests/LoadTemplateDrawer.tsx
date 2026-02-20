@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useTemplates, useDeleteTemplate, type ProductTemplate } from '@/lib/api/templates';
 import type { ProductItem } from '@/types';
 import { cn } from '@/lib/utils';
+import { TemplateDrawerSkeleton } from '@/components/skeletons';
 
 // ============================================================
 // TYPES
@@ -37,12 +38,10 @@ function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
     id: generateId(), // Generate NEW unique ID for React
     // Ensure all required fields exist with defaults
     selected_qualities: item.selected_qualities || [],
-    quality_custom: item.quality_custom || '',
-    use_custom_quality: item.use_custom_quality || false,
     quality: item.quality || '',
-    sample_size_remarks: item.sample_size_remarks || '',
-    thickness_remarks: item.thickness_remarks || '',
-    finish_remarks: item.finish_remarks || '',
+    sample_size_custom: item.sample_size_custom || '',
+    thickness_custom: item.thickness_custom || '',
+    finish_custom: item.finish_custom || '',
     // Clear image fields (templates don't store images)
     image_file: null,
     image_preview: null,
@@ -67,7 +66,6 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
 
   // Calculate total qualities across all items
   const totalQualities = template.items.reduce((sum, item) => {
-    if (item.use_custom_quality && item.quality_custom) return sum + 1;
     if (item.selected_qualities?.length > 0) return sum + item.selected_qualities.length;
     if (item.quality) return sum + 1;
     return sum;
@@ -325,9 +323,7 @@ export function LoadTemplateDrawer({ onLoadTemplate, hasExistingProducts }: Load
               onBack={() => setSelectedTemplate(null)}
             />
           ) : isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-            </div>
+            <TemplateDrawerSkeleton />
           ) : error ? (
             <div className="text-center py-12">
               <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />

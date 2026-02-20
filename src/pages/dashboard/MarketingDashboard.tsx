@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useDashboardStats } from '@/lib/api/requests';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function MarketingDashboard() {
   const { profile, signOut } = useAuth();
@@ -31,7 +32,7 @@ export default function MarketingDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {isLoading ? '...' : stats?.total || 0}
+                {isLoading ? <Skeleton className="h-8 w-12" /> : stats?.total || 0}
               </p>
             </CardContent>
           </Card>
@@ -41,7 +42,7 @@ export default function MarketingDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {isLoading ? '...' : stats?.inProgress || 0}
+                {isLoading ? <Skeleton className="h-8 w-12" /> : stats?.inProgress || 0}
               </p>
             </CardContent>
           </Card>
@@ -51,7 +52,7 @@ export default function MarketingDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">
-                {isLoading ? '...' : stats?.dispatched || 0}
+                {isLoading ? <Skeleton className="h-8 w-12" /> : stats?.dispatched || 0}
               </p>
             </CardContent>
           </Card>

@@ -19,6 +19,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { RequesterStatsSkeleton } from '@/components/skeletons';
 
 // Compact stat card configuration
 interface StatConfig {
@@ -177,38 +178,42 @@ export default function RequesterDashboard() {
         </div>
 
         {/* Stats Cards - Compact 6-card Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {statCards.map((stat) => {
-            const Icon = stat.icon;
-            const value = stat.getValue(stats);
+        {isLoading ? (
+          <RequesterStatsSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {statCards.map((stat) => {
+              const Icon = stat.icon;
+              const value = stat.getValue(stats);
 
-            return (
-              <Card
-                key={stat.key}
-                className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                onClick={stat.onClick}
-              >
-                <CardContent className="p-3 sm:p-4">
-                  {/* Compact layout: Icon + Arrow row */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className={`h-8 w-8 rounded-lg ${stat.iconBg} flex items-center justify-center`}>
-                      <Icon className={`h-4 w-4 ${stat.iconColor}`} />
+              return (
+                <Card
+                  key={stat.key}
+                  className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                  onClick={stat.onClick}
+                >
+                  <CardContent className="p-3 sm:p-4">
+                    {/* Compact layout: Icon + Arrow row */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={`h-8 w-8 rounded-lg ${stat.iconBg} flex items-center justify-center`}>
+                        <Icon className={`h-4 w-4 ${stat.iconColor}`} />
+                      </div>
+                      <ArrowRight className={`h-3.5 w-3.5 text-slate-300 ${stat.hoverColor} transition-colors`} />
                     </div>
-                    <ArrowRight className={`h-3.5 w-3.5 text-slate-300 ${stat.hoverColor} transition-colors`} />
-                  </div>
 
-                  {/* Value */}
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900">
-                    {isLoading ? '—' : value}
-                  </p>
+                    {/* Value */}
+                    <p className="text-xl sm:text-2xl font-bold text-slate-900">
+                      {value}
+                    </p>
 
-                  {/* Label */}
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{stat.label}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    {/* Label */}
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{stat.label}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* Recent Activity Section */}
         {hasRequests && recentRequests?.data && recentRequests.data.length > 0 && (

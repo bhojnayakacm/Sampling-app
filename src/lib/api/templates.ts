@@ -52,15 +52,13 @@ export async function createTemplate(
   const cleanedItems = input.items.map((item) => ({
     product_type: item.product_type,
     selected_qualities: item.selected_qualities || [],
-    quality_custom: item.quality_custom || '',
-    use_custom_quality: item.use_custom_quality || false,
     quality: item.quality || '',
     sample_size: item.sample_size,
-    sample_size_remarks: item.sample_size_remarks || '',
+    sample_size_custom: item.sample_size_custom || '',
     thickness: item.thickness,
-    thickness_remarks: item.thickness_remarks || '',
+    thickness_custom: item.thickness_custom || '',
     finish: item.finish || '',
-    finish_remarks: item.finish_remarks || '',
+    finish_custom: item.finish_custom || '',
     quantity: item.quantity,
     // Don't save image data - templates are for specs only
   }));
@@ -105,15 +103,13 @@ export async function updateTemplate(
     updateData.items = input.items.map((item) => ({
       product_type: item.product_type,
       selected_qualities: item.selected_qualities || [],
-      quality_custom: item.quality_custom || '',
-      use_custom_quality: item.use_custom_quality || false,
       quality: item.quality || '',
       sample_size: item.sample_size,
-      sample_size_remarks: item.sample_size_remarks || '',
+      sample_size_custom: item.sample_size_custom || '',
       thickness: item.thickness,
-      thickness_remarks: item.thickness_remarks || '',
+      thickness_custom: item.thickness_custom || '',
       finish: item.finish || '',
-      finish_remarks: item.finish_remarks || '',
+      finish_custom: item.finish_custom || '',
       quantity: item.quantity,
     }));
   }

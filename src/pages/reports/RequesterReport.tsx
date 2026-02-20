@@ -22,8 +22,8 @@ import {
   ArrowDown,
   FileSpreadsheet,
   Users,
-  Loader2,
 } from 'lucide-react';
+import { ReportSkeleton } from '@/components/skeletons';
 import * as XLSX from 'xlsx';
 
 // ===================================================================
@@ -344,9 +344,8 @@ export default function RequesterReport() {
 
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="ml-3 text-muted-foreground">Loading report data...</span>
+              <div className="p-4">
+                <ReportSkeleton />
               </div>
             ) : error ? (
               <div className="text-center py-12 text-destructive">

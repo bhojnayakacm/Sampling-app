@@ -48,6 +48,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { UserManagementSkeleton } from '@/components/skeletons';
 
 // ============================================================
 // CONSTANTS
@@ -394,14 +395,7 @@ export default function UserManagement() {
   // ============================================================
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-          <p className="text-slate-600 font-medium">Loading users...</p>
-        </div>
-      </div>
-    );
+    return <UserManagementSkeleton />;
   }
 
   // ============================================================
