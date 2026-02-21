@@ -28,8 +28,8 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
   const { profile } = useAuth();
   const createTemplate = useCreateTemplate();
 
-  // Count valid products (those with at least product type selected)
-  const validProductCount = products.filter((p) => p.product_type).length;
+  // Count valid products (those with at least a category selected)
+  const validProductCount = products.filter((p) => p.category).length;
 
   const handleSave = async () => {
     if (!profile?.id) {
@@ -48,8 +48,8 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
     }
 
     try {
-      // Only save products that have a product type selected
-      const validProducts = products.filter((p) => p.product_type);
+      // Only save products that have a category selected
+      const validProducts = products.filter((p) => p.category);
 
       await createTemplate.mutateAsync({
         userId: profile.id,
@@ -123,14 +123,19 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
             <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
               <p className="text-sm font-medium text-slate-700 mb-2">Will save:</p>
               <div className="space-y-1">
-                {products.filter((p) => p.product_type).slice(0, 3).map((product, index) => {
+                {products.filter((p) => p.category).slice(0, 3).map((product, index) => {
                   const qualityCount = product.selected_qualities?.length || (product.quality ? 1 : 0);
+                  const productLabel = product.category === 'marble'
+                    ? 'Marble'
+                    : product.sub_category
+                      ? `Magro / ${product.sub_category.charAt(0).toUpperCase() + product.sub_category.slice(1)}`
+                      : 'Magro';
                   return (
                     <div key={index} className="flex items-center gap-2 text-sm text-slate-600">
                       <span className="h-5 w-5 rounded bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-medium">
                         {index + 1}
                       </span>
-                      <span className="capitalize">{product.product_type.replace('_', ' ')}</span>
+                      <span>{productLabel}</span>
                       {qualityCount > 0 && (
                         <span className="text-xs text-slate-400">
                           ({qualityCount} {qualityCount === 1 ? 'quality' : 'qualities'})

@@ -39,13 +39,18 @@ import DateTimePicker from '@/components/ui/date-time-picker';
 import type {
   PickupResponsibility,
   ClientType,
-  ProductType,
   Purpose,
   PackingType,
   ProductItem,
   CreateRequestItemInput,
+  RequestCategory,
 } from '@/types';
-import { PRODUCT_FINISH_OPTIONS, PRODUCT_SIZE_OPTIONS, PRODUCT_THICKNESS_OPTIONS } from '@/types';
+import {
+  PRODUCT_FINISH_OPTIONS,
+  PRODUCT_SIZE_OPTIONS,
+  PRODUCT_THICKNESS_OPTIONS,
+  getOptionsKey,
+} from '@/types';
 
 // ============================================================
 // TYPES
@@ -175,7 +180,8 @@ function getFriendlyErrorMessage(error: any): { title: string; description: stri
 function createEmptyProduct(): ProductItem {
   return {
     id: generateId(),
-    product_type: '',
+    category: '',
+    sub_category: '',
     selected_qualities: [],
     quality: '', // Legacy field
     sample_size: '',
@@ -241,8 +247,8 @@ function productToItemInput(
   imageUrl: string | null,
   qualityOverride?: string, // Used when exploding batch entries
 ): Omit<CreateRequestItemInput, 'request_id'> {
-  const hasFinish = product.product_type &&
-    PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
+  const optionsKey = getOptionsKey(product.category, product.sub_category);
+  const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
   // Determine the quality value
   let qualityValue: string;
@@ -271,7 +277,8 @@ function productToItemInput(
 
   return {
     item_index: 0, // Will be set by the API function
-    product_type: product.product_type,
+    product_type: product.category as RequestCategory,
+    sub_category: product.category === 'magro' ? (product.sub_category as any) || null : null,
     quality: qualityValue,
     sample_size: resolvedSize,
     thickness: resolvedThickness,
@@ -293,6 +300,7 @@ function consolidateItems(items: ItemPayload[]): ItemPayload[] {
   for (const item of items) {
     const key = [
       item.product_type,
+      (item as any).sub_category ?? '',
       item.quality,
       item.sample_size,
       item.thickness,
@@ -471,34 +479,39 @@ export default function NewRequest() {
       // Load items from request_items table (new structure)
       if (existingDraft.items && existingDraft.items.length > 0) {
         const loadedProducts: ProductItem[] = existingDraft.items.map((item) => {
-          const productType = item.product_type as ProductType;
-          const hasFinish = PRODUCT_FINISH_OPTIONS[productType] !== null;
+          // Map DB product_type ('marble'|'magro') + sub_category back to UI state
+          const category = item.product_type as RequestCategory;
+          const sub_category = (item.sub_category || '') as any;
+
+          const optionsKey = getOptionsKey(category, sub_category);
+          const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
           // Hybrid Read: detect custom values by checking against predefined options
-          const sizeOptions = PRODUCT_SIZE_OPTIONS[productType] || [];
-          const thicknessOptions = PRODUCT_THICKNESS_OPTIONS[productType] || [];
-          const finishOptionsList = PRODUCT_FINISH_OPTIONS[productType] || [];
+          const sizeOptions      = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey]      : [];
+          const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
+          const finishOptionsList = optionsKey ? (PRODUCT_FINISH_OPTIONS[optionsKey] ?? []) : [];
 
           // If the saved value is NOT in the predefined list, it's a custom "Other" entry
-          const isCustomSize = item.sample_size && !sizeOptions.includes(item.sample_size);
+          const isCustomSize      = item.sample_size && !sizeOptions.includes(item.sample_size);
           const isCustomThickness = item.thickness && !thicknessOptions.includes(item.thickness);
-          const isCustomFinish = hasFinish && item.finish && !finishOptionsList.includes(item.finish);
+          const isCustomFinish    = hasFinish && item.finish && !finishOptionsList.includes(item.finish);
 
           return {
             id: generateId(),
-            product_type: productType,
+            category,
+            sub_category,
             selected_qualities: item.quality ? [item.quality] : [],
             quality: item.quality || '',
             // Hybrid Read: set select to "Other" and populate custom input for non-standard values
-            sample_size: isCustomSize ? 'Other' : item.sample_size,
-            sample_size_custom: isCustomSize ? item.sample_size : '',
-            thickness: isCustomThickness ? 'Other' : item.thickness,
-            thickness_custom: isCustomThickness ? item.thickness : '',
-            finish: isCustomFinish ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
-            finish_custom: isCustomFinish ? item.finish! : '',
-            quantity: item.quantity,
-            image_url: item.image_url,
-            image_preview: item.image_url,
+            sample_size:        isCustomSize      ? 'Other' : item.sample_size,
+            sample_size_custom: isCustomSize      ? item.sample_size : '',
+            thickness:          isCustomThickness ? 'Other' : item.thickness,
+            thickness_custom:   isCustomThickness ? item.thickness : '',
+            finish:             isCustomFinish    ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
+            finish_custom:      isCustomFinish    ? item.finish! : '',
+            quantity:           item.quantity,
+            image_url:          item.image_url,
+            image_preview:      item.image_url,
           };
         });
         setProducts(loadedProducts);
@@ -512,7 +525,7 @@ export default function NewRequest() {
 
   // Check if user has entered any meaningful data
   const hasProductData = products.some(
-    (p) => p.product_type || p.selected_qualities.length > 0 || p.quality
+    (p) => p.category || p.selected_qualities.length > 0 || p.quality
   );
   const isFormDirty = isDirty || hasProductData;
 
@@ -594,7 +607,7 @@ export default function NewRequest() {
     } else {
       // Append template items to current products
       // Filter out empty products before appending
-      const existingValid = products.filter((p) => p.product_type);
+      const existingValid = products.filter((p) => p.category);
       setProducts([...existingValid, ...items]);
     }
   };
@@ -609,8 +622,11 @@ export default function NewRequest() {
     products.forEach((product, index) => {
       const prefix = products.length > 1 ? `Product ${index + 1}: ` : '';
 
-      if (!product.product_type) {
-        errors.push(`${prefix}Product Type is required`);
+      if (!product.category) {
+        errors.push(`${prefix}Category is required`);
+      }
+      if (product.category === 'magro' && !product.sub_category) {
+        errors.push(`${prefix}Sub Category is required for Magro products`);
       }
 
       // Quality validation: at least one quality must be selected (verified or custom)
@@ -634,8 +650,9 @@ export default function NewRequest() {
         errors.push(`${prefix}Please specify the custom thickness`);
       }
 
-      // Finish validation (only for marble/tile)
-      const hasFinish = product.product_type && PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
+      // Finish validation (only for types that have finish)
+      const optionsKey = getOptionsKey(product.category, product.sub_category);
+      const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
       if (hasFinish && !product.finish) {
         errors.push(`${prefix}Finish is required`);
       }
@@ -895,7 +912,8 @@ export default function NewRequest() {
     console.log(`[NewRequest] Starting submission ${submissionId}`);
     console.log(`[NewRequest] Products count: ${products.length}`);
     console.log(`[NewRequest] Products data:`, products.map(p => ({
-      type: p.product_type,
+      category: p.category,
+      sub_category: p.sub_category,
       quality: p.quality,
       quantity: p.quantity, // This should be a NUMBER, not causing multiple requests
     })));
@@ -904,12 +922,12 @@ export default function NewRequest() {
       // Step 1: Upload all images in parallel
       const imageUrlMap = await uploadAllImages(products);
 
-      // Step 2: Explode batch entries into individual items
-      // Each product card with multiple qualities becomes multiple database items
-      const explodedItems = explodeProducts(products);
-      console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
+      // Step 2: Detect mixed-category submission
+      const marbleProducts = products.filter(p => p.category === 'marble');
+      const magroProducts  = products.filter(p => p.category === 'magro');
+      const isMixed = marbleProducts.length > 0 && magroProducts.length > 0;
 
-      // Step 3: Prepare request data (parent - EXACTLY ONE request)
+      // Step 3: Prepare shared request data (same for both split requests)
       // Hybrid Write: when select = "other", store the custom text directly in the primary column
       const resolvedClientType = data.client_type === 'other'
         ? (data.client_type_custom || data.client_type)
@@ -954,57 +972,98 @@ export default function NewRequest() {
         requester_message: data.requester_message || null,
       };
 
-      // Step 5: Prepare items data from exploded entries
-      // IMAGE RULE: Only the FIRST item from each batch card gets the image
-      const rawItems = explodedItems.map((explodedItem) => {
-        const imageUrl = explodedItem.isFirstFromCard
-          ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
-          : null;
-        return productToItemInput(
-          explodedItem.product,
-          imageUrl,
-          explodedItem.quality,
-        );
-      });
+      // Helper: build consolidated items list for a given subset of product cards
+      const buildItemsForProducts = (subset: ProductItem[]) => {
+        // Map original indices from the full `products` array for image URL lookup
+        const exploded = explodeProducts(subset);
+        const rawItems = exploded.map((explodedItem) => {
+          // Find original index in the full products array for image URL lookup
+          const originalIndex = products.indexOf(explodedItem.product);
+          const imageUrl = explodedItem.isFirstFromCard
+            ? (imageUrlMap.get(originalIndex) || explodedItem.product.image_url || null)
+            : null;
+          return productToItemInput(explodedItem.product, imageUrl, explodedItem.quality);
+        });
+        return consolidateItems(rawItems);
+      };
 
-      // Step 5b: Smart Consolidation — merge duplicate items, sum quantities
-      const itemsData = consolidateItems(rawItems);
+      if (isMixed) {
+        // ── SPLIT PATH: Create 2 requests atomically via RPC ──────────────
+        console.log(`[NewRequest] ${submissionId} - Mixed categories detected. Splitting into 2 requests.`);
 
-      // Update item_count to reflect consolidated total
-      console.log(`[NewRequest] ${submissionId} - Exploded: ${rawItems.length}, Consolidated: ${itemsData.length} items`);
-      console.log(`[NewRequest] ${submissionId} - Item qualities:`, itemsData.map(i => i.quality));
-
-      // Step 6: Create or update - CALLED EXACTLY ONCE
-      if (isEditMode && draftId) {
-        // For resubmission, clear the old coordinator message
-        if (isResubmitMode) {
-          (requestData as any).coordinator_message = null;
+        // If editing an existing draft, delete it first (split replaces one draft with two new requests)
+        if (isEditMode && draftId) {
+          const { error: deleteError } = await supabase.from('requests').delete().eq('id', draftId);
+          if (deleteError) throw deleteError;
         }
-        console.log(`[NewRequest] ${submissionId} - Updating ${isResubmitMode ? 'rejected' : 'draft'} request ${draftId}`);
-        await updateRequestWithItems(draftId, requestData, itemsData);
-        toast.success(isResubmitMode
-          ? 'Request resubmitted successfully!'
-          : 'Draft submitted successfully'
-        );
-      } else {
-        console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
-        const result = await createRequestWithItems(requestData, itemsData);
-        console.log(`[NewRequest] ${submissionId} - Created request: ${result.request.request_number}`);
 
-        // Show appropriate message based on batch vs single entry
-        const itemCount = itemsData.length;
-        const cardCount = products.length;
-        const isBatch = itemCount > cardCount;
+        const marbleItems = buildItemsForProducts(marbleProducts);
+        const magroItems  = buildItemsForProducts(magroProducts);
+
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('create_split_requests', {
+          p_request_data: requestData,
+          p_marble_items: marbleItems,
+          p_magro_items:  magroItems,
+        });
+        if (rpcError) throw rpcError;
 
         toast.success(
           <div>
-            <p className="font-semibold">Request submitted successfully!</p>
-            <p className="text-sm">
-              Request #{result.request.request_number} with {itemCount} item{itemCount > 1 ? 's' : ''}
-              {isBatch && ` (from ${cardCount} product card${cardCount > 1 ? 's' : ''})`}
+            <p className="font-semibold">Split into 2 requests!</p>
+            <p className="text-sm mt-0.5">
+              {rpcResult.marble_number} ({marbleItems.length} Marble item{marbleItems.length > 1 ? 's' : ''})
+              {' + '}
+              {rpcResult.magro_number} ({magroItems.length} Magro item{magroItems.length > 1 ? 's' : ''})
             </p>
           </div>
         );
+      } else {
+        // ── SINGLE PATH: One category, one request ────────────────────────
+        const explodedItems = explodeProducts(products);
+        console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
+
+        const rawItems = explodedItems.map((explodedItem) => {
+          const imageUrl = explodedItem.isFirstFromCard
+            ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
+            : null;
+          return productToItemInput(explodedItem.product, imageUrl, explodedItem.quality);
+        });
+        const itemsData = consolidateItems(rawItems);
+        const category = (marbleProducts.length > 0 ? 'marble' : 'magro') as RequestCategory;
+        const singleRequestData = { ...requestData, category };
+
+        console.log(`[NewRequest] ${submissionId} - Exploded: ${rawItems.length}, Consolidated: ${itemsData.length} items`);
+
+        if (isEditMode && draftId) {
+          // For resubmission, clear the old coordinator message
+          if (isResubmitMode) {
+            (singleRequestData as any).coordinator_message = null;
+          }
+          console.log(`[NewRequest] ${submissionId} - Updating ${isResubmitMode ? 'rejected' : 'draft'} request ${draftId}`);
+          await updateRequestWithItems(draftId, singleRequestData, itemsData);
+          toast.success(isResubmitMode
+            ? 'Request resubmitted successfully!'
+            : 'Draft submitted successfully'
+          );
+        } else {
+          console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
+          const result = await createRequestWithItems(singleRequestData, itemsData);
+          console.log(`[NewRequest] ${submissionId} - Created request: ${result.request.request_number}`);
+
+          const itemCount = itemsData.length;
+          const cardCount = products.length;
+          const isBatch = itemCount > cardCount;
+
+          toast.success(
+            <div>
+              <p className="font-semibold">Request submitted successfully!</p>
+              <p className="text-sm">
+                Request #{result.request.request_number} with {itemCount} item{itemCount > 1 ? 's' : ''}
+                {isBatch && ` (from ${cardCount} product card${cardCount > 1 ? 's' : ''})`}
+              </p>
+            </div>
+          );
+        }
       }
 
       // Invalidate cached data so re-opening this request shows fresh values
@@ -1078,7 +1137,8 @@ export default function NewRequest() {
   const isSection3Complete = Boolean(
     products.length > 0 &&
     products.every(product => {
-      const hasFinish = product.product_type && PRODUCT_FINISH_OPTIONS[product.product_type as ProductType] !== null;
+      const optionsKey = getOptionsKey(product.category, product.sub_category);
+      const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
       // Quality validation: at least one quality selected (verified or custom)
       const hasValidQuality =
@@ -1086,7 +1146,8 @@ export default function NewRequest() {
         (product.quality && product.quality !== 'Custom');
 
       return (
-        product.product_type &&
+        product.category &&
+        (product.category !== 'magro' || product.sub_category) &&
         hasValidQuality &&
         product.sample_size &&
         (product.sample_size !== 'Other' || product.sample_size_custom) &&
@@ -1553,13 +1614,34 @@ export default function NewRequest() {
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
                 <LoadTemplateDrawer
                   onLoadTemplate={loadFromTemplate}
-                  hasExistingProducts={products.some((p) => p.product_type)}
+                  hasExistingProducts={products.some((p) => p.category)}
                 />
                 <SaveTemplateDialog
                   products={products}
                   disabled={isSubmitting}
                 />
               </div>
+
+              {/* Mixed-category banner — shown when both Marble and Magro items are present */}
+              {(() => {
+                const hasMarble = products.some(p => p.category === 'marble');
+                const hasMagro  = products.some(p => p.category === 'magro');
+                if (!hasMarble || !hasMagro) return null;
+                const marbleCount = products.filter(p => p.category === 'marble').length;
+                const magroCount  = products.filter(p => p.category === 'magro').length;
+                return (
+                  <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                    <Sparkles className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-amber-800">Mixed categories detected</p>
+                      <p className="text-amber-700 mt-0.5">
+                        This form has {marbleCount} Marble and {magroCount} Magro product{magroCount > 1 ? 's' : ''}.
+                        On Submit, they will automatically be created as <strong>2 separate requests</strong>.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Product Cards */}
               <div className="space-y-4">

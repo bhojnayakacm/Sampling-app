@@ -71,7 +71,7 @@ export default function RequestDetail() {
 
   const { data: request, isLoading, error } = useRequestWithItems(id);
 
-  const isCoordinator = profile?.role === 'coordinator';
+  const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
 
   // Role-aware back navigation
@@ -384,7 +384,13 @@ export default function RequestDetail() {
   // MOBILE PRODUCT CARD COMPONENT
   // =============================================
   const ProductCard = ({ item, index }: { item: RequestItemDB; index: number }) => {
-    const showFinish = item.product_type === 'marble' || item.product_type === 'tile' || item.product_type === 'magro_stone';
+    const showFinish = item.product_type === 'marble' ||
+      (item.product_type === 'magro' && (item.sub_category === 'tile' || item.sub_category === 'stone'));
+    const productLabel = item.product_type === 'marble'
+      ? 'Marble'
+      : item.sub_category
+        ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+        : 'Magro';
 
     return (
       <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
@@ -394,7 +400,7 @@ export default function RequestDetail() {
             <span className="flex items-center justify-center h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
               {index + 1}
             </span>
-            <span className="font-semibold text-slate-900 capitalize">{item.product_type}</span>
+            <span className="font-semibold text-slate-900">{productLabel}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
@@ -755,7 +761,13 @@ export default function RequestDetail() {
                           {request.items!.map((item: RequestItemDB, index: number) => (
                             <TableRow key={item.id} className="hover:bg-slate-50/50">
                               <TableCell className="text-sm font-medium text-slate-600">{index + 1}</TableCell>
-                              <TableCell className="text-sm text-slate-900 capitalize font-medium">{item.product_type}</TableCell>
+                              <TableCell className="text-sm text-slate-900 font-medium">
+                                {item.product_type === 'marble'
+                                  ? 'Marble'
+                                  : item.sub_category
+                                    ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+                                    : 'Magro'}
+                              </TableCell>
                               <TableCell className="text-sm text-slate-700">{item.quality}</TableCell>
                               <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
                               <TableCell className="text-sm text-slate-700">{item.finish || '—'}</TableCell>

@@ -22,6 +22,8 @@ import ForgotPassword from '@/pages/auth/ForgotPassword';
 import UpdatePassword from '@/pages/auth/UpdatePassword';
 import AdminDashboard from '@/pages/dashboard/AdminDashboard';
 import CoordinatorDashboard from '@/pages/dashboard/CoordinatorDashboard';
+import MarbleCoordinatorDashboard from '@/pages/dashboard/MarbleCoordinatorDashboard';
+import MagroCoordinatorDashboard from '@/pages/dashboard/MagroCoordinatorDashboard';
 import RequesterDashboard from '@/pages/dashboard/RequesterDashboard';
 import MakerDashboard from '@/pages/dashboard/MakerDashboard';
 import DispatcherDashboard from '@/pages/dashboard/DispatcherDashboard';
@@ -167,7 +169,11 @@ function DashboardRouter() {
   switch (profile.role) {
     case 'admin':
       return <AdminDashboard />;
-    case 'coordinator':
+    case 'marble_coordinator':
+      return <MarbleCoordinatorDashboard />;
+    case 'magro_coordinator':
+      return <MagroCoordinatorDashboard />;
+    case 'coordinator': // legacy — treat as marble coordinator
       return <CoordinatorDashboard />;
     case 'requester':
       return <RequesterDashboard />;
@@ -257,7 +263,7 @@ function App() {
             path="/reports/requester"
             element={
               <ProtectedRoute>
-                <RoleProtectedRoute allowedRoles={['coordinator', 'admin']}>
+                <RoleProtectedRoute allowedRoles={['coordinator', 'marble_coordinator', 'magro_coordinator', 'admin']}>
                   <RequesterReport />
                 </RoleProtectedRoute>
               </ProtectedRoute>

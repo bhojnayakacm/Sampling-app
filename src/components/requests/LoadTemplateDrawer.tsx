@@ -37,6 +37,8 @@ function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
     ...item,
     id: generateId(), // Generate NEW unique ID for React
     // Ensure all required fields exist with defaults
+    category: item.category || '',
+    sub_category: item.sub_category || '',
     selected_qualities: item.selected_qualities || [],
     quality: item.quality || '',
     sample_size_custom: item.sample_size_custom || '',
@@ -140,9 +142,13 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
         {template.items.slice(0, 4).map((item, idx) => (
           <span
             key={idx}
-            className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded capitalize"
+            className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded"
           >
-            {item.product_type.replace('_', ' ')}
+            {item.category === 'marble'
+              ? 'Marble'
+              : item.sub_category
+                ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+                : 'Magro'}
           </span>
         ))}
         {itemCount > 4 && (

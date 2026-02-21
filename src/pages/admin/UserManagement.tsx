@@ -68,11 +68,25 @@ const ROLE_CONFIG: Record<string, {
     border: 'border-red-200',
     icon: 'A',
   },
-  coordinator: {
-    label: 'Coordinator',
+  marble_coordinator: {
+    label: 'Marble Coordinator',
     color: 'text-purple-700',
     bg: 'bg-purple-50',
     border: 'border-purple-200',
+    icon: 'MC',
+  },
+  magro_coordinator: {
+    label: 'Magro Coordinator',
+    color: 'text-violet-700',
+    bg: 'bg-violet-50',
+    border: 'border-violet-200',
+    icon: 'GC',
+  },
+  coordinator: {
+    label: 'Coordinator (Legacy)',
+    color: 'text-slate-700',
+    bg: 'bg-slate-100',
+    border: 'border-slate-200',
     icon: 'C',
   },
   requester: {
@@ -100,7 +114,7 @@ const ROLE_CONFIG: Record<string, {
 
 const DEPARTMENTS = ['sales', 'marketing', 'logistics'];
 
-type RoleFilter = 'all' | 'requester' | 'coordinator' | 'maker' | 'dispatcher' | 'admin';
+type RoleFilter = 'all' | 'requester' | 'marble_coordinator' | 'magro_coordinator' | 'maker' | 'dispatcher' | 'admin';
 
 // ============================================================
 // SUB-COMPONENTS
@@ -235,11 +249,12 @@ export default function UserManagement() {
 
   // Role counts for filter tabs
   const roleCounts = useMemo(() => {
-    if (!users) return { all: 0, requester: 0, coordinator: 0, maker: 0, dispatcher: 0, admin: 0 };
+    if (!users) return { all: 0, requester: 0, marble_coordinator: 0, magro_coordinator: 0, maker: 0, dispatcher: 0, admin: 0 };
     return {
       all: users.length,
       requester: users.filter((u) => u.role === 'requester').length,
-      coordinator: users.filter((u) => u.role === 'coordinator').length,
+      marble_coordinator: users.filter((u) => u.role === 'marble_coordinator').length,
+      magro_coordinator: users.filter((u) => u.role === 'magro_coordinator').length,
       maker: users.filter((u) => u.role === 'maker').length,
       dispatcher: users.filter((u) => u.role === 'dispatcher').length,
       admin: users.filter((u) => u.role === 'admin').length,
@@ -468,7 +483,8 @@ export default function UserManagement() {
               [
                 { key: 'all', label: 'All' },
                 { key: 'requester', label: 'Requesters' },
-                { key: 'coordinator', label: 'Coordinators' },
+                { key: 'marble_coordinator', label: 'Marble Coord.' },
+                { key: 'magro_coordinator', label: 'Magro Coord.' },
                 { key: 'maker', label: 'Makers' },
                 { key: 'dispatcher', label: 'Dispatchers' },
                 { key: 'admin', label: 'Admins' },
@@ -610,7 +626,8 @@ export default function UserManagement() {
                                 <SelectItem value="requester">Requester</SelectItem>
                                 <SelectItem value="maker">Maker</SelectItem>
                                 <SelectItem value="dispatcher">Dispatcher</SelectItem>
-                                <SelectItem value="coordinator">Coordinator</SelectItem>
+                                <SelectItem value="marble_coordinator">Marble Coordinator</SelectItem>
+                                <SelectItem value="magro_coordinator">Magro Coordinator</SelectItem>
                                 <SelectItem value="admin">Admin</SelectItem>
                               </SelectContent>
                             </Select>
@@ -893,7 +910,8 @@ export default function UserManagement() {
                   <SelectItem value="requester">Requester</SelectItem>
                   <SelectItem value="maker">Maker</SelectItem>
                   <SelectItem value="dispatcher">Dispatcher</SelectItem>
-                  <SelectItem value="coordinator">Coordinator</SelectItem>
+                  <SelectItem value="marble_coordinator">Marble Coordinator</SelectItem>
+                  <SelectItem value="magro_coordinator">Magro Coordinator</SelectItem>
                 </SelectContent>
               </Select>
             </div>

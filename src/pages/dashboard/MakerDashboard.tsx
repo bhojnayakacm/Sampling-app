@@ -22,8 +22,12 @@ function getItemSummary(request: Request): string {
   const itemCount = request.item_count || 0;
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
-    const productType = item.product_type || 'Unknown';
-    return `${productType.charAt(0).toUpperCase() + productType.slice(1)} - ${item.quality || 'N/A'}`;
+    const label = item.product_type === 'marble'
+      ? 'Marble'
+      : item.sub_category
+        ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+        : 'Magro';
+    return `${label} - ${item.quality || 'N/A'}`;
   }
   if (itemCount <= 1) return '1 Product';
   return `${itemCount} Products`;

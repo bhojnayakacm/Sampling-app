@@ -135,7 +135,7 @@ export default function QualityBarChart({ dateRange = 'this_month' }: QualityBar
   const productKeyMap: Record<ProductType, ProductTypeKey> = {
     'Marble': 'marble',
     'Tile': 'tile',
-    'Magro Stone': 'magro_stone',
+    'Stone': 'stone',
     'Quartz': 'quartz',
     'Terrazzo': 'terrazzo',
   };

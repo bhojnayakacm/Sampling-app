@@ -368,11 +368,11 @@ function SLABadge({ request, tick }: { request: Request; tick: number }) {
 // MAIN COMPONENT
 // ============================================================
 
-export default function CoordinatorDashboard() {
+export default function CoordinatorDashboard({ category }: { category?: 'marble' | 'magro' }) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { data: stats, isLoading: statsLoading } = useAllRequestsStats();
+  const { data: stats, isLoading: statsLoading } = useAllRequestsStats(category);
   const listSectionRef = useRef<HTMLDivElement>(null);
 
   // Derive all filter state from URL search params for persistence across navigation
@@ -442,9 +442,10 @@ export default function CoordinatorDashboard() {
     priority,
     overdue,
     productType,
+    category,
     userId: profile?.id,
     userRole: profile?.role,
-  }), [page, search, status, priority, overdue, productType, profile?.id, profile?.role]);
+  }), [page, search, status, priority, overdue, productType, category, profile?.id, profile?.role]);
 
   const { data: result, isLoading: requestsLoading } = usePaginatedRequests(filters);
 

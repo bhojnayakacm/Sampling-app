@@ -2,7 +2,14 @@
 // USER ROLES
 // ============================================================
 
-export type UserRole = 'admin' | 'coordinator' | 'requester' | 'maker' | 'dispatcher';
+export type UserRole =
+  | 'admin'
+  | 'coordinator'           // legacy — kept for backward compat; no new users assigned
+  | 'marble_coordinator'    // new: sees only marble requests
+  | 'magro_coordinator'     // new: sees only magro requests
+  | 'requester'
+  | 'maker'
+  | 'dispatcher';
 
 // ============================================================
 // REQUEST ENUMS
@@ -41,26 +48,64 @@ export type PickupResponsibility =
 // Section 2: Client Project Details
 export type ClientType = 'retail' | 'architect' | 'project' | 'other' | string;
 
-// Section 3: Sample Request Details
-export type ProductType = 'marble' | 'tile' | 'magro_stone' | 'terrazzo' | 'quartz';
+// ============================================================
+// CATEGORY & PRODUCT TYPE SYSTEM
+// ============================================================
+
+// Top-level category: the 2 routing buckets
+export type RequestCategory = 'marble' | 'magro';
+
+// Sub-category: only applies to magro items
+export type SubCategory = 'tile' | 'stone' | 'quartz' | 'terrazzo';
+
+// Internal key for looking up per-product-type option arrays
+// (marble has its own key; magro items use their sub_category as key)
+export type OptionsKey = 'marble' | 'tile' | 'stone' | 'quartz' | 'terrazzo';
+
+// Legacy type kept so analytics / display code can gradually migrate
+export type ProductType = RequestCategory;
 
 export type Quality = 'standard' | 'premium' | string; // Allow custom quality strings
 
 export type Purpose = 'new_launch' | 'client_presentation' | 'mock_up' | 'approval';
 
 // ============================================================
-// DYNAMIC QUALITY OPTIONS BY PRODUCT TYPE
-// Now imported from @/lib/productData.ts for the full list
-// This is kept for backward compatibility but the Combobox uses productData directly
+// CATEGORY & SUB-CATEGORY LABELS / HELPERS
 // ============================================================
 
-export const PRODUCT_QUALITY_OPTIONS: Record<ProductType, string[]> = {
-  marble: ['Custom'], // Full list in productData.ts
-  tile: ['Custom'], // Full list in productData.ts
-  magro_stone: ['Custom'], // Full list in productData.ts
-  terrazzo: ['Custom'], // Full list in productData.ts
-  quartz: ['Custom'], // Full list in productData.ts
+export const CATEGORY_LABELS: Record<RequestCategory, string> = {
+  marble: 'Marble',
+  magro: 'Magro',
 };
+
+export const MAGRO_SUB_CATEGORIES: SubCategory[] = ['tile', 'stone', 'quartz', 'terrazzo'];
+
+export const SUB_CATEGORY_LABELS: Record<SubCategory, string> = {
+  tile: 'Tile',
+  stone: 'Stone',
+  quartz: 'Quartz',
+  terrazzo: 'Terrazzo',
+};
+
+/**
+ * Maps a (category, sub_category) pair to the OptionsKey used for
+ * size, thickness, finish, and quality option arrays.
+ *
+ * - marble → 'marble'
+ * - magro + tile → 'tile'
+ * - magro + stone → 'stone'
+ * - magro + quartz → 'quartz'
+ * - magro + terrazzo → 'terrazzo'
+ * - incomplete selection → null
+ */
+export function getOptionsKey(
+  category: RequestCategory | '',
+  sub_category: SubCategory | '',
+): OptionsKey | null {
+  if (category === 'marble') return 'marble';
+  if (category === 'magro' && sub_category) return sub_category as OptionsKey;
+  return null;
+}
 
 // ============================================================
 // MULTI-PRODUCT TYPES
@@ -69,7 +114,10 @@ export const PRODUCT_QUALITY_OPTIONS: Record<ProductType, string[]> = {
 // Form state for product items (used in UI)
 export interface ProductItem {
   id: string; // Unique identifier for React keys (client-side only)
-  product_type: ProductType | '';
+
+  // Two-step product type selection
+  category: RequestCategory | '';     // 'marble' | 'magro' | ''
+  sub_category: SubCategory | '';     // populated only when category = 'magro'
 
   // Multi-select quality support (Batch Entry feature)
   selected_qualities: string[]; // Array of selected verified qualities from database
@@ -95,7 +143,8 @@ export interface RequestItemDB {
   id: string;
   request_id: string;
   item_index: number;
-  product_type: string;
+  product_type: RequestCategory;  // 'marble' | 'magro'
+  sub_category: SubCategory | null; // 'tile' | 'stone' | 'quartz' | 'terrazzo' | null
   quality: string;
   sample_size: string;
   thickness: string;
@@ -110,7 +159,8 @@ export interface RequestItemDB {
 export interface CreateRequestItemInput {
   request_id: string;
   item_index: number;
-  product_type: string;
+  product_type: RequestCategory;    // 'marble' | 'magro'
+  sub_category?: SubCategory | null; // null for marble, required for magro
   quality: string;
   sample_size: string;
   thickness: string;
@@ -148,6 +198,9 @@ export interface Request {
   status: RequestStatus;
   created_by: string;
   assigned_to: string | null;
+
+  // Category routing (set at submission time; null for mixed drafts)
+  category: RequestCategory | null;
 
   // Section 1: Requester Details
   department: string;  // Department type
@@ -233,32 +286,32 @@ export interface DashboardStats {
 }
 
 // ============================================================
-// PRODUCT-SPECIFIC OPTIONS
+// PRODUCT-SPECIFIC OPTIONS (keyed by OptionsKey)
 // ============================================================
 
-// Size options by product type
-export const PRODUCT_SIZE_OPTIONS: Record<ProductType, string[]> = {
+// Size options by OptionsKey
+export const PRODUCT_SIZE_OPTIONS: Record<OptionsKey, string[]> = {
   marble: ['12x12', '6x4', '6x6', '12x9', 'A4', '2x2', '24x24', 'Other'],
   tile: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
-  magro_stone: ['4x4', 'Other'],
+  stone: ['4x4', 'Other'],
   terrazzo: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
   quartz: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
 };
 
-// Finish options by product type
-export const PRODUCT_FINISH_OPTIONS: Record<ProductType, string[] | null> = {
+// Finish options by OptionsKey (null = no finish field shown)
+export const PRODUCT_FINISH_OPTIONS: Record<OptionsKey, string[] | null> = {
   marble: ['Polish', 'Honed', 'Leather/Brushed', 'Sandblasted', 'Lappato', 'Satin', 'Other'],
   tile: ['Matt', 'Satin', 'Glossy', 'High Glossy', 'Textured', 'Carvin', 'Lappato', 'Rustic', 'Grew', 'Other'],
-  magro_stone: ['Semi gloss', 'Gloss', 'Matt', 'Other'],
+  stone: ['Semi gloss', 'Gloss', 'Matt', 'Other'],
   terrazzo: null,  // No finish for terrazzo
   quartz: null,    // No finish for quartz
 };
 
-// Thickness options by product type
-export const PRODUCT_THICKNESS_OPTIONS: Record<ProductType, string[]> = {
+// Thickness options by OptionsKey
+export const PRODUCT_THICKNESS_OPTIONS: Record<OptionsKey, string[]> = {
   marble: ['20mm', '18mm', '16mm', 'Other'],
   tile: ['5mm', '6mm', '9mm', '12mm', '15mm', '16mm', '20mm', 'Other'],
-  magro_stone: ['20mm', 'Other'],
+  stone: ['20mm', 'Other'],
   terrazzo: ['20mm', 'Other'],
   quartz: ['16mm', 'Other'],
 };

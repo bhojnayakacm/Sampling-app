@@ -3,29 +3,32 @@
 // This is the single source of truth for all product types and qualities
 // ===================================================================
 
-// Display names for product types (used in UI dropdowns)
+// Display names for OptionsKey values (used in UI)
 export const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  // Top-level categories
   marble: 'Marble',
+  magro: 'Magro',
+  // Sub-categories (for detailed display)
   tile: 'Tile',
-  magro_stone: 'Magro Stone',
+  stone: 'Stone',
   quartz: 'Quartz',
   terrazzo: 'Terrazzo',
 };
 
-// Ordered list of product types for form dropdowns (lowercase keys)
+// Ordered list for analytics / legacy display
 export const PRODUCT_TYPES_ORDERED = [
   'marble',
   'tile',
-  'magro_stone',
+  'stone',
   'quartz',
   'terrazzo',
 ] as const;
 
-// Legacy format for analytics charts (capitalized display names)
+// Legacy format (capitalized) for analytics charts
 export const PRODUCT_TYPES = [
   'Marble',
   'Tile',
-  'Magro Stone',
+  'Stone',
   'Quartz',
   'Terrazzo',
 ] as const;
@@ -33,16 +36,16 @@ export const PRODUCT_TYPES = [
 export type ProductTypeKey = (typeof PRODUCT_TYPES_ORDERED)[number];
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 
-// Popular/frequently used qualities by product type (shown at top of dropdown)
+// Popular/frequently used qualities by OptionsKey (shown at top of dropdown)
 export const POPULAR_QUALITIES: Record<ProductTypeKey, string[]> = {
   marble: ['Statuario', 'Michel Angelo', 'Angelo White', 'Royal Crema', 'Ice Berg White'],
   tile: ['Cordoso Beige', 'Art Walnut', 'Terra Beige', 'Concrete Nero', 'Myra Sand'],
-  magro_stone: ['Frosty Blanc', 'Cascade'],
+  stone: ['Frosty Blanc', 'Cascade'],
   quartz: ['Tajmahal', 'P Grey', 'F Mountain', 'Frosty Bianc'],
   terrazzo: ['I Flower', 'Orbico', 'S Grey', 'R Stone'],
 };
 
-// Quality options by product type (lowercase keys for form usage)
+// Quality options by OptionsKey (lowercase keys for form usage)
 export const PRODUCT_QUALITIES_BY_KEY: Record<ProductTypeKey, string[]> = {
   marble: [
     'Achromic White',
@@ -503,7 +506,7 @@ export const PRODUCT_QUALITIES_BY_KEY: Record<ProductTypeKey, string[]> = {
     'Virtuous White',
     'Warm Garno',
   ],
-  magro_stone: [
+  stone: [
     'Arctic',
     'Bulgari',
     'Cascade',
@@ -564,7 +567,7 @@ export const PRODUCT_QUALITIES_BY_KEY: Record<ProductTypeKey, string[]> = {
 export const PRODUCT_QUALITIES: Record<ProductType, string[]> = {
   Marble: PRODUCT_QUALITIES_BY_KEY.marble,
   Tile: PRODUCT_QUALITIES_BY_KEY.tile,
-  'Magro Stone': PRODUCT_QUALITIES_BY_KEY.magro_stone,
+  Stone: PRODUCT_QUALITIES_BY_KEY.stone,
   Quartz: PRODUCT_QUALITIES_BY_KEY.quartz,
   Terrazzo: PRODUCT_QUALITIES_BY_KEY.terrazzo,
 };
@@ -574,7 +577,7 @@ export function getAllQualities(): string[] {
   return Object.values(PRODUCT_QUALITIES_BY_KEY).flat();
 }
 
-// Get qualities for a specific product type (lowercase key)
+// Get qualities for a specific OptionsKey (lowercase key)
 export function getQualitiesForProductKey(productTypeKey: ProductTypeKey): string[] {
   return PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [];
 }

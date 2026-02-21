@@ -44,11 +44,14 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
 
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
-    const productType = item.product_type || 'Unknown';
-    const capitalizedType = productType.charAt(0).toUpperCase() + productType.slice(1);
+    const label = item.product_type === 'marble'
+      ? 'Marble'
+      : item.sub_category
+        ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+        : 'Magro';
     return {
-      text: `${capitalizedType} (${item.quantity} pcs)`,
-      tooltip: `${capitalizedType} - ${item.quality || 'N/A'}`,
+      text: `${label} (${item.quantity} pcs)`,
+      tooltip: `${label} - ${item.quality || 'N/A'}`,
       isMulti: false,
     };
   }
@@ -101,7 +104,7 @@ export default function RequestList() {
 
   const isRequesterUser = profile?.role === 'requester';
   const isMakerUser = profile?.role === 'maker';
-  const isStaffUser = profile?.role === 'admin' || profile?.role === 'coordinator' || profile?.role === 'maker';
+  const isStaffUser = ['admin', 'coordinator', 'marble_coordinator', 'magro_coordinator', 'maker'].includes(profile?.role || '');
 
   const { data: result, isLoading } = usePaginatedRequests({
     page,

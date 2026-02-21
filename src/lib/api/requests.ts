@@ -8,6 +8,7 @@ import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, Reque
 // ============================================================
 const VALID_REQUEST_COLUMNS = new Set([
   'created_by', 'assigned_to', 'status', 'priority',
+  'category',
   'department', 'mobile_no', 'pickup_responsibility',
   'delivery_method_remark', 'is_delivery_method_edited',
   'delivery_address', 'is_address_edited', 'address_edit_remark',
@@ -43,6 +44,7 @@ export interface RequestFilters {
   priority?: Priority | null;
   overdue?: boolean;
   productType?: string | null;
+  category?: 'marble' | 'magro' | null; // Category-based coordinator routing
   userId?: string; // For role-based filtering (requester sees own, maker sees assigned)
   userRole?: UserRole; // To determine filtering logic
 }
@@ -65,12 +67,13 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
     priority = null,
     overdue = false,
     productType = null,
+    category = null,
     userId,
     userRole,
   } = filters;
 
   return useQuery({
-    queryKey: ['paginated-requests', page, pageSize, search, status, priority, overdue, productType, userId, userRole],
+    queryKey: ['paginated-requests', page, pageSize, search, status, priority, overdue, productType, category, userId, userRole],
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<PaginatedResult<Request>> => {
       // Step 1: If filtering by product type, pre-fetch matching request IDs (case-insensitive)
@@ -128,14 +131,28 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
       } else if (userRole === 'dispatcher') {
         // Dispatchers see field_boy requests that are ready, dispatched, or received
         query = query.eq('pickup_responsibility', 'field_boy').in('status', ['ready', 'dispatched', 'received']);
-      } else if (userRole === 'admin' || userRole === 'coordinator') {
+      } else if (
+        userRole === 'admin' ||
+        userRole === 'coordinator' ||
+        userRole === 'marble_coordinator' ||
+        userRole === 'magro_coordinator'
+      ) {
         // Admins and coordinators see all requests except drafts
         query = query.neq('status', 'draft');
       }
 
+      // Category filter (marble_coordinator or magro_coordinator dashboard isolation)
+      if (category) {
+        query = query.eq('category', category);
+      }
+
       // Role-based search filter
       // Note: For staff, we'll do client-side filtering on creator name due to Supabase limitations
-      const isStaffSearch = (userRole === 'admin' || userRole === 'coordinator' || userRole === 'maker') && search && search.trim();
+      const isStaffSearch = (
+        userRole === 'admin' || userRole === 'coordinator' ||
+        userRole === 'marble_coordinator' || userRole === 'magro_coordinator' ||
+        userRole === 'maker'
+      ) && search && search.trim();
 
       if (search && search.trim()) {
         const searchTerm = search.trim();
@@ -144,7 +161,11 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
           query = query.or(
             `request_number.ilike.%${searchTerm}%,client_contact_name.ilike.%${searchTerm}%,firm_name.ilike.%${searchTerm}%`
           );
-        } else if (userRole === 'admin' || userRole === 'coordinator' || userRole === 'maker') {
+        } else if (
+          userRole === 'admin' || userRole === 'coordinator' ||
+          userRole === 'marble_coordinator' || userRole === 'magro_coordinator' ||
+          userRole === 'maker'
+        ) {
           // Staff: Search by Request ID only (creator name search done client-side below)
           query = query.ilike('request_number', `%${searchTerm}%`);
         }
@@ -376,14 +397,14 @@ export function useDashboardStats(userId: string | undefined) {
   });
 }
 
-// Get stats for coordinators/admins (all requests)
-export function useAllRequestsStats() {
+// Get stats for coordinators/admins (all requests, optionally filtered by category)
+export function useAllRequestsStats(category?: 'marble' | 'magro' | null) {
   return useQuery({
-    queryKey: ['all-requests-stats'],
+    queryKey: ['all-requests-stats', category ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('requests')
-        .select('status');
+      let query = supabase.from('requests').select('status');
+      if (category) query = query.eq('category', category);
+      const { data, error } = await query;
 
       if (error) throw error;
 

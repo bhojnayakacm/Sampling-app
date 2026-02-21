@@ -7,15 +7,18 @@ import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
 import { Trash2, Upload, X, Package, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import type { ProductItem, ProductType } from '@/types';
+import type { ProductItem, RequestCategory, SubCategory } from '@/types';
 import {
   PRODUCT_SIZE_OPTIONS,
   PRODUCT_FINISH_OPTIONS,
   PRODUCT_THICKNESS_OPTIONS,
+  CATEGORY_LABELS,
+  MAGRO_SUB_CATEGORIES,
+  SUB_CATEGORY_LABELS,
+  getOptionsKey,
+  type OptionsKey,
 } from '@/types';
 import {
-  PRODUCT_TYPE_LABELS,
-  PRODUCT_TYPES_ORDERED,
   PRODUCT_QUALITIES_BY_KEY,
   POPULAR_QUALITIES,
   type ProductTypeKey,
@@ -38,38 +41,36 @@ export default function ProductItemCard({
 }: ProductItemCardProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Get product-specific options
-  const productType = item.product_type as ProductType;
-  const productTypeKey = item.product_type as ProductTypeKey;
-  const sizeOptions = productType ? PRODUCT_SIZE_OPTIONS[productType] : [];
-  const finishOptions = productType ? PRODUCT_FINISH_OPTIONS[productType] : null;
-  const thicknessOptions = productType ? PRODUCT_THICKNESS_OPTIONS[productType] : [];
+  // Derive the options key from (category, sub_category)
+  const optionsKey = getOptionsKey(item.category, item.sub_category);
+  const productTypeKey = optionsKey as ProductTypeKey | null;
 
-  // Get quality options from the data source
+  // Get product-specific options (null if category not yet selected)
+  const sizeOptions      = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey]      : [];
+  const finishOptions    = optionsKey ? PRODUCT_FINISH_OPTIONS[optionsKey]    : null;
+  const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
+
+  // Check if finish should be shown (null = no finish for this type)
+  const showFinish = optionsKey !== null && finishOptions !== null;
+
+  // Quality options from productData
   const qualityOptions = useMemo(() => {
     if (!productTypeKey) return [];
     return PRODUCT_QUALITIES_BY_KEY[productTypeKey] || [];
   }, [productTypeKey]);
 
-  // Get popular qualities for the selected product type
   const popularQualities = useMemo(() => {
     if (!productTypeKey) return [];
     return POPULAR_QUALITIES[productTypeKey] || [];
   }, [productTypeKey]);
 
-  // Build a Set for O(1) custom detection
   const qualityOptionsSet = useMemo(() => new Set(qualityOptions), [qualityOptions]);
 
-  // Check if finish should be shown (not for terrazzo/quartz)
-  const showFinish = productType && finishOptions !== null;
-
-  // Is this a batch entry (multiple qualities selected)?
+  // Batch / custom count helpers
   const isBatch = item.selected_qualities.length > 1;
-
-  // Count custom vs verified qualities
   const customCount = item.selected_qualities.filter((q) => !qualityOptionsSet.has(q)).length;
 
-  // Handle image selection
+  // ── Image handling ──────────────────────────────────────────
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -79,93 +80,100 @@ export default function ProductItemCard({
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        onUpdate(index, {
-          image_file: file,
-          image_preview: reader.result as string,
-        });
+        onUpdate(index, { image_file: file, image_preview: reader.result as string });
       };
       reader.readAsDataURL(file);
     }
   };
 
   const removeImage = () => {
+    onUpdate(index, { image_file: null, image_preview: null, image_url: null });
+  };
+
+  // Helper: auto-select when only one option exists (excluding "Other")
+  const getAutoSelectValue = (options: string[]): string | null => {
+    const nonOther = options.filter(opt => opt !== 'Other');
+    return nonOther.length === 1 ? nonOther[0] : null;
+  };
+
+  // ── Category change — resets everything below ───────────────
+  const handleCategoryChange = (newCategory: RequestCategory) => {
     onUpdate(index, {
-      image_file: null,
-      image_preview: null,
-      image_url: null,
+      category: newCategory,
+      sub_category: '',
+      selected_qualities: [],
+      quality: '',
+      sample_size: '',
+      sample_size_custom: '',
+      thickness: '',
+      thickness_custom: '',
+      finish: '',
+      finish_custom: '',
     });
   };
 
-  // Helper: Get the first non-"Other" option if only one exists
-  const getAutoSelectValue = (options: string[]): string | null => {
-    const nonOtherOptions = options.filter(opt => opt !== 'Other');
-    return nonOtherOptions.length === 1 ? nonOtherOptions[0] : null;
-  };
+  // ── Sub-category change — resets specs below ────────────────
+  const handleSubCategoryChange = (newSubCategory: SubCategory) => {
+    const newOptionsKey = newSubCategory as OptionsKey;
+    const hasFinish = PRODUCT_FINISH_OPTIONS[newOptionsKey] !== null;
 
-  // Reset dependent fields when product type changes
-  const handleProductTypeChange = (value: string) => {
-    const newProductType = value as ProductType;
-    const hasFinish = PRODUCT_FINISH_OPTIONS[newProductType] !== null;
+    const newSizeOptions      = PRODUCT_SIZE_OPTIONS[newOptionsKey]      || [];
+    const newThicknessOptions = PRODUCT_THICKNESS_OPTIONS[newOptionsKey] || [];
+    const newFinishOptions    = PRODUCT_FINISH_OPTIONS[newOptionsKey]    || [];
 
-    const newSizeOptions = PRODUCT_SIZE_OPTIONS[newProductType] || [];
-    const newThicknessOptions = PRODUCT_THICKNESS_OPTIONS[newProductType] || [];
-    const newFinishOptions = PRODUCT_FINISH_OPTIONS[newProductType] || [];
-
-    const autoSize = getAutoSelectValue(newSizeOptions);
+    const autoSize      = getAutoSelectValue(newSizeOptions);
     const autoThickness = getAutoSelectValue(newThicknessOptions);
-    const autoFinish = hasFinish ? getAutoSelectValue(newFinishOptions) : null;
+    const autoFinish    = hasFinish ? getAutoSelectValue(newFinishOptions) : null;
 
     onUpdate(index, {
-      product_type: newProductType,
+      sub_category: newSubCategory,
       selected_qualities: [],
       quality: '',
       sample_size: autoSize || '',
       sample_size_custom: '',
       thickness: autoThickness || '',
       thickness_custom: '',
-      finish: autoFinish || (hasFinish ? newFinishOptions[0] : ''),
+      finish: autoFinish || (hasFinish ? newFinishOptions[0] ?? '' : ''),
       finish_custom: '',
     });
   };
 
-  // Handle quality changes from the unified creatable multi-select
+  // Handle quality changes from multi-select combobox
   const handleQualitiesChange = (qualities: string[]) => {
     onUpdate(index, {
       selected_qualities: qualities,
-      // Legacy field for backward compat
       quality: qualities[0] || '',
     });
   };
 
-  // Get display label for card header
+  // ── Header label ────────────────────────────────────────────
   const getProductLabel = () => {
-    if (!item.product_type) return 'New Product';
-    return PRODUCT_TYPE_LABELS[item.product_type] || 'Product';
+    if (!item.category) return 'New Product';
+    if (item.category === 'marble') return CATEGORY_LABELS.marble;
+    if (item.category === 'magro' && item.sub_category) {
+      return `${CATEGORY_LABELS.magro} / ${SUB_CATEGORY_LABELS[item.sub_category]}`;
+    }
+    return CATEGORY_LABELS.magro;
   };
 
-  // Get quality summary for header
   const getQualitySummary = () => {
     if (item.selected_qualities.length === 1) {
       const q = item.selected_qualities[0];
-      const isCustom = !qualityOptionsSet.has(q);
-      return isCustom ? `${q} (custom)` : q;
+      return qualityOptionsSet.has(q) ? q : `${q} (custom)`;
     }
     if (item.selected_qualities.length > 1) {
       return `${item.selected_qualities.length} qualities${customCount > 0 ? ` (${customCount} custom)` : ''}`;
     }
-    // Legacy fallback
-    if (item.quality && item.quality !== 'Custom') {
-      return item.quality;
-    }
+    if (item.quality && item.quality !== 'Custom') return item.quality;
     return null;
   };
 
   const qualitySummary = getQualitySummary();
-  const imagePreview = item.image_preview || item.image_url;
+  const imagePreview   = item.image_preview || item.image_url;
 
   return (
     <Card className="border-slate-200 shadow-sm overflow-hidden">
-      {/* Card Header - Always visible */}
+      {/* Card Header */}
       <CardHeader className="py-3 px-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
         <div className="flex items-center justify-between">
           <button
@@ -220,34 +228,58 @@ export default function ProductItemCard({
         </div>
       </CardHeader>
 
-      {/* Card Content - Collapsible */}
+      {/* Card Content */}
       {!isCollapsed && (
         <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Product Type */}
-            <div>
-              <Label>Product Type *</Label>
-              <Select
-                value={item.product_type}
-                onValueChange={handleProductTypeChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRODUCT_TYPES_ORDERED.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {PRODUCT_TYPE_LABELS[type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            {/* ── Step 1: Category Toggle (Marble / Magro) ─────────────── */}
+            <div className="md:col-span-2">
+              <Label>Category *</Label>
+              <div className="flex gap-2 mt-1.5">
+                {(['marble', 'magro'] as RequestCategory[]).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat)}
+                    className={[
+                      'flex-1 h-10 rounded-md border text-sm font-medium transition-colors',
+                      item.category === cat
+                        ? cat === 'marble'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50',
+                    ].join(' ')}
+                  >
+                    {CATEGORY_LABELS[cat]}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* ============================================================ */}
-            {/* UNIFIED QUALITY INPUT: Creatable Multi-Select */}
-            {/* Verified DB entries = Blue chips | Custom typed = Amber chips */}
-            {/* ============================================================ */}
+            {/* ── Step 2: Sub-Category (only for Magro) ────────────────── */}
+            {item.category === 'magro' && (
+              <div className="md:col-span-2">
+                <Label>Sub Category *</Label>
+                <Select
+                  value={item.sub_category}
+                  onValueChange={(v) => handleSubCategoryChange(v as SubCategory)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select sub category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MAGRO_SUB_CATEGORIES.map((sc) => (
+                      <SelectItem key={sc} value={sc}>
+                        {SUB_CATEGORY_LABELS[sc]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* ── Quality (multi-select combobox) ──────────────────────── */}
             <div className="md:col-span-2">
               <Label className="flex items-center gap-2 flex-wrap">
                 Quality *
@@ -277,7 +309,15 @@ export default function ProductItemCard({
                   createLabel="Add custom quality"
                 />
               ) : (
-                <Input placeholder="Select product type first" disabled className="mt-1.5" />
+                <Input
+                  placeholder={
+                    item.category === 'magro' && !item.sub_category
+                      ? 'Select sub category first'
+                      : 'Select category first'
+                  }
+                  disabled
+                  className="mt-1.5"
+                />
               )}
               {isBatch && (
                 <p className="text-xs text-indigo-600 mt-1.5">
@@ -286,15 +326,15 @@ export default function ProductItemCard({
               )}
             </div>
 
-            {/* Sample Size */}
+            {/* ── Sample Size ───────────────────────────────────────────── */}
             <div>
               <Label>Sample Size *</Label>
-              {productType ? (
+              {optionsKey ? (
                 <Select
                   value={item.sample_size}
                   onValueChange={(value) => onUpdate(index, {
                     sample_size: value,
-                    sample_size_custom: value === 'Other' ? '' : undefined
+                    sample_size_custom: value === 'Other' ? '' : undefined,
                   })}
                 >
                   <SelectTrigger>
@@ -302,18 +342,16 @@ export default function ProductItemCard({
                   </SelectTrigger>
                   <SelectContent>
                     {sizeOptions.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size}
-                      </SelectItem>
+                      <SelectItem key={size} value={size}>{size}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
-                <Input placeholder="Select product type first" disabled />
+                <Input placeholder="Select category first" disabled />
               )}
             </div>
 
-            {/* Specify Size - Show when "Other" is selected */}
+            {/* Specify Size — shown when "Other" selected */}
             {item.sample_size === 'Other' && (
               <div>
                 <Label>Specify Size *</Label>
@@ -325,34 +363,32 @@ export default function ProductItemCard({
               </div>
             )}
 
-            {/* Thickness */}
+            {/* ── Thickness ─────────────────────────────────────────────── */}
             <div>
               <Label>Thickness *</Label>
-              {productType ? (
+              {optionsKey ? (
                 <Select
                   value={item.thickness}
                   onValueChange={(value) => onUpdate(index, {
                     thickness: value,
-                    thickness_custom: value === 'Other' ? '' : undefined
+                    thickness_custom: value === 'Other' ? '' : undefined,
                   })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select thickness" />
                   </SelectTrigger>
                   <SelectContent>
-                    {thicknessOptions.map((thickness) => (
-                      <SelectItem key={thickness} value={thickness}>
-                        {thickness}
-                      </SelectItem>
+                    {thicknessOptions.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               ) : (
-                <Input placeholder="Select product type first" disabled />
+                <Input placeholder="Select category first" disabled />
               )}
             </div>
 
-            {/* Specify Thickness - Show when "Other" is selected */}
+            {/* Specify Thickness — shown when "Other" selected */}
             {item.thickness === 'Other' && (
               <div>
                 <Label>Specify Thickness *</Label>
@@ -364,7 +400,7 @@ export default function ProductItemCard({
               </div>
             )}
 
-            {/* Finish - Only show for marble/tile/magro_stone */}
+            {/* ── Finish — only for types that have finish ──────────────── */}
             {showFinish && (
               <>
                 <div>
@@ -373,23 +409,21 @@ export default function ProductItemCard({
                     value={item.finish}
                     onValueChange={(value) => onUpdate(index, {
                       finish: value,
-                      finish_custom: value === 'Other' ? '' : undefined
+                      finish_custom: value === 'Other' ? '' : undefined,
                     })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select finish" />
                     </SelectTrigger>
                     <SelectContent>
-                      {finishOptions?.map((finish) => (
-                        <SelectItem key={finish} value={finish}>
-                          {finish}
-                        </SelectItem>
+                      {finishOptions?.map((f) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Specify Finish - Show when "Other" is selected */}
+                {/* Specify Finish — shown when "Other" selected */}
                 {item.finish === 'Other' && (
                   <div>
                     <Label>Specify Finish *</Label>
@@ -403,7 +437,7 @@ export default function ProductItemCard({
               </>
             )}
 
-            {/* Quantity */}
+            {/* ── Quantity ─────────────────────────────────────────────── */}
             <div>
               <Label>Quantity *</Label>
               <Input
@@ -415,7 +449,7 @@ export default function ProductItemCard({
               />
             </div>
 
-            {/* Reference Image Upload */}
+            {/* ── Reference Image ───────────────────────────────────────── */}
             <div className="md:col-span-2">
               <Label>Reference Image (Optional)</Label>
               {!imagePreview ? (
@@ -429,9 +463,7 @@ export default function ProductItemCard({
                   />
                   <label htmlFor={`image-${item.id}`} className="cursor-pointer">
                     <Upload className="mx-auto h-8 w-8 text-slate-400" />
-                    <p className="mt-1 text-sm text-slate-600">
-                      Click to upload
-                    </p>
+                    <p className="mt-1 text-sm text-slate-600">Click to upload</p>
                     <p className="text-xs text-slate-400">PNG, JPG up to 10MB</p>
                   </label>
                 </div>
@@ -452,7 +484,6 @@ export default function ProductItemCard({
                 </div>
               )}
 
-              {/* Batch Image Helper Note */}
               {isBatch && (
                 <div className="flex items-start gap-2 mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
                   <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />

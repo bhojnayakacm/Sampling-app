@@ -50,7 +50,8 @@ export async function createTemplate(
 ): Promise<ProductTemplate> {
   // Clean the items before saving (remove file objects, previews, etc.)
   const cleanedItems = input.items.map((item) => ({
-    product_type: item.product_type,
+    category: item.category,
+    sub_category: item.sub_category || '',
     selected_qualities: item.selected_qualities || [],
     quality: item.quality || '',
     sample_size: item.sample_size,
@@ -101,7 +102,8 @@ export async function updateTemplate(
   if (input.items) {
     // Clean the items before saving
     updateData.items = input.items.map((item) => ({
-      product_type: item.product_type,
+      category: item.category,
+      sub_category: item.sub_category || '',
       selected_qualities: item.selected_qualities || [],
       quality: item.quality || '',
       sample_size: item.sample_size,
