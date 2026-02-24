@@ -45,6 +45,7 @@ export interface RequestFilters {
   overdue?: boolean;
   productType?: string | null;
   category?: 'marble' | 'magro' | null; // Category-based coordinator routing
+  subCategory?: string | null;          // Magro sub-category filter (tile|stone|quartz|terrazzo)
   userId?: string; // For role-based filtering (requester sees own, maker sees assigned)
   userRole?: UserRole; // To determine filtering logic
 }
@@ -68,12 +69,13 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
     overdue = false,
     productType = null,
     category = null,
+    subCategory = null,
     userId,
     userRole,
   } = filters;
 
   return useQuery({
-    queryKey: ['paginated-requests', page, pageSize, search, status, priority, overdue, productType, category, userId, userRole],
+    queryKey: ['paginated-requests', page, pageSize, search, status, priority, overdue, productType, category, subCategory, userId, userRole],
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<PaginatedResult<Request>> => {
       // Step 1: If filtering by product type, pre-fetch matching request IDs (case-insensitive)
@@ -94,6 +96,24 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
         }
 
         productTypeIds = [...new Set(matchingItems.map((i) => i.request_id))];
+      }
+
+      // Step 1b: If filtering by sub-category, pre-fetch matching request IDs
+      let subCategoryIds: string[] | null = null;
+
+      if (subCategory) {
+        const { data: matchingItems, error: itemsError } = await supabase
+          .from('request_items')
+          .select('request_id')
+          .eq('sub_category', subCategory);
+
+        if (itemsError) throw itemsError;
+
+        if (!matchingItems || matchingItems.length === 0) {
+          return { data: [], count: 0, page, pageSize, totalPages: 0 };
+        }
+
+        subCategoryIds = [...new Set(matchingItems.map((i) => i.request_id))];
       }
 
       // Step 2: Build the main requests query
@@ -119,6 +139,11 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
       // Apply product type ID filter (from Step 1)
       if (productTypeIds !== null) {
         query = query.in('id', productTypeIds);
+      }
+
+      // Apply sub-category ID filter (from Step 1b)
+      if (subCategoryIds !== null) {
+        query = query.in('id', subCategoryIds);
       }
 
       // Role-based filtering

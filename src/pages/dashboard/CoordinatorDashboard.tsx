@@ -383,6 +383,7 @@ export default function CoordinatorDashboard({ category }: { category?: 'marble'
   const priority = (searchParams.get('priority') as Priority) || null;
   const overdue = searchParams.get('overdue') === 'true';
   const productType = searchParams.get('type') || null;
+  const subCategory = searchParams.get('sub') || null;
   const activeCard = searchParams.get('card') || null;
 
   // Stabilise setSearchParams via a ref so that downstream callbacks
@@ -441,11 +442,12 @@ export default function CoordinatorDashboard({ category }: { category?: 'marble'
     status,
     priority,
     overdue,
-    productType,
+    productType: !category ? productType : null,
     category,
+    subCategory: category === 'magro' ? subCategory : null,
     userId: profile?.id,
     userRole: profile?.role,
-  }), [page, search, status, priority, overdue, productType, category, profile?.id, profile?.role]);
+  }), [page, search, status, priority, overdue, productType, category, subCategory, profile?.id, profile?.role]);
 
   const { data: result, isLoading: requestsLoading } = usePaginatedRequests(filters);
 
@@ -484,8 +486,12 @@ export default function CoordinatorDashboard({ category }: { category?: 'marble'
     updateParams({ type: value, page: null });
   }, [updateParams]);
 
+  const handleSubCategoryChange = useCallback((value: string | null) => {
+    updateParams({ sub: value, page: null });
+  }, [updateParams]);
+
   const handleReset = useCallback(() => {
-    updateParams({ search: null, status: null, priority: null, overdue: null, type: null, page: null, card: null });
+    updateParams({ search: null, status: null, priority: null, overdue: null, type: null, sub: null, page: null, card: null });
   }, [updateParams]);
 
   const handleCardClick = (card: StatCardConfig) => {
@@ -588,13 +594,19 @@ export default function CoordinatorDashboard({ category }: { category?: 'marble'
                   search={search}
                   status={status}
                   priority={priority}
-                  productType={productType}
                   onSearchChange={handleSearchChange}
-                  onProductTypeChange={handleProductTypeChange}
                   onPriorityChange={handlePriorityChange}
                   onReset={handleReset}
                   overdue={overdue}
                   onOverdueChange={handleOverdueChange}
+                  {...(!category && {
+                    productType,
+                    onProductTypeChange: handleProductTypeChange,
+                  })}
+                  {...(category === 'magro' && {
+                    subCategory,
+                    onSubCategoryChange: handleSubCategoryChange,
+                  })}
                 />
               </CardContent>
             </Card>
@@ -634,11 +646,11 @@ export default function CoordinatorDashboard({ category }: { category?: 'marble'
                   <AlertCircle className="h-7 w-7 text-slate-400" />
                 </div>
                 <p className="text-slate-600 font-medium">
-                  {search || status || priority || overdue || productType
+                  {search || status || priority || overdue || productType || subCategory
                     ? 'No requests found matching your filters.'
                     : 'No requests found in the system.'}
                 </p>
-                {(search || status || priority || overdue || productType) && (
+                {(search || status || priority || overdue || productType || subCategory) && (
                   <Button
                     variant="outline"
                     onClick={handleReset}

@@ -12,7 +12,14 @@ import { Search, X, AlertTriangle, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RequestStatus, Priority } from '@/types';
 
-const PRODUCT_TYPES = ['Marble', 'Tile', 'Magro Stone', 'Quartz', 'Terrazzo'];
+const PRODUCT_TYPES = ['Marble', 'Tile', 'Stone', 'Quartz', 'Terrazzo'];
+
+const MAGRO_SUB_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'tile', label: 'Tile' },
+  { value: 'stone', label: 'Stone' },
+  { value: 'quartz', label: 'Quartz' },
+  { value: 'terrazzo', label: 'Terrazzo' },
+];
 
 interface RequestToolbarProps {
   search: string;
@@ -26,6 +33,9 @@ interface RequestToolbarProps {
   // Product Type filter — renders only when onProductTypeChange is provided
   productType?: string | null;
   onProductTypeChange?: (value: string | null) => void;
+  // Sub-category filter (Magro dashboard) — renders only when onSubCategoryChange is provided
+  subCategory?: string | null;
+  onSubCategoryChange?: (value: string | null) => void;
   // Overdue filter
   overdue?: boolean;
   onOverdueChange?: (value: boolean) => void;
@@ -42,6 +52,8 @@ export default function RequestToolbar({
   onStatusChange,
   productType,
   onProductTypeChange,
+  subCategory,
+  onSubCategoryChange,
   overdue = false,
   onOverdueChange,
   hideDraftStatus = false,
@@ -62,8 +74,8 @@ export default function RequestToolbar({
     setLocalSearch(search);
   }, [search]);
 
-  const hasActiveFilters = search || status || priority || overdue || productType;
-  const filterCount = [status, productType, priority, overdue].filter(Boolean).length;
+  const hasActiveFilters = search || status || priority || overdue || productType || subCategory;
+  const filterCount = [status, productType, subCategory, priority, overdue].filter(Boolean).length;
 
   return (
     <div className="space-y-3">
@@ -140,6 +152,26 @@ export default function RequestToolbar({
                 <SelectItem value="all">All Products</SelectItem>
                 {PRODUCT_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Sub-Category Dropdown (shown only when onSubCategoryChange is provided, e.g. Magro dashboard) */}
+        {onSubCategoryChange && (
+          <div className="hidden md:block w-[180px] flex-shrink-0">
+            <Select
+              value={subCategory || 'all'}
+              onValueChange={(v) => onSubCategoryChange(v === 'all' ? null : v)}
+            >
+              <SelectTrigger className="h-10 w-full">
+                <SelectValue placeholder="All Sub-Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sub-Categories</SelectItem>
+                {MAGRO_SUB_CATEGORIES.map((sc) => (
+                  <SelectItem key={sc.value} value={sc.value}>{sc.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -239,6 +271,24 @@ export default function RequestToolbar({
             </Select>
           )}
 
+          {/* Sub-Category (only if onSubCategoryChange is provided) */}
+          {onSubCategoryChange && (
+            <Select
+              value={subCategory || 'all'}
+              onValueChange={(v) => onSubCategoryChange(v === 'all' ? null : v)}
+            >
+              <SelectTrigger className="h-10 w-full">
+                <SelectValue placeholder="All Sub-Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sub-Categories</SelectItem>
+                {MAGRO_SUB_CATEGORIES.map((sc) => (
+                  <SelectItem key={sc.value} value={sc.value}>{sc.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           {/* Priority */}
           <Select
             value={priority || 'all'}
@@ -301,6 +351,11 @@ export default function RequestToolbar({
               {productType && (
                 <span className="inline-flex items-center px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs">
                   {productType}
+                </span>
+              )}
+              {subCategory && (
+                <span className="inline-flex items-center px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs capitalize">
+                  {subCategory}
                 </span>
               )}
               {priority && (
