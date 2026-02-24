@@ -99,7 +99,7 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
 
   // Both requester and coordinator can mark as received
   const isRequester = profile?.id === request.created_by;
-  const isCoordinator = profile?.role === 'coordinator';
+  const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const canMarkReceived = (isRequester || isCoordinator) && (
     request.status === 'dispatched' ||
     (request.status === 'ready' && isSelfPickup)

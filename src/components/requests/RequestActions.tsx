@@ -197,7 +197,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   };
 
   // Only coordinators can manage requests (not admins)
-  if (userRole !== 'coordinator') {
+  if (!['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(userRole)) {
     return null;
   }
 

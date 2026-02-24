@@ -14,7 +14,7 @@ interface MakerActionsProps {
 export default function MakerActions({ request, userRole, userId }: MakerActionsProps) {
   const updateStatus = useUpdateRequestStatus();
 
-  const isCoordinator = userRole === 'coordinator';
+  const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(userRole);
   const isAssignedUser = request.assigned_to === userId;
 
   // Show actions if:
