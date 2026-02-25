@@ -696,15 +696,7 @@ export default function NewRequest() {
       missingFields.push('Client email must be a valid email address');
     }
 
-    // Conditional validation based on client_type
-    if (data.client_type === 'retail') {
-      // Retail: Company Firm Name is NOT required (replaced by optional architect fields)
-    } else {
-      // All other types: Company/Firm Name is required
-      if (!data.firm_name) {
-        missingFields.push(data.client_type === 'architect' ? 'Architect Firm Name' : 'Firm Name');
-      }
-    }
+    // Firm name is optional for all client types
 
     // Project-specific validations
     if (data.client_type === 'project') {
@@ -1112,7 +1104,6 @@ export default function NewRequest() {
 
   // Section 2: Client Project Details - check required fields (with conditional logic)
   const clientContactName = watch('client_contact_name');
-  const firmName = watch('firm_name');
   const siteLocation = watch('site_location');
   const projectType = watch('project_type');
   const projectTypeCustom = watch('project_type_custom');
@@ -1122,8 +1113,6 @@ export default function NewRequest() {
     clientType &&
     clientContactName &&
     siteLocation &&
-    // Conditional: Firm Name required for non-Retail
-    (clientType === 'retail' || firmName) &&
     // Conditional: Custom text required when client type is "Other"
     (clientType !== 'other' || clientTypeCustom) &&
     // Conditional: Project Type required for "Project" client type
@@ -1401,6 +1390,7 @@ export default function NewRequest() {
                   />
                 </div>
 
+                {clientType && (<>
                 {/* Client Type Custom - Show for "Other" */}
                 {clientType === 'other' && (
                   <div>
@@ -1490,7 +1480,7 @@ export default function NewRequest() {
                   <Input
                     id="client_phone"
                     {...register('client_phone')}
-                    placeholder="Enter 10-digit mobile number"
+                    placeholder="Enter 10-digit mobile number (optional)"
                     inputMode="numeric"
                     maxLength={10}
                     className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
@@ -1537,17 +1527,15 @@ export default function NewRequest() {
                 {/* Firm Name - Hidden for Retail, Label changes for Architect */}
                 {clientType !== 'retail' && (
                   <div>
-                    <Label htmlFor="firm_name" className={`font-semibold ${errors.firm_name ? 'text-red-500' : 'text-slate-700'}`}>
-                      {clientType === 'architect' ? 'Architect Firm Name *' : 'Firm Name *'}
+                    <Label htmlFor="firm_name" className="text-slate-700 font-semibold">
+                      {clientType === 'architect' ? 'Architect Firm Name' : 'Firm Name'}
                     </Label>
                     <Input
                       id="firm_name"
                       {...register('firm_name')}
-                      placeholder={clientType === 'architect' ? 'Enter architect firm name' : 'Enter firm name'}
-                      error={!!errors.firm_name}
+                      placeholder={clientType === 'architect' ? 'Enter architect firm name (optional)' : 'Enter firm name (optional)'}
                       className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                     />
-                    {errors.firm_name && <p className="text-red-500 text-sm mt-1">{errors.firm_name.message}</p>}
                   </div>
                 )}
 
@@ -1565,6 +1553,7 @@ export default function NewRequest() {
                   />
                   {errors.site_location && <p className="text-red-500 text-xs mt-1">{errors.site_location.message}</p>}
                 </div>
+                </>)}
               </div>
             </AccordionContent>
           </AccordionItem>
