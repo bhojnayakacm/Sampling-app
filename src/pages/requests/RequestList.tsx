@@ -34,11 +34,17 @@ import TrackingDialog from '@/components/requests/TrackingDialog';
 const STATUS_FILTERS: Record<string, RequestStatus[]> = {
   pending: ['pending_approval', 'approved', 'assigned'],
   completed: ['ready', 'dispatched', 'received'],
-  // In Progress: All active statuses before dispatch (for Requester Dashboard)
   in_progress: ['pending_approval', 'approved', 'assigned', 'in_production', 'ready'],
 };
 
-// Helper function to generate smart item summary for table display
+// Category tabs: All / Marble / Magro
+const CATEGORY_TABS: { label: string; value: 'marble' | 'magro' | null }[] = [
+  { label: 'All', value: null },
+  { label: 'Marble', value: 'marble' },
+  { label: 'Magro', value: 'magro' },
+];
+
+// Helper: smart item summary for display
 function getItemSummary(request: Request): { text: string; tooltip: string; isMulti: boolean } {
   const itemCount = request.item_count || 0;
 
@@ -50,23 +56,19 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
         ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
         : 'Magro';
     return {
-      text: `${label} (${item.quantity} pcs)`,
-      tooltip: `${label} - ${item.quality || 'N/A'}`,
+      text: `${label} · ${item.quantity} pcs`,
+      tooltip: `${label} — ${item.quality || 'N/A'}`,
       isMulti: false,
     };
   }
 
   if (itemCount <= 1) {
-    return {
-      text: `${itemCount} Product`,
-      tooltip: 'Click to view product details',
-      isMulti: false,
-    };
+    return { text: '1 product', tooltip: 'Click to view details', isMulti: false };
   }
 
   return {
-    text: `${itemCount} Products`,
-    tooltip: 'Click to view all products in this request',
+    text: `${itemCount} products`,
+    tooltip: 'Click to view all products',
     isMulti: true,
   };
 }
@@ -81,10 +83,13 @@ export default function RequestList() {
   const [status, setStatus] = useState<RequestStatus | RequestStatus[] | null>(null);
   const [priority, setPriority] = useState<Priority | null>(null);
   const [overdue, setOverdue] = useState(false);
-  const [productType, setProductType] = useState<string | null>(null);
+  // Category (marble | magro | null) and sub-category replace the old productType state.
+  // Routing them to the correct API fields fixes the broken sub-category filter.
+  const [category, setCategory] = useState<'marble' | 'magro' | null>(null);
+  const [subCategory, setSubCategory] = useState<string | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
 
-  // Extract primitive values from searchParams for stable useEffect dependencies
+  // URL param-driven status pre-filtering (from dashboard stat card navigation)
   const urlStatus = searchParams.get('status');
   const urlFilter = searchParams.get('filter');
 
@@ -94,7 +99,6 @@ export default function RequestList() {
     } else if (urlStatus) {
       setStatus(urlStatus as RequestStatus);
     }
-
     if (urlFilter === 'drafts') {
       setStatus('draft');
     }
@@ -106,6 +110,8 @@ export default function RequestList() {
   const isMakerUser = profile?.role === 'maker';
   const isStaffUser = ['admin', 'coordinator', 'marble_coordinator', 'magro_coordinator', 'maker'].includes(profile?.role || '');
 
+  // Pass category + subCategory to the correct API filter fields.
+  // subCategory is only meaningful when category === 'magro'.
   const { data: result, isLoading } = usePaginatedRequests({
     page,
     pageSize: 15,
@@ -113,7 +119,8 @@ export default function RequestList() {
     status,
     priority,
     overdue,
-    productType,
+    category,
+    subCategory: category === 'magro' ? subCategory : null,
     userId: profile?.id,
     userRole: profile?.role,
   });
@@ -128,29 +135,42 @@ export default function RequestList() {
     return 'All Requests';
   };
 
-  // Clean status badge styling (matching dashboard)
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (s: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
-      draft: { label: 'Draft', className: 'bg-slate-100 text-slate-700' },
-      pending_approval: { label: 'Pending', className: 'bg-amber-50 text-amber-700' },
-      approved: { label: 'Approved', className: 'bg-sky-50 text-sky-700' },
-      assigned: { label: 'Assigned', className: 'bg-indigo-50 text-indigo-700' },
-      in_production: { label: 'In Production', className: 'bg-violet-50 text-violet-700' },
-      ready: { label: 'Ready', className: 'bg-teal-50 text-teal-700' },
-      dispatched: { label: 'Dispatched', className: 'bg-emerald-50 text-emerald-700' },
-      received: { label: 'Received', className: 'bg-green-50 text-green-700' },
-      rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700' },
+      draft:            { label: 'Draft',       className: 'bg-slate-100 text-slate-700' },
+      pending_approval: { label: 'Pending',      className: 'bg-amber-50 text-amber-700' },
+      approved:         { label: 'Approved',     className: 'bg-sky-50 text-sky-700' },
+      assigned:         { label: 'Assigned',     className: 'bg-indigo-50 text-indigo-700' },
+      in_production:    { label: 'In Production',className: 'bg-violet-50 text-violet-700' },
+      ready:            { label: 'Ready',        className: 'bg-teal-50 text-teal-700' },
+      dispatched:       { label: 'Dispatched',   className: 'bg-emerald-50 text-emerald-700' },
+      received:         { label: 'Received',     className: 'bg-green-50 text-green-700' },
+      rejected:         { label: 'Rejected',     className: 'bg-red-50 text-red-700' },
     };
-
-    const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-700' };
+    const { label, className } = statusMap[s] || { label: s, className: 'bg-slate-100 text-slate-700' };
     return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${className}`}>{label}</span>;
   };
 
-  const getPriorityBadge = (priority: string) => {
-    if (priority === 'urgent') {
-      return <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded uppercase">Urgent</span>;
+  const getPriorityBadge = (p: string) => {
+    if (p === 'urgent') {
+      return <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded uppercase tracking-wide">Urgent</span>;
     }
     return <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-medium rounded uppercase">Normal</span>;
+  };
+
+  const getStatusAccent = (s: string) => {
+    const colors: Record<string, string> = {
+      draft:            'border-l-slate-400',
+      pending_approval: 'border-l-amber-400',
+      approved:         'border-l-sky-500',
+      assigned:         'border-l-indigo-500',
+      in_production:    'border-l-violet-500',
+      ready:            'border-l-teal-500',
+      dispatched:       'border-l-emerald-500',
+      received:         'border-l-green-500',
+      rejected:         'border-l-red-500',
+    };
+    return colors[s] || 'border-l-slate-400';
   };
 
   const handleDeleteDraft = async () => {
@@ -164,12 +184,15 @@ export default function RequestList() {
     }
   };
 
+  const hasActiveFilters = !!(search || status || priority || overdue || category || subCategory);
+
   const handleReset = useCallback(() => {
     setSearch('');
     setStatus(null);
     setPriority(null);
     setOverdue(false);
-    setProductType(null);
+    setCategory(null);
+    setSubCategory(null);
     setPage(1);
   }, []);
 
@@ -193,30 +216,21 @@ export default function RequestList() {
     setPage(1);
   }, []);
 
-  const handleProductTypeChange = useCallback((value: string | null) => {
-    setProductType(value);
+  const handleCategoryChange = useCallback((value: 'marble' | 'magro' | null) => {
+    setCategory(value);
+    setSubCategory(null); // always reset sub-category when switching top-level tab
     setPage(1);
   }, []);
 
-  // Left border accent color for mobile cards (matches Coordinator design)
-  const getStatusAccent = (status: string) => {
-    const colors: Record<string, string> = {
-      draft: 'border-l-slate-400',
-      pending_approval: 'border-l-amber-500',
-      approved: 'border-l-sky-500',
-      assigned: 'border-l-indigo-500',
-      in_production: 'border-l-violet-500',
-      ready: 'border-l-teal-500',
-      dispatched: 'border-l-emerald-500',
-      received: 'border-l-green-500',
-      rejected: 'border-l-red-500',
-    };
-    return colors[status] || 'border-l-slate-400';
-  };
+  const handleSubCategoryChange = useCallback((value: string | null) => {
+    setSubCategory(value);
+    setPage(1);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Clean White Header */}
+
+      {/* ── Sticky Header ──────────────────────────────── */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center">
@@ -256,49 +270,68 @@ export default function RequestList() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        {/* Toolbar with Search and Filters */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-3 sm:space-y-4">
+
+        {/* ── Filters: Search / Priority / Overdue + Category Tabs ── */}
         <Card className="bg-white border border-slate-200 shadow-sm">
-          <CardContent className="p-4">
+          <CardContent className="p-4 space-y-3">
+            {/* Search + secondary filters (Priority, Status, Overdue) */}
+            {/* Sub-category dropdown appears automatically when Magro tab is active */}
             <RequestToolbar
               search={search}
               status={Array.isArray(status) ? null : status}
               priority={priority}
-              productType={productType}
               overdue={overdue}
               onSearchChange={handleSearchChange}
               onStatusChange={handleStatusChange}
               onPriorityChange={handlePriorityChange}
-              onProductTypeChange={handleProductTypeChange}
               onOverdueChange={handleOverdueChange}
               onReset={handleReset}
+              {...(category === 'magro' && {
+                subCategory,
+                onSubCategoryChange: handleSubCategoryChange,
+              })}
             />
+
+            {/* Category Tabs: All / Marble / Magro */}
+            <div className="flex rounded-lg bg-slate-100 p-1 gap-1">
+              {CATEGORY_TABS.map((tab) => {
+                const isActive = category === tab.value;
+                return (
+                  <button
+                    key={tab.label}
+                    type="button"
+                    onClick={() => handleCategoryChange(tab.value)}
+                    className={`flex-1 h-9 rounded-md text-sm font-medium transition-all duration-150 ${
+                      isActive
+                        ? 'bg-white text-indigo-600 shadow-sm font-semibold'
+                        : 'text-slate-600 hover:text-slate-800 active:bg-slate-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Header with count and actions - Desktop */}
-        <div className="flex justify-between items-center">
-          <div className="hidden sm:flex flex-col gap-1">
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-2xl font-bold text-slate-800">
-                {isLoading ? '\u00A0' : totalCount}
-              </h2>
-              <span className="text-base text-slate-500 font-medium">
-                Request{totalCount !== 1 ? 's' : ''}
-              </span>
-            </div>
-            {!isLoading && totalPages > 0 && (
-              <p className="text-sm text-slate-400">
-                Page {page} of {totalPages}
-              </p>
-            )}
-          </div>
-
-          <div className="hidden md:flex gap-3 ml-auto">
+        {/* ── Result count (Desktop) ─────────────────────── */}
+        <div className="hidden sm:flex items-baseline gap-2">
+          <h2 className="text-2xl font-bold text-slate-800">
+            {isLoading ? '\u00A0' : totalCount}
+          </h2>
+          <span className="text-base text-slate-500 font-medium">
+            {isMakerUser ? 'task' : 'request'}{totalCount !== 1 ? 's' : ''}
+          </span>
+          {!isLoading && totalPages > 1 && (
+            <span className="text-sm text-slate-400 ml-1">· Page {page} of {totalPages}</span>
+          )}
+          <div className="ml-auto">
             <Button
               onClick={() => navigate('/')}
               variant="outline"
-              className="h-11 gap-2 font-medium border-slate-200 text-slate-600 hover:bg-slate-50"
+              className="hidden md:flex h-10 gap-2 font-medium border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               <ChevronLeft className="h-4 w-4" />
               Dashboard
@@ -306,79 +339,104 @@ export default function RequestList() {
           </div>
         </div>
 
-        {/* Data Display */}
+        {/* ── Data Display ───────────────────────────────── */}
         {isLoading ? (
           <RequestListSkeleton rows={5} />
         ) : requests.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <div className="rounded-xl bg-slate-100 p-5 w-fit mx-auto mb-4">
-              <Package className="h-10 w-10 text-slate-400" />
+
+          /* Empty State */
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 sm:p-16 text-center">
+            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+              <Package className="h-8 w-8 text-slate-400" />
             </div>
-            <p className="text-slate-600 text-lg font-medium">
-              {search || status || priority || overdue || productType
-                ? 'No requests found matching your filters.'
+            <p className="text-slate-800 text-lg font-semibold mb-1.5">
+              {hasActiveFilters
+                ? 'No results found'
                 : isRequesterUser
-                ? 'No requests found. Create your first request to get started.'
+                ? 'No requests yet'
                 : isMakerUser
-                ? 'No tasks assigned to you yet.'
-                : 'No requests found in the system.'}
+                ? 'No tasks assigned yet'
+                : 'No requests found'}
             </p>
-            {(search || status || priority || overdue || productType) && (
+            <p className="text-slate-500 text-sm max-w-xs mx-auto leading-relaxed">
+              {hasActiveFilters
+                ? 'Try adjusting your filters or clearing the search term.'
+                : isRequesterUser
+                ? 'Create your first sample request to get started.'
+                : isMakerUser
+                ? 'Assigned tasks will appear here once a coordinator assigns them to you.'
+                : 'No requests have been submitted to the system yet.'}
+            </p>
+            {hasActiveFilters && (
               <Button
                 variant="outline"
                 onClick={handleReset}
-                className="mt-4 border-slate-200 text-slate-600 hover:bg-slate-50"
+                className="mt-5 border-slate-200 text-slate-600 hover:bg-slate-50 h-10"
               >
-                Clear Filters
+                Clear All Filters
               </Button>
             )}
           </div>
+
         ) : (
           <>
-            {/* Mobile Card View — Unified design matching Coordinator Dashboard */}
-            <div className="md:hidden space-y-3">
+            {/* ── Mobile Card Stack ────────────────────────── */}
+            <div className="md:hidden space-y-2.5">
               {requests.map((request) => {
                 const isDraft = request.status === 'draft';
-                const itemCount = request.item_count || 1;
+                const summary = getItemSummary(request);
+                const hasActions = isRequesterUser || !isDraft;
 
                 return (
                   <Card
                     key={request.id}
                     onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
                     className={`bg-white border border-slate-200 shadow-sm overflow-hidden border-l-4 ${getStatusAccent(request.status)} ${
-                      !isDraft ? 'cursor-pointer active:bg-slate-50' : ''
+                      !isDraft ? 'cursor-pointer active:bg-slate-50 transition-colors' : ''
                     }`}
                   >
                     <CardContent className="p-4">
-                      {/* Row 1: Request # (left) + Priority & Status badges (right) */}
-                      <div className="flex items-center justify-between mb-2">
+
+                      {/* Row 1: Request number + badges */}
+                      <div className="flex items-center justify-between mb-2.5">
                         <code className="text-sm font-mono font-bold text-indigo-600">
                           {request.request_number}
                         </code>
-                        <div className="flex items-center gap-2">
-                          {request.priority === 'urgent' && getPriorityBadge(request.priority)}
+                        <div className="flex items-center gap-1.5">
+                          {request.priority === 'urgent' && (
+                            <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded uppercase tracking-wide">
+                              Urgent
+                            </span>
+                          )}
                           {getStatusBadge(request.status)}
                         </div>
                       </div>
 
                       {/* Row 2: Role-aware hero content */}
                       {isRequesterUser ? (
-                        /* Requester: Client/Project is the hero (they know who they are) */
-                        <p className="text-base font-semibold text-slate-900 truncate mb-1">
-                          {request.client_contact_name} — {request.firm_name}
-                        </p>
+                        /* Requester: client info is the hero */
+                        <div className="mb-2.5">
+                          <p className="text-base font-semibold text-slate-900 leading-snug truncate">
+                            {request.client_contact_name || '—'}
+                          </p>
+                          {(request.firm_name || request.site_location) && (
+                            <p className="text-sm text-slate-500 truncate mt-0.5">
+                              {[request.firm_name, request.site_location].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
+                        </div>
                       ) : (
-                        /* Staff: Requester name is the hero + call button */
-                        <>
+                        /* Staff: requester identity is the hero */
+                        <div className="mb-2.5">
                           {request.creator && (
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-0.5">
                               <div className="flex items-baseline gap-1.5 flex-wrap min-w-0 flex-1">
                                 <p className="text-base font-semibold text-slate-900 truncate">
                                   {request.creator.full_name}
                                 </p>
                                 {request.creator.department && (
-                                  <span className="text-xs text-slate-500 font-normal whitespace-nowrap">
-                                    • {request.creator.department}
+                                  <span className="text-xs text-slate-500 whitespace-nowrap">
+                                    · {request.creator.department}
                                   </span>
                                 )}
                               </div>
@@ -393,54 +451,58 @@ export default function RequestList() {
                               )}
                             </div>
                           )}
-                          <p className="text-sm text-slate-500 truncate mb-1">
-                            {request.client_contact_name} — {request.firm_name || '—'}
+                          <p className="text-sm text-slate-500 truncate">
+                            {[request.client_contact_name, request.firm_name].filter(Boolean).join(' · ')}
                           </p>
-                        </>
+                        </div>
                       )}
 
-                      {/* Row 3: Date + Item count */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatDate(request.created_at)}</span>
-                        </div>
-                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${
-                          itemCount > 1
-                            ? 'bg-indigo-50 text-indigo-600 font-medium'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {itemCount > 1 && <Package className="h-3 w-3" />}
-                          {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                      {/* Row 3: Product summary + date (always visible on mobile) */}
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md font-medium ${
+                            summary.isMulti
+                              ? 'bg-indigo-50 text-indigo-600'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                          title={summary.tooltip}
+                        >
+                          <Package className="h-3 w-3 flex-shrink-0" />
+                          {summary.text}
                         </span>
+                        <div className="flex items-center gap-1 text-xs text-slate-400">
+                          <Clock className="h-3 w-3" />
+                          {formatDate(request.created_at)}
+                        </div>
                       </div>
 
-                      {/* Row 4: Bottom action bar */}
-                      <div className="flex items-center justify-end pt-3 border-t border-slate-100">
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          {/* Draft Actions */}
+                      {/* Row 4: Action buttons (conditionally rendered) */}
+                      {hasActions && (
+                        <div
+                          className="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-slate-100"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {isRequesterUser && isDraft && (
                             <>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => navigate(`/requests/edit/${request.id}`)}
-                                className="h-11 px-3 text-xs"
+                                className="h-10 px-3 text-xs"
                               >
-                                <Edit className="h-4 w-4 mr-1" />
+                                <Edit className="h-3.5 w-3.5 mr-1" />
                                 Edit
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => setDraftToDelete({ id: request.id, number: request.request_number })}
-                                className="h-11 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                className="h-10 px-3 text-xs text-red-600 border-red-200 hover:bg-red-50"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </>
                           )}
-                          {/* Track Button — 44px touch target */}
                           {!isDraft && (
                             <TrackingDialog
                               request={request}
@@ -448,23 +510,24 @@ export default function RequestList() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-11 px-4 text-xs font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                  className="h-10 px-4 text-xs font-medium border-indigo-200 text-indigo-600 hover:bg-indigo-50"
                                 >
-                                  <MapPin className="h-4 w-4 mr-1.5" />
+                                  <MapPin className="h-3.5 w-3.5 mr-1.5" />
                                   Track
                                 </Button>
                               }
                             />
                           )}
                         </div>
-                      </div>
+                      )}
+
                     </CardContent>
                   </Card>
                 );
               })}
             </div>
 
-            {/* Desktop Table View */}
+            {/* ── Desktop Table ─────────────────────────────── */}
             <div className="hidden md:block bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <Table>
                 <TableHeader>
@@ -489,7 +552,9 @@ export default function RequestList() {
                         className={`${!isDraft ? 'cursor-pointer hover:bg-slate-50' : ''} border-b border-slate-100 transition-colors`}
                         onClick={!isDraft ? () => navigate(`/requests/${request.id}`) : undefined}
                       >
-                        <TableCell className="font-bold font-mono text-sm text-slate-800">{request.request_number}</TableCell>
+                        <TableCell className="font-bold font-mono text-sm text-slate-800">
+                          {request.request_number}
+                        </TableCell>
                         {isStaffUser && (
                           <TableCell>
                             <p className="font-medium text-sm text-slate-700">{request.creator?.full_name || 'Unknown'}</p>
@@ -499,17 +564,19 @@ export default function RequestList() {
                           </TableCell>
                         )}
                         <TableCell>
-                          <div>
-                            <p className="font-semibold text-sm text-slate-700">{request.client_contact_name}</p>
-                            <p className="text-xs text-slate-400">{request.firm_name}</p>
-                          </div>
+                          <p className="font-semibold text-sm text-slate-700">{request.client_contact_name}</p>
+                          {(request.firm_name || request.site_location) && (
+                            <p className="text-xs text-slate-400">
+                              {request.firm_name || request.site_location}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell>
                           {(() => {
                             const summary = getItemSummary(request);
                             return (
                               <div
-                                className={`flex items-center gap-1.5 ${summary.isMulti ? 'text-indigo-600 font-semibold' : 'text-slate-600'}`}
+                                className={`flex items-center gap-1.5 text-sm ${summary.isMulti ? 'text-indigo-600 font-semibold' : 'text-slate-600'}`}
                                 title={summary.tooltip}
                               >
                                 {summary.isMulti && <Package className="h-4 w-4" />}
@@ -564,20 +631,22 @@ export default function RequestList() {
           </>
         )}
 
-        {/* Pagination Controls */}
+        {/* ── Pagination ─────────────────────────────────── */}
         {!isLoading && totalPages > 1 && (
           <div className="bg-white px-4 py-3 rounded-xl shadow-sm border border-slate-200">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="text-sm text-slate-600 text-center sm:text-left">
+              <p className="text-sm text-slate-600 text-center sm:text-left">
                 <span className="hidden sm:inline">
-                  Showing <span className="font-semibold text-slate-800">{(page - 1) * 15 + 1}</span> to{' '}
-                  <span className="font-semibold text-slate-800">{Math.min(page * 15, totalCount)}</span> of{' '}
+                  Showing{' '}
+                  <span className="font-semibold text-slate-800">{(page - 1) * 15 + 1}</span>–
+                  <span className="font-semibold text-slate-800">{Math.min(page * 15, totalCount)}</span>
+                  {' '}of{' '}
                   <span className="font-semibold text-slate-800">{totalCount}</span> results
                 </span>
                 <span className="sm:hidden">
                   Page <span className="font-semibold">{page}</span> of <span className="font-semibold">{totalPages}</span>
                 </span>
-              </div>
+              </p>
               <div className="flex gap-2 w-full sm:w-auto">
                 <Button
                   variant="outline"
@@ -602,27 +671,26 @@ export default function RequestList() {
           </div>
         )}
 
-        {/* Delete Confirmation Dialog */}
+        {/* ── Delete Draft Confirmation ───────────────────── */}
         <AlertDialog open={!!draftToDelete} onOpenChange={() => setDraftToDelete(null)}>
           <AlertDialogContent className="border border-slate-200 shadow-lg">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-slate-900">Delete Draft?</AlertDialogTitle>
               <AlertDialogDescription className="text-slate-500">
-                Are you sure you want to delete draft <strong className="text-slate-700">{draftToDelete?.number}</strong>?
+                Are you sure you want to delete draft{' '}
+                <strong className="text-slate-700">{draftToDelete?.number}</strong>?
                 This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="border-slate-200">Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteDraft}
-                className="bg-red-600 hover:bg-red-700"
-              >
+              <AlertDialogAction onClick={handleDeleteDraft} className="bg-red-600 hover:bg-red-700">
                 Delete Draft
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </main>
     </div>
   );
