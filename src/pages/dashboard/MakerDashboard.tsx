@@ -25,7 +25,7 @@ function getItemSummary(request: Request): string {
     const label = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category
-        ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+        ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
         : 'Magro';
     return `${label} - ${item.quality || 'N/A'}`;
   }

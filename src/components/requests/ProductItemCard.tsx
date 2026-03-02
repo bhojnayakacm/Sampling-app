@@ -151,7 +151,7 @@ export default function ProductItemCard({
     if (!item.category) return 'New Product';
     if (item.category === 'marble') return CATEGORY_LABELS.marble;
     if (item.category === 'magro' && item.sub_category) {
-      return `${CATEGORY_LABELS.magro} / ${SUB_CATEGORY_LABELS[item.sub_category]}`;
+      return `${CATEGORY_LABELS.magro} ${SUB_CATEGORY_LABELS[item.sub_category]}`;
     }
     return CATEGORY_LABELS.magro;
   };
@@ -186,7 +186,7 @@ export default function ProductItemCard({
             </div>
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <Package className="h-4 w-4 text-slate-500 flex-shrink-0" />
-              <span className="font-medium text-slate-800 truncate">
+              <span className="text-sm sm:text-base font-semibold text-slate-800 truncate">
                 {getProductLabel()}
               </span>
               {qualitySummary && (

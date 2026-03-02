@@ -47,7 +47,7 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
     const label = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category
-        ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+        ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
         : 'Magro';
     return {
       text: `${label} (${item.quantity} pcs)`,

@@ -389,7 +389,7 @@ export default function RequestDetail() {
     const productLabel = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category
-        ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+        ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
         : 'Magro';
 
     return (
@@ -765,7 +765,7 @@ export default function RequestDetail() {
                                 {item.product_type === 'marble'
                                   ? 'Marble'
                                   : item.sub_category
-                                    ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+                                    ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
                                     : 'Magro'}
                               </TableCell>
                               <TableCell className="text-sm text-slate-700">{item.quality}</TableCell>

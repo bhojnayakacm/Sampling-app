@@ -128,7 +128,7 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
                   const productLabel = product.category === 'marble'
                     ? 'Marble'
                     : product.sub_category
-                      ? `Magro / ${product.sub_category.charAt(0).toUpperCase() + product.sub_category.slice(1)}`
+                      ? `Magro ${product.sub_category.charAt(0).toUpperCase() + product.sub_category.slice(1)}`
                       : 'Magro';
                   return (
                     <div key={index} className="flex items-center gap-2 text-sm text-slate-600">

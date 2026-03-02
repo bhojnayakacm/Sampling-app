@@ -147,7 +147,7 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
             {item.category === 'marble'
               ? 'Marble'
               : item.sub_category
-                ? `Magro / ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+                ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
                 : 'Magro'}
           </span>
         ))}
