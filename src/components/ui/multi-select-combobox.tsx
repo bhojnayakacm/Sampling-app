@@ -129,7 +129,6 @@ interface PickerPanelProps {
   searchPlaceholder: string;
   emptyMessage: string;
   creatable: boolean;
-  createLabel: string;
 }
 
 function PickerPanel({
@@ -143,7 +142,6 @@ function PickerPanel({
   searchPlaceholder,
   emptyMessage,
   creatable,
-  createLabel,
 }: PickerPanelProps) {
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -215,6 +213,8 @@ function PickerPanel({
     if (!canCreate) return;
     onChange([...value, trimmedSearch]);
     setSearch('');
+    // Re-focus after adding so user can keep typing
+    setTimeout(() => inputRef.current?.focus(), 50);
   }, [canCreate, trimmedSearch, value, onChange]);
 
   const handleRemoveChip = useCallback(
@@ -229,14 +229,14 @@ function PickerPanel({
       onClose();
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (totalFiltered === 1 && !canCreate) {
+      if (canCreate) {
+        handleCreate();
+      } else if (totalFiltered === 1) {
         const single = filteredPopular.length === 1 ? filteredPopular[0] : filteredOptions[0];
         if (single && !value.includes(single)) {
           onChange([...value, single]);
           setSearch('');
         }
-      } else if (canCreate) {
-        handleCreate();
       }
     } else if (e.key === 'Backspace' && search === '' && value.length > 0) {
       onChange(value.slice(0, -1));
@@ -253,26 +253,26 @@ function PickerPanel({
         onClick={onClose}
       />
 
-      {/* Panel — bottom-sheet on mobile, centered card on desktop */}
+      {/* Panel — bottom-sheet on mobile (fixed height), centered card on desktop */}
       <div
         ref={panelRef}
         className={cn(
           'absolute bg-white flex flex-col shadow-2xl animate-in duration-200',
-          // Mobile: bottom-sheet, full width, rounded top
-          'bottom-0 left-0 right-0 max-h-[85dvh] rounded-t-2xl',
+          // Mobile: fixed-height bottom-sheet so the search bar never jumps
+          'bottom-0 left-0 right-0 h-[85dvh] rounded-t-2xl',
           'slide-in-from-bottom-4 fade-in-0',
-          // Desktop: centered card
-          'sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2',
+          // Desktop: centered card with max-height (content-driven is fine on desktop)
+          'sm:h-auto sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2',
           'sm:w-full sm:max-w-md sm:rounded-2xl sm:max-h-[70vh]'
         )}
       >
         {/* ─── Handle bar (mobile only) ─── */}
-        <div className="sm:hidden flex justify-center pt-2 pb-1">
+        <div className="sm:hidden flex justify-center pt-2 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-slate-300" />
         </div>
 
         {/* ─── Header ─── */}
-        <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-slate-100 shrink-0">
           <div>
             <h3 className="text-base font-semibold text-slate-900">Select Qualities</h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -299,7 +299,7 @@ function PickerPanel({
 
         {/* ─── Selected Chips Strip ─── */}
         {value.length > 0 && (
-          <div className="border-b border-slate-100 bg-slate-50/80">
+          <div className="border-b border-slate-100 bg-slate-50/80 shrink-0">
             <div className="flex gap-1.5 px-4 py-2.5 overflow-x-auto scrollbar-hide">
               {value.map((item) => (
                 <Chip
@@ -325,8 +325,8 @@ function PickerPanel({
           </div>
         )}
 
-        {/* ─── Search Input ─── */}
-        <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-2.5">
+        {/* ─── Search Input + inline Add button ─── */}
+        <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5 shrink-0">
           <Search className="h-4 w-4 text-slate-400 shrink-0" />
           <input
             ref={inputRef}
@@ -335,29 +335,65 @@ function PickerPanel({
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400 min-w-0"
             autoComplete="off"
             autoCapitalize="off"
           />
-          {search && (
+          {/* Clear button — only when there's text and no canCreate (otherwise Add button takes priority) */}
+          {search && !canCreate && (
             <button
               type="button"
               onClick={() => setSearch('')}
               className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-slate-100 active:bg-slate-200 shrink-0"
+              aria-label="Clear search"
             >
               <X className="h-4 w-4 text-slate-400" />
             </button>
           )}
+          {/* Inline Add button — prominent, replaces clear button when custom entry is possible */}
+          {canCreate && (
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-amber-500 text-white text-xs font-semibold active:bg-amber-600 hover:bg-amber-600 transition-colors shrink-0"
+              aria-label={`Add "${trimmedSearch}" as custom quality`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </button>
+          )}
         </div>
 
-        {/* ─── Options List ─── */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-2 py-1">
-          {totalFiltered === 0 && !canCreate ? (
-            <div className="py-10 text-center text-sm text-slate-400">
-              {creatable
-                ? 'No match found. Press Enter to add as custom.'
-                : emptyMessage}
-            </div>
+        {/* ─── Options List — flex-1 so it always fills remaining panel height ─── */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-2 py-1 min-h-0">
+          {totalFiltered === 0 ? (
+            // Empty state
+            canCreate ? (
+              // Has typed text that doesn't match anything — show a prominent CTA
+              <div className="flex flex-col items-center gap-4 py-10 px-6">
+                <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Plus className="h-7 w-7 text-amber-600" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-slate-800">No matching quality found</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Tap the button below to add it as a custom quality
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  className="flex items-center gap-2 h-12 px-6 rounded-xl bg-amber-500 text-white text-sm font-semibold active:bg-amber-600 hover:bg-amber-600 transition-colors shadow-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add &ldquo;{trimmedSearch}&rdquo;
+                </button>
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-slate-400">
+                {emptyMessage}
+              </div>
+            )
           ) : (
             <>
               {/* Popular Section */}
@@ -404,24 +440,24 @@ function PickerPanel({
                 </>
               )}
 
-              {/* Create Custom Option */}
-              {canCreate && (
-                <>
-                  {totalFiltered > 0 && <div className="mx-2 my-1 h-px bg-slate-100" />}
+              {/* Partial-match hint — results exist but typed text isn't an exact match */}
+              {canCreate && totalFiltered > 0 && (
+                <div className="mx-2 mt-1 mb-2">
+                  <div className="h-px bg-slate-100 mb-2" />
+                  <p className="px-2 text-xs text-slate-400 mb-1.5">
+                    Not what you&apos;re looking for?
+                  </p>
                   <button
                     type="button"
                     onClick={handleCreate}
-                    className="flex w-full items-center rounded-lg py-3 pl-4 pr-3 text-sm outline-none min-h-[44px] active:bg-amber-50 hover:bg-amber-50 text-amber-800"
+                    className="flex w-full items-center gap-2 rounded-lg py-2.5 px-3 text-sm font-medium border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 active:bg-amber-100 transition-colors min-h-[44px]"
                   >
-                    <Plus className="h-4 w-4 mr-2 text-amber-600 shrink-0" />
+                    <Plus className="h-4 w-4 text-amber-600 shrink-0" />
                     <span className="truncate">
-                      {createLabel}: &ldquo;<span className="font-semibold">{trimmedSearch}</span>&rdquo;
-                    </span>
-                    <span className="ml-auto text-[10px] font-medium text-amber-500 uppercase tracking-wider shrink-0 pl-2">
-                      Custom
+                      Add &ldquo;<span className="font-semibold">{trimmedSearch}</span>&rdquo; as custom
                     </span>
                   </button>
-                </>
+                </div>
               )}
             </>
           )}
@@ -431,11 +467,11 @@ function PickerPanel({
         <div className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400 flex justify-between items-center shrink-0 bg-white safe-area-pb">
           <span>
             {isSearching
-              ? `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}${canCreate ? ' + custom' : ''}`
+              ? `${totalFiltered} result${totalFiltered !== 1 ? 's' : ''}`
               : `${options.length} qualities available`}
           </span>
           <span className="text-indigo-600 font-medium">
-            {creatable ? 'Select or type custom' : 'Tap to select'}
+            {creatable ? 'Select or type to add custom' : 'Tap to select'}
           </span>
         </div>
       </div>
@@ -459,7 +495,7 @@ export function MultiSelectCombobox({
   disabled = false,
   // maxDisplay is no longer used — all chips are shown
   creatable = false,
-  createLabel = 'Add custom',
+  // createLabel is no longer used — the Add button label is always "Add"
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = useState(false);
 
@@ -525,7 +561,6 @@ export function MultiSelectCombobox({
         searchPlaceholder={searchPlaceholder}
         emptyMessage={emptyMessage}
         creatable={creatable}
-        createLabel={createLabel}
       />
     </>
   );
