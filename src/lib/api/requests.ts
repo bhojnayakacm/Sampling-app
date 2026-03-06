@@ -18,7 +18,7 @@ const VALID_REQUEST_COLUMNS = new Set([
   'firm_name', 'site_location',
   'supporting_architect_name', 'architect_firm_name',
   'project_type', 'project_placeholder',
-  'purpose', 'packing_details', 'packing_remarks',
+  'purpose', 'packing_details',
   'requester_message', 'coordinator_message', 'dispatch_notes',
   'item_count', 'received_by',
   'completed_at', 'dispatched_at', 'received_at',

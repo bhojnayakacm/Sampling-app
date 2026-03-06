@@ -62,6 +62,9 @@ const KNOWN_CLIENT_TYPES = ['retail', 'architect', 'project'] as const;
 // Known project type values — anything else is a custom "Other" entry
 const KNOWN_PROJECT_TYPES = ['hotel', 'resort', 'hospital'] as const;
 
+// Known packing options — anything else is a custom "Other" entry
+const KNOWN_PACKING_OPTIONS = ['wooden_crate', 'cardboard', 'bubble_wrap', 'foam'] as const;
+
 interface RequestFormData {
   // Section 1: Requester Details
   pickup_responsibility: PickupResponsibility;
@@ -88,7 +91,7 @@ interface RequestFormData {
   // Section 3: Shared Details
   purpose: Purpose;
   packing_details: PackingType;
-  packing_remarks?: string;
+  packing_details_custom?: string;  // UI-only: custom text when packing_details select = "other"
 
   // Optional message to coordinator
   requester_message?: string;
@@ -443,6 +446,9 @@ export default function NewRequest() {
       const storedProjectType = existingDraft.project_type || '';
       const isCustomProjectType = storedProjectType && !(KNOWN_PROJECT_TYPES as readonly string[]).includes(storedProjectType);
 
+      const storedPacking = existingDraft.packing_details || '';
+      const isCustomPacking = storedPacking && !(KNOWN_PACKING_OPTIONS as readonly string[]).includes(storedPacking);
+
       // Atomically reset all form fields at once — avoids race conditions with setValue
       reset({
         // Section 1: Requester Details
@@ -471,8 +477,9 @@ export default function NewRequest() {
 
         // Section 3: Shared Details
         purpose: (existingDraft.purpose as Purpose) || undefined,
-        packing_details: (existingDraft.packing_details as PackingType) || undefined,
-        packing_remarks: existingDraft.packing_remarks || '',
+        // Hybrid read: if stored value is not a known packing option, it's custom text
+        packing_details: isCustomPacking ? 'other' : (storedPacking as PackingType) || undefined,
+        packing_details_custom: isCustomPacking ? storedPacking : '',
         requester_message: existingDraft.requester_message || '',
       });
 
@@ -711,8 +718,8 @@ export default function NewRequest() {
     // Section 3: Shared Details
     if (!data.purpose) missingFields.push('Purpose');
     if (!data.packing_details) missingFields.push('Packing Details');
-    if (data.packing_details === 'custom' && !data.packing_remarks) {
-      missingFields.push('Packing Remarks (required when "Custom" is selected)');
+    if (data.packing_details === 'other' && !data.packing_details_custom) {
+      missingFields.push('Specify Packing (required when "Other" is selected)');
     }
 
     // Validate products
@@ -788,8 +795,10 @@ export default function NewRequest() {
 
         // Shared Details
         purpose: formValues.purpose || null,
-        packing_details: formValues.packing_details || null,
-        packing_remarks: formValues.packing_remarks || null,
+        // Hybrid Write: when select = "other", store the custom text directly in the primary column
+        packing_details: formValues.packing_details === 'other'
+          ? (formValues.packing_details_custom || null)
+          : (formValues.packing_details || null),
 
         // Requester message (optional)
         requester_message: formValues.requester_message || null,
@@ -957,8 +966,10 @@ export default function NewRequest() {
 
         // Shared Details
         purpose: data.purpose,
-        packing_details: data.packing_details,
-        packing_remarks: data.packing_details === 'custom' ? data.packing_remarks : null,
+        // Hybrid Write: when select = "other", store the custom text directly in the primary column
+        packing_details: data.packing_details === 'other'
+          ? (data.packing_details_custom || data.packing_details)
+          : data.packing_details,
 
         // Requester message (optional)
         requester_message: data.requester_message || null,
@@ -1149,7 +1160,7 @@ export default function NewRequest() {
     }) &&
     purpose &&
     packingDetails &&
-    (packingDetails !== 'custom' || watch('packing_remarks'))
+    (packingDetails !== 'other' || watch('packing_details_custom'))
   );
 
   // ============================================================
@@ -1703,21 +1714,21 @@ export default function NewRequest() {
                             <SelectItem value="cardboard">Cardboard</SelectItem>
                             <SelectItem value="bubble_wrap">Bubble Wrap</SelectItem>
                             <SelectItem value="foam">Foam</SelectItem>
-                            <SelectItem value="custom">Custom</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
                       )}
                     />
                   </div>
 
-                  {/* Packing Remarks */}
-                  {packingDetails === 'custom' && (
+                  {/* Specify Packing — shown when "Other" is selected */}
+                  {packingDetails === 'other' && (
                     <div className="md:col-span-2">
-                      <Label htmlFor="packing_remarks" className="text-slate-700 font-semibold">Packing Remarks *</Label>
+                      <Label htmlFor="packing_details_custom" className="text-slate-700 font-semibold">Specify Packing *</Label>
                       <Textarea
-                        id="packing_remarks"
-                        {...register('packing_remarks')}
-                        placeholder="Specify custom packing requirements"
+                        id="packing_details_custom"
+                        {...register('packing_details_custom')}
+                        placeholder="Describe your packing requirements"
                         rows={2}
                         className="mt-1.5 border-slate-200 focus:ring-indigo-500"
                       />

@@ -1038,12 +1038,6 @@ export default function RequestDetail() {
                     <p className="text-sm text-slate-900 capitalize">{request.packing_details?.replace(/_/g, ' ')}</p>
                   </div>
                 </div>
-                {request.packing_remarks && (
-                  <div className="mt-4 pt-3 border-t border-slate-100">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Notes</label>
-                    <p className="text-sm text-slate-600">{request.packing_remarks}</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>

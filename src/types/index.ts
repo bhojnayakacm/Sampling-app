@@ -169,7 +169,7 @@ export interface CreateRequestItemInput {
   image_url?: string | null;
 }
 
-export type PackingType = 'wooden_crate' | 'cardboard' | 'bubble_wrap' | 'foam' | 'custom';
+export type PackingType = 'wooden_crate' | 'cardboard' | 'bubble_wrap' | 'foam' | 'other';
 
 // ============================================================
 // PROFILE
@@ -230,8 +230,7 @@ export interface Request {
 
   // Section 3: Sample Request Details
   purpose: string;  // Purpose type
-  packing_details: string;  // PackingType
-  packing_remarks: string | null;
+  packing_details: string;  // PackingType — stores custom text directly when "Other" is selected
 
   // Multi-product support
   item_count: number;  // Number of items in this request
