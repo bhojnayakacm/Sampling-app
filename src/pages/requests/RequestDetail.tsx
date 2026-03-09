@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -381,30 +381,73 @@ export default function RequestDetail() {
   };
 
   // =============================================
+  // PRODUCT ITEM HELPERS
+  // =============================================
+  const MAGRO_SORT_ORDER: Record<string, number> = { tile: 0, stone: 1, quartz: 2, terrazzo: 3 };
+
+  const itemHasFinish = (item: RequestItemDB) =>
+    item.product_type === 'marble' ||
+    (item.product_type === 'magro' && (item.sub_category === 'tile' || item.sub_category === 'stone'));
+
+  const formatItemLine = (item: RequestItemDB, num: number) => {
+    const parts = [item.sample_size, item.thickness];
+    if (itemHasFinish(item) && item.finish) parts.push(item.finish);
+    return `${num}. ${item.quality} (${parts.filter(Boolean).join(', ')}) - Qty: ${item.quantity}`;
+  };
+
+  // Sort items: for magro requests, group by sub_category in defined order
+  const getSortedItems = (items: RequestItemDB[]) => {
+    if (request?.category === 'magro') {
+      return [...items].sort((a, b) =>
+        (MAGRO_SORT_ORDER[a.sub_category || ''] ?? 99) - (MAGRO_SORT_ORDER[b.sub_category || ''] ?? 99)
+      );
+    }
+    return items;
+  };
+
+  // Group magro items by sub_category, preserving sort order
+  const getGroupedMagroItems = (items: RequestItemDB[]) => {
+    const sorted = getSortedItems(items);
+    const groups: { label: string; items: RequestItemDB[] }[] = [];
+    let currentSub = '';
+    for (const item of sorted) {
+      const sub = item.sub_category || '';
+      if (sub !== currentSub) {
+        currentSub = sub;
+        const label = sub ? `Magro ${sub.charAt(0).toUpperCase() + sub.slice(1)}` : 'Magro';
+        groups.push({ label, items: [] });
+      }
+      groups[groups.length - 1].items.push(item);
+    }
+    return groups;
+  };
+
+  // =============================================
   // MOBILE PRODUCT CARD COMPONENT
   // =============================================
   const ProductCard = ({ item, index }: { item: RequestItemDB; index: number }) => {
-    const showFinish = item.product_type === 'marble' ||
-      (item.product_type === 'magro' && (item.sub_category === 'tile' || item.sub_category === 'stone'));
-    const productLabel = item.product_type === 'marble'
-      ? 'Marble'
-      : item.sub_category
-        ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
-        : 'Magro';
+    const showFinish = itemHasFinish(item);
 
     return (
-      <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-        {/* Card Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center h-6 w-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-              {index + 1}
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5">
+        {/* Header: Quality name prominent, specs inline */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold shrink-0 mt-0.5">
+              {index}
             </span>
-            <span className="font-semibold text-slate-900">{productLabel}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 leading-tight truncate">{item.quality}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {[item.sample_size, item.thickness, showFinish && item.finish ? item.finish : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
-              Qty: {item.quantity}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-medium">
+              ×{item.quantity}
             </span>
             {item.image_url && (
               <button
@@ -414,28 +457,6 @@ export default function RequestDetail() {
                 <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Card Body - 2x2 Grid */}
-        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Quality</span>
-            <p className="text-sm text-slate-900 mt-0.5">{item.quality}</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Size</span>
-            <p className="text-sm text-slate-900 mt-0.5">{item.sample_size}</p>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Finish</span>
-            <p className="text-sm text-slate-900 mt-0.5">
-              {showFinish && item.finish ? item.finish : '—'}
-            </p>
-          </div>
-          <div>
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Thickness</span>
-            <p className="text-sm text-slate-900 mt-0.5">{item.thickness}</p>
           </div>
         </div>
       </div>
@@ -720,16 +741,15 @@ export default function RequestDetail() {
                   </CardTitle>
                   <button
                     onClick={async () => {
-                      const qualities = hasItems
-                        ? request.items!.map((item) => item.quality).filter(Boolean)
-                        : [];
-                      if (qualities.length === 0) return;
-                      await navigator.clipboard.writeText(qualities.join(', '));
+                      if (!hasItems) return;
+                      const sorted = getSortedItems(request.items!);
+                      const lines = sorted.map((item, i) => formatItemLine(item, i + 1));
+                      await navigator.clipboard.writeText(lines.join('\n'));
                       setQualitiesCopied(true);
                       setTimeout(() => setQualitiesCopied(false), 2000);
                     }}
                     className="h-9 w-9 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
-                    title="Copy quality list"
+                    title="Copy item list"
                   >
                     {qualitiesCopied ? (
                       <Check className="h-3.5 w-3.5 text-emerald-600" />
@@ -740,65 +760,115 @@ export default function RequestDetail() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {hasItems ? (
-                  <>
-                    {/* DESKTOP: Data Table (hidden on mobile) */}
-                    <div className="hidden md:block overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-slate-50 hover:bg-slate-50">
-                            <TableHead className="w-10 text-xs font-medium text-slate-500">#</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Type</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Quality</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Size</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Finish</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500">Thickness</TableHead>
-                            <TableHead className="text-xs font-medium text-slate-500 text-right">Qty</TableHead>
-                            <TableHead className="w-10 text-xs font-medium text-slate-500">Img</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {request.items!.map((item: RequestItemDB, index: number) => (
-                            <TableRow key={item.id} className="hover:bg-slate-50/50">
-                              <TableCell className="text-sm font-medium text-slate-600">{index + 1}</TableCell>
-                              <TableCell className="text-sm text-slate-900 font-medium">
-                                {item.product_type === 'marble'
-                                  ? 'Marble'
-                                  : item.sub_category
-                                    ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
-                                    : 'Magro'}
-                              </TableCell>
-                              <TableCell className="text-sm text-slate-700">{item.quality}</TableCell>
-                              <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
-                              <TableCell className="text-sm text-slate-700">{item.finish || '—'}</TableCell>
-                              <TableCell className="text-sm text-slate-700">{item.thickness}</TableCell>
-                              <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
-                              <TableCell>
-                                {item.image_url ? (
-                                  <button
-                                    onClick={() => setPreviewImage(item.image_url)}
-                                    className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400"
-                                  >
-                                    <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                  </button>
-                                ) : (
-                                  <span className="text-slate-300">—</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                {hasItems ? (() => {
+                  const isMagro = request.category === 'magro';
+                  const sortedItems = getSortedItems(request.items!);
+                  const magroGroups = isMagro ? getGroupedMagroItems(request.items!) : [];
+                  // Pre-compute cumulative start index for each group
+                  const groupStartIndices = magroGroups.reduce<number[]>((acc, _group, i) => {
+                    acc.push(i === 0 ? 0 : acc[i - 1] + magroGroups[i - 1].items.length);
+                    return acc;
+                  }, []);
 
-                    {/* MOBILE: Card View (hidden on desktop) */}
-                    <div className="md:hidden p-3 space-y-3">
-                      {request.items!.map((item: RequestItemDB, index: number) => (
-                        <ProductCard key={item.id} item={item} index={index} />
-                      ))}
-                    </div>
-                  </>
-                ) : (
+                  return (
+                    <>
+                      {/* DESKTOP: Data Table (hidden on mobile) */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50 hover:bg-slate-50">
+                              <TableHead className="w-10 text-xs font-medium text-slate-500">#</TableHead>
+                              <TableHead className="text-xs font-medium text-slate-500">Quality</TableHead>
+                              <TableHead className="text-xs font-medium text-slate-500">Size</TableHead>
+                              <TableHead className="text-xs font-medium text-slate-500">Thickness</TableHead>
+                              <TableHead className="text-xs font-medium text-slate-500">Finish</TableHead>
+                              <TableHead className="text-xs font-medium text-slate-500 text-right">Qty</TableHead>
+                              <TableHead className="w-10 text-xs font-medium text-slate-500">Img</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {isMagro ? (
+                              magroGroups.map((group, gi) => {
+                                const groupStartIndex = groupStartIndices[gi];
+                                return (
+                                  <React.Fragment key={group.label}>
+                                    <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
+                                      <TableCell colSpan={7} className="py-2 px-4">
+                                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{group.label}</span>
+                                      </TableCell>
+                                    </TableRow>
+                                    {group.items.map((item, i) => (
+                                      <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                        <TableCell className="text-sm font-medium text-slate-400">{groupStartIndex + i + 1}</TableCell>
+                                        <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
+                                        <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
+                                        <TableCell className="text-sm text-slate-700">{item.thickness}</TableCell>
+                                        <TableCell className="text-sm text-slate-700">{itemHasFinish(item) && item.finish ? item.finish : '—'}</TableCell>
+                                        <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
+                                        <TableCell>
+                                          {item.image_url ? (
+                                            <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
+                                              <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                            </button>
+                                          ) : <span className="text-slate-300">—</span>}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </React.Fragment>
+                                );
+                              })
+                            ) : (
+                              sortedItems.map((item, index) => (
+                                <TableRow key={item.id} className="hover:bg-slate-50/50">
+                                  <TableCell className="text-sm font-medium text-slate-400">{index + 1}</TableCell>
+                                  <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
+                                  <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
+                                  <TableCell className="text-sm text-slate-700">{item.thickness}</TableCell>
+                                  <TableCell className="text-sm text-slate-700">{item.finish || '—'}</TableCell>
+                                  <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
+                                  <TableCell>
+                                    {item.image_url ? (
+                                      <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
+                                        <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                      </button>
+                                    ) : <span className="text-slate-300">—</span>}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* MOBILE: Card View (hidden on desktop) */}
+                      <div className="md:hidden p-3 space-y-2">
+                        {isMagro ? (
+                          magroGroups.map((group, gi) => {
+                            const groupStartIndex = groupStartIndices[gi];
+                            return (
+                              <div key={group.label}>
+                                <div className="flex items-center gap-2 py-2 px-1">
+                                  <div className="h-px flex-1 bg-slate-200" />
+                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{group.label}</span>
+                                  <div className="h-px flex-1 bg-slate-200" />
+                                </div>
+                                <div className="space-y-2">
+                                  {group.items.map((item, i) => (
+                                    <ProductCard key={item.id} item={item} index={groupStartIndex + i + 1} />
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          sortedItems.map((item, index) => (
+                            <ProductCard key={item.id} item={item} index={index + 1} />
+                          ))
+                        )}
+                      </div>
+                    </>
+                  );
+                })() : (
                   <div className="p-6 text-center text-slate-500 text-sm">
                     No product items found for this request.
                   </div>

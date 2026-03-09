@@ -232,8 +232,11 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
           .in('status', ['pending_approval', 'approved', 'assigned', 'in_production', 'ready', 'dispatched']);
       }
 
-      // Ordering
-      query = query.order('created_at', { ascending: false });
+      // Ordering: created_at desc, then request_number desc as tie-breaker
+      // (split requests share the same created_at timestamp)
+      query = query
+        .order('created_at', { ascending: false })
+        .order('request_number', { ascending: false });
 
       // Pagination
       const from = (page - 1) * pageSize;
@@ -275,7 +278,8 @@ export function useRequests() {
             role
           )
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('request_number', { ascending: false });
 
       if (error) throw error;
       return data as Request[];
@@ -306,7 +310,8 @@ export function useMyRequests(userId: string | undefined) {
           )
         `)
         .eq('created_by', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('request_number', { ascending: false });
 
       if (error) throw error;
       return data as Request[];
