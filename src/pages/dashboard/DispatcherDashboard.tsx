@@ -279,10 +279,10 @@ export default function DispatcherDashboard() {
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="h-9 w-9 p-0 text-slate-500 hover:bg-slate-100"
+                className="h-11 w-11 p-0 text-slate-500 hover:bg-slate-100 active:bg-slate-200"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
@@ -290,7 +290,7 @@ export default function DispatcherDashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={signOut}
-                className="h-9 px-3 text-xs text-slate-500 hover:bg-slate-100"
+                className="h-11 px-3 text-xs text-slate-500 hover:bg-slate-100 active:bg-slate-200"
               >
                 <LogOut className="h-4 w-4 sm:mr-1.5" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -464,9 +464,9 @@ export default function DispatcherDashboard() {
                             request={request}
                             trigger={
                               <button
-                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-indigo-100 hover:text-indigo-600 transition-colors"
+                                className="h-10 w-10 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500 hover:bg-indigo-100 hover:text-indigo-600 active:bg-indigo-200 transition-colors"
                               >
-                                <Eye className="h-3.5 w-3.5" />
+                                <Eye className="h-4 w-4" />
                               </button>
                             }
                           />

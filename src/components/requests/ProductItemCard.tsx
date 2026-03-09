@@ -217,9 +217,9 @@ export default function ProductItemCard({
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={() => onRemove(index)}
-                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                className="h-11 w-11 text-red-500 hover:text-red-700 hover:bg-red-50"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

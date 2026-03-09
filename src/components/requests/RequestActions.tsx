@@ -235,7 +235,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               <Button
                 onClick={() => setApproveDialogOpen(true)}
                 size="sm"
-                className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
               >
                 <CheckCircle className="h-4 w-4" />
                 Approve
@@ -244,7 +244,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                 onClick={() => setRejectDialogOpen(true)}
                 size="sm"
                 variant="outline"
-                className="h-9 border-red-200 text-red-600 hover:bg-red-50 gap-1.5"
+                className="h-10 border-red-200 text-red-600 hover:bg-red-50 gap-1.5"
               >
                 <XCircle className="h-4 w-4" />
                 Reject
@@ -256,7 +256,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             <Button
               onClick={() => setAssignDialogOpen(true)}
               size="sm"
-              className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+              className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
             >
               <UserPlus className="h-4 w-4" />
               Assign Maker
@@ -269,7 +269,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               onClick={() => handleStatusUpdate('in_production')}
               size="sm"
               disabled={updateStatus.isPending}
-              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+              className="h-10 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
             >
               {updateStatus.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -288,7 +288,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               onClick={() => handleStatusUpdate('ready')}
               size="sm"
               disabled={updateStatus.isPending}
-              className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+              className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
             >
               {updateStatus.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -306,7 +306,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             <Button
               onClick={handleDispatchClick}
               size="sm"
-              className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+              className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
             >
               <Truck className="h-4 w-4" />
               Dispatch
@@ -319,7 +319,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               onClick={handleMarkReceivedClick}
               size="sm"
               disabled={markAsReceived.isPending}
-              className="h-9 bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
+              className="h-10 bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
             >
               {markAsReceived.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -537,7 +537,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                       }
                     }}
                     disabled={assignRequest.isPending || !profile?.id}
-                    className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 shrink-0"
+                    className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700 shrink-0"
                   >
                     {assignRequest.isPending && selectedMaker === profile?.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

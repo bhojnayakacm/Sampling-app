@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput, RequiredByHistoryEntry } from '@/types';
 
@@ -76,7 +76,6 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
 
   return useQuery({
     queryKey: ['paginated-requests', page, pageSize, search, status, priority, overdue, productType, category, subCategory, userId, userRole],
-    placeholderData: keepPreviousData,
     queryFn: async (): Promise<PaginatedResult<Request>> => {
       // Step 1: If filtering by product type, pre-fetch matching request IDs (case-insensitive)
       let productTypeIds: string[] | null = null;
@@ -114,6 +113,27 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
         }
 
         subCategoryIds = [...new Set(matchingItems.map((i) => i.request_id))];
+      }
+
+      // Step 1c: If staff is searching, pre-fetch creator profile IDs matching the search term
+      // This enables server-side "search by creator name" without fetching the entire table
+      let searchCreatorIds: string[] | null = null;
+
+      const isStaffRole = (
+        userRole === 'admin' || userRole === 'coordinator' ||
+        userRole === 'marble_coordinator' || userRole === 'magro_coordinator' ||
+        userRole === 'maker'
+      );
+
+      if (isStaffRole && search && search.trim()) {
+        const { data: matchingProfiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('full_name', `%${search.trim()}%`);
+
+        if (profilesError) throw profilesError;
+
+        searchCreatorIds = matchingProfiles?.map(p => p.id) || [];
       }
 
       // Step 2: Build the main requests query
@@ -171,29 +191,23 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
         query = query.eq('category', category);
       }
 
-      // Role-based search filter
-      // Note: For staff, we'll do client-side filtering on creator name due to Supabase limitations
-      const isStaffSearch = (
-        userRole === 'admin' || userRole === 'coordinator' ||
-        userRole === 'marble_coordinator' || userRole === 'magro_coordinator' ||
-        userRole === 'maker'
-      ) && search && search.trim();
-
+      // Server-side search across request columns + creator name (via pre-fetched IDs)
       if (search && search.trim()) {
         const searchTerm = search.trim();
-        if (userRole === 'requester') {
-          // Requesters: Search by Request ID, Client Name, or Company Name
-          query = query.or(
-            `request_number.ilike.%${searchTerm}%,client_contact_name.ilike.%${searchTerm}%,firm_name.ilike.%${searchTerm}%`
-          );
-        } else if (
-          userRole === 'admin' || userRole === 'coordinator' ||
-          userRole === 'marble_coordinator' || userRole === 'magro_coordinator' ||
-          userRole === 'maker'
-        ) {
-          // Staff: Search by Request ID only (creator name search done client-side below)
-          query = query.ilike('request_number', `%${searchTerm}%`);
+
+        // Base columns to search: request_number, client_contact_name, firm_name
+        const orClauses = [
+          `request_number.ilike.%${searchTerm}%`,
+          `client_contact_name.ilike.%${searchTerm}%`,
+          `firm_name.ilike.%${searchTerm}%`,
+        ];
+
+        // For staff roles, also match requests whose creator name matches (from Step 1c)
+        if (isStaffRole && searchCreatorIds && searchCreatorIds.length > 0) {
+          orClauses.push(`created_by.in.(${searchCreatorIds.join(',')})`);
         }
+
+        query = query.or(orClauses.join(','));
       }
 
       // Status filter
@@ -230,57 +244,12 @@ export function usePaginatedRequests(filters: RequestFilters = {}) {
 
       if (error) throw error;
 
-      let filteredData = (data as Request[]) || [];
-      let finalCount = count || 0;
-
-      // Client-side filtering for staff searching by creator name
-      if (isStaffSearch && search) {
-        const searchLower = search.trim().toLowerCase();
-        // If the request_number search returned no results, try searching by creator name
-        if (filteredData.length === 0) {
-          // Re-fetch without search filter to search by creator name
-          const { data: allData, error: refetchError } = await supabase
-            .from('requests')
-            .select(`
-              *,
-              creator:profiles!created_by (
-                id,
-                full_name,
-                role,
-                department,
-                phone
-              ),
-              maker:profiles!assigned_to (
-                id,
-                full_name,
-                role,
-                department
-              )
-            `, { count: 'exact' })
-            .neq('status', 'draft')
-            .order('created_at', { ascending: false });
-
-          if (refetchError) throw refetchError;
-
-          // Filter by creator name
-          filteredData = (allData as Request[])?.filter(req =>
-            req.creator?.full_name?.toLowerCase().includes(searchLower)
-          ) || [];
-
-          // Apply pagination manually
-          finalCount = filteredData.length;
-          const from = (page - 1) * pageSize;
-          const to = from + pageSize;
-          filteredData = filteredData.slice(from, to);
-        }
-      }
-
       return {
-        data: filteredData,
-        count: finalCount,
+        data: (data as Request[]) || [],
+        count: count || 0,
         page,
         pageSize,
-        totalPages: Math.ceil(finalCount / pageSize),
+        totalPages: Math.ceil((count || 0) / pageSize),
       };
     },
   });

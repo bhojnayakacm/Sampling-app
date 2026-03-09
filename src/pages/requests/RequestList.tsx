@@ -444,7 +444,7 @@ export default function RequestList() {
                                 <a
                                   href={`tel:${request.creator.phone}`}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="flex-shrink-0 h-8 w-8 rounded-full bg-green-50 hover:bg-green-100 flex items-center justify-center transition-colors"
+                                  className="flex-shrink-0 h-11 w-11 rounded-full bg-green-50 hover:bg-green-100 active:bg-green-200 flex items-center justify-center transition-colors"
                                 >
                                   <Phone className="h-4 w-4 text-green-600" />
                                 </a>

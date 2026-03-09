@@ -728,7 +728,7 @@ export default function RequestDetail() {
                       setQualitiesCopied(true);
                       setTimeout(() => setQualitiesCopied(false), 2000);
                     }}
-                    className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                    className="h-9 w-9 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
                     title="Copy quality list"
                   >
                     {qualitiesCopied ? (
@@ -1058,7 +1058,7 @@ export default function RequestDetail() {
                   {isCoordinator && request.status !== 'pending_approval' && (
                     <button
                       onClick={() => setIsEditRequiredByOpen(true)}
-                      className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                      className="h-9 w-9 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
                       title="Edit deadline"
                     >
                       <Pencil className="h-3.5 w-3.5" />

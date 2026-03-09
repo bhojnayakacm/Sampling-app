@@ -158,7 +158,7 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
               onClick={() => handleStatusUpdate('in_production')}
               disabled={updateStatus.isPending}
               size="sm"
-              className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shrink-0"
+              className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shrink-0"
             >
               {updateStatus.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -176,7 +176,7 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
               onClick={() => handleStatusUpdate('ready')}
               disabled={updateStatus.isPending}
               size="sm"
-              className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shrink-0"
+              className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shrink-0"
             >
               {updateStatus.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
