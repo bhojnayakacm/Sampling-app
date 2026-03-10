@@ -719,8 +719,8 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {/* Schedule Change Warning Banner */}
-        {request.has_schedule_warning && (
+        {/* Schedule Change Warning Banner — only visible to the request owner */}
+        {request.has_schedule_warning && profile?.role === 'requester' && profile?.id === request.created_by && (
           <button
             onClick={() => dismissWarning.mutate(request.id)}
             disabled={dismissWarning.isPending}
