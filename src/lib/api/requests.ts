@@ -1209,6 +1209,7 @@ export function useUpdateRequiredBy() {
         .update({
           required_by: newDate,
           required_by_history: newHistory,
+          has_schedule_warning: true,
           updated_at: new Date().toISOString(),
         })
         .eq('id', requestId)
@@ -1224,6 +1225,27 @@ export function useUpdateRequiredBy() {
       queryClient.invalidateQueries({ queryKey: ['my-requests'] });
       queryClient.invalidateQueries({ queryKey: ['request', variables.requestId] });
       queryClient.invalidateQueries({ queryKey: ['request-with-items', variables.requestId] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+    },
+  });
+}
+
+// Hook for dismissing schedule change warning
+export function useDismissScheduleWarning() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase
+        .from('requests')
+        .update({ has_schedule_warning: false })
+        .eq('id', requestId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_data, requestId) => {
+      queryClient.invalidateQueries({ queryKey: ['request', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     },
   });

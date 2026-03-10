@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRequestWithItems } from '@/lib/api/requests';
+import { useRequestWithItems, useDismissScheduleWarning } from '@/lib/api/requests';
 import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
@@ -57,6 +57,7 @@ import {
   Mail,
   Package,
   AlertCircle,
+  AlertTriangle,
   Copy,
   RotateCcw,
 } from 'lucide-react';
@@ -70,6 +71,7 @@ export default function RequestDetail() {
   const queryClient = useQueryClient();
 
   const { data: request, isLoading, error } = useRequestWithItems(id);
+  const dismissWarning = useDismissScheduleWarning();
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
@@ -717,12 +719,93 @@ export default function RequestDetail() {
           </div>
         )}
 
+        {/* Schedule Change Warning Banner */}
+        {request.has_schedule_warning && (
+          <button
+            onClick={() => dismissWarning.mutate(request.id)}
+            disabled={dismissWarning.isPending}
+            className="w-full mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-center gap-3 text-left hover:bg-amber-100 active:bg-amber-100 transition-colors"
+          >
+            <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900">Schedule has been updated</p>
+              <p className="text-xs text-amber-700">The deadline was changed. Tap to dismiss.</p>
+            </div>
+            {dismissWarning.isPending ? (
+              <Loader2 className="h-4 w-4 text-amber-500 animate-spin shrink-0" />
+            ) : (
+              <X className="h-4 w-4 text-amber-400 shrink-0" />
+            )}
+          </button>
+        )}
+
         {/* =========================================== */}
         {/* MAIN GRID - Responsive */}
         {/* =========================================== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
           {/* LEFT COLUMN - Main Content */}
           <div className="lg:col-span-2 space-y-4 sm:space-y-5">
+
+            {/* =========================================== */}
+            {/* REQUIRED BY / DEADLINE - Moved to top for mobile access */}
+            {/* =========================================== */}
+            <Card className="bg-white border border-slate-200 shadow-sm">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
+                      deadlineStatus.status === 'overdue' ? 'bg-red-100' :
+                      deadlineStatus.status === 'urgent' ? 'bg-amber-100' :
+                      deadlineStatus.status === 'completed' ? 'bg-green-100' :
+                      'bg-slate-100'
+                    }`}>
+                      <Calendar className={`h-5 w-5 ${
+                        deadlineStatus.status === 'overdue' ? 'text-red-600' :
+                        deadlineStatus.status === 'urgent' ? 'text-amber-600' :
+                        deadlineStatus.status === 'completed' ? 'text-green-600' :
+                        'text-slate-500'
+                      }`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Required By</p>
+                      <p className={`text-base sm:text-lg font-bold leading-tight ${
+                        deadlineStatus.status === 'overdue' ? 'text-red-700' :
+                        deadlineStatus.status === 'urgent' ? 'text-amber-700' :
+                        deadlineStatus.status === 'completed' ? 'text-green-700' :
+                        'text-slate-900'
+                      }`}>
+                        {formatDateTime(request.required_by)}
+                      </p>
+                      {deadlineStatus.label && (
+                        <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
+                          {deadlineStatus.label}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isCoordinator && request.status !== 'pending_approval' && (
+                    <button
+                      onClick={() => setIsEditRequiredByOpen(true)}
+                      className="h-10 w-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors shrink-0"
+                      title="Edit deadline"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {/* Deadline History — collapsible inline */}
+                {request.required_by_history && request.required_by_history.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <RequiredByHistory history={request.required_by_history} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* =========================================== */}
             {/* PRODUCT ITEMS - Responsive View Swap */}
@@ -1116,59 +1199,6 @@ export default function RequestDetail() {
           {/* RIGHT COLUMN - Sidebar */}
           {/* =========================================== */}
           <div className="space-y-4 sm:space-y-5">
-            {/* Deadline / Required By */}
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-amber-500" />
-                    Required By
-                  </CardTitle>
-                  {/* Hide pencil for pending_approval - coordinator should use the Approval Dialog instead */}
-                  {isCoordinator && request.status !== 'pending_approval' && (
-                    <button
-                      onClick={() => setIsEditRequiredByOpen(true)}
-                      className="h-9 w-9 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
-                      title="Edit deadline"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                {/* Current Deadline - Primary Display */}
-                <div className={`p-3 rounded-lg ${
-                  deadlineStatus.status === 'overdue' ? 'bg-red-50 border border-red-200' :
-                  deadlineStatus.status === 'urgent' ? 'bg-amber-50 border border-amber-200' :
-                  deadlineStatus.status === 'completed' ? 'bg-green-50 border border-green-200' :
-                  'bg-slate-50 border border-slate-200'
-                }`}>
-                  <p className={`text-xl font-bold ${
-                    deadlineStatus.status === 'overdue' ? 'text-red-700' :
-                    deadlineStatus.status === 'urgent' ? 'text-amber-700' :
-                    deadlineStatus.status === 'completed' ? 'text-green-700' :
-                    'text-slate-900'
-                  }`}>
-                    {formatDateTime(request.required_by)}
-                  </p>
-                  {deadlineStatus.label && (
-                    <span className={`inline-flex items-center mt-2 px-2 py-0.5 rounded text-xs font-medium ${
-                      deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      {deadlineStatus.label}
-                    </span>
-                  )}
-                </div>
-
-                {/* Deadline History */}
-                {request.required_by_history && request.required_by_history.length > 0 && (
-                  <RequiredByHistory history={request.required_by_history} />
-                )}
-              </CardContent>
-            </Card>
-
             {/* Assigned Maker */}
             {request.maker && (
               <Card className="bg-white border border-slate-200 shadow-sm">

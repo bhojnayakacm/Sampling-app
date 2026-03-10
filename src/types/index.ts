@@ -256,6 +256,9 @@ export interface Request {
   // Deadline history (audit trail for required_by changes)
   required_by_history: RequiredByHistoryEntry[] | null;
 
+  // Schedule change warning (set when coordinator changes required_by)
+  has_schedule_warning: boolean;
+
   // Related data (populated via joins)
   creator?: {
     id: string;

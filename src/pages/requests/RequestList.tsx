@@ -76,16 +76,18 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
 export default function RequestList() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Derive category from URL ?tab= param for state preservation across navigation
+  const tabParam = searchParams.get('tab');
+  const category: 'marble' | 'magro' | null =
+    tabParam === 'marble' || tabParam === 'magro' ? tabParam : null;
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<RequestStatus | RequestStatus[] | null>(null);
   const [priority, setPriority] = useState<Priority | null>(null);
   const [overdue, setOverdue] = useState(false);
-  // Category (marble | magro | null) and sub-category replace the old productType state.
-  // Routing them to the correct API fields fixes the broken sub-category filter.
-  const [category, setCategory] = useState<'marble' | 'magro' | null>(null);
   const [subCategory, setSubCategory] = useState<string | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<{ id: string; number: string } | null>(null);
 
@@ -191,10 +193,14 @@ export default function RequestList() {
     setStatus(null);
     setPriority(null);
     setOverdue(false);
-    setCategory(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('tab');
+      return next;
+    }, { replace: true });
     setSubCategory(null);
     setPage(1);
-  }, []);
+  }, [setSearchParams]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearch(value);
@@ -217,10 +223,18 @@ export default function RequestList() {
   }, []);
 
   const handleCategoryChange = useCallback((value: 'marble' | 'magro' | null) => {
-    setCategory(value);
-    setSubCategory(null); // always reset sub-category when switching top-level tab
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) {
+        next.set('tab', value);
+      } else {
+        next.delete('tab');
+      }
+      return next;
+    }, { replace: true });
+    setSubCategory(null);
     setPage(1);
-  }, []);
+  }, [setSearchParams]);
 
   const handleSubCategoryChange = useCallback((value: string | null) => {
     setSubCategory(value);
