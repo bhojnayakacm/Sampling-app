@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronsUpDown, Check, Search, X, Star, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { pushOverlay, popOverlay } from '@/lib/overlayStack';
 
 // ============================================================
 // TYPES
@@ -168,28 +169,35 @@ function PickerPanel({
   // Sync with browser history so the hardware/browser back button closes the
   // picker instead of navigating away from the form (which would trigger the
   // form's "unsaved changes" exit warning).
+  //
+  // Strategy:
+  // 1. On open  → pushOverlay() + pushState (so back button fires popstate)
+  // 2. On back  → popstate fires → close picker, popOverlay()
+  // 3. On Done  → close picker (effect cleanup pops overlay + history.back)
+  //
+  // The form's exit-guard checks hasOpenOverlay() and skips if true.
   const historyPushedRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
-      // When closing: clean up the dummy history entry we pushed (if it wasn't
-      // already consumed by the back button).  We set a global flag so the
-      // form's own popstate handler can skip the synthetic event.
+      // Closed via Done button (not back) — clean up the dummy history entry
       if (historyPushedRef.current) {
         historyPushedRef.current = false;
-        (window as any).__pickerHistoryCleanup = true;
+        popOverlay();
         window.history.back();
       }
       return;
     }
 
-    // Push a dummy state so pressing back fires popstate instead of leaving
+    // Opening: register on the overlay stack and push a history entry
+    pushOverlay();
     window.history.pushState({ pickerOpen: true }, '');
     historyPushedRef.current = true;
 
     const handlePopState = () => {
-      // The back button consumed our dummy entry
+      // Back button consumed our dummy entry
       historyPushedRef.current = false;
+      popOverlay();
       onClose();
     };
 

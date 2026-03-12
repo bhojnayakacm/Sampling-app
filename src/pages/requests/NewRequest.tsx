@@ -3,6 +3,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { hasOpenOverlay } from '@/lib/overlayStack';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useRequestWithItems,
@@ -555,10 +556,10 @@ export default function NewRequest() {
     window.history.pushState({ formGuard: true }, '');
 
     const handlePopState = () => {
-      // Skip synthetic popstate events from child components (e.g. quality picker cleanup)
-      if ((window as any).__pickerHistoryCleanup) {
-        delete (window as any).__pickerHistoryCleanup;
-        // Re-push our own guard entry since the cleanup consumed a history entry
+      // If a sub-overlay (quality picker, etc.) is open, it owns this
+      // back-press — the form must not interfere.
+      if (hasOpenOverlay()) {
+        // Re-push our guard so the form's own entry stays on the stack
         window.history.pushState({ formGuard: true }, '');
         return;
       }
