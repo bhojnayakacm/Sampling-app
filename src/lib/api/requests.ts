@@ -20,6 +20,7 @@ const VALID_REQUEST_COLUMNS = new Set([
   'project_type', 'project_placeholder',
   'purpose', 'packing_details',
   'requester_message', 'coordinator_message', 'dispatch_notes',
+  'delivery_poc_name', 'delivery_poc_contacts',
   'item_count', 'received_by',
   'completed_at', 'dispatched_at', 'received_at',
 ]);

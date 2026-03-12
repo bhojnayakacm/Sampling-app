@@ -1167,6 +1167,25 @@ export default function RequestDetail() {
                   </div>
                 )}
 
+                {/* Delivery Point of Contact — shown when pickup = field_boy */}
+                {request.pickup_responsibility === 'field_boy' && request.delivery_poc_name && (
+                  <div className="space-y-2 pt-3 border-t border-slate-100">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                      Point of Contact (Receiver)
+                    </label>
+                    <p className="text-sm text-slate-900 font-medium">{request.delivery_poc_name}</p>
+                    {request.delivery_poc_contacts && request.delivery_poc_contacts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {request.delivery_poc_contacts.map((num, i) => (
+                          <span key={i} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            {num}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
               </CardContent>
             </Card>
 

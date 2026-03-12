@@ -165,6 +165,40 @@ function PickerPanel({
     }
   }, [open]);
 
+  // Sync with browser history so the hardware/browser back button closes the
+  // picker instead of navigating away from the form (which would trigger the
+  // form's "unsaved changes" exit warning).
+  const historyPushedRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      // When closing: clean up the dummy history entry we pushed (if it wasn't
+      // already consumed by the back button).  We set a global flag so the
+      // form's own popstate handler can skip the synthetic event.
+      if (historyPushedRef.current) {
+        historyPushedRef.current = false;
+        (window as any).__pickerHistoryCleanup = true;
+        window.history.back();
+      }
+      return;
+    }
+
+    // Push a dummy state so pressing back fires popstate instead of leaving
+    window.history.pushState({ pickerOpen: true }, '');
+    historyPushedRef.current = true;
+
+    const handlePopState = () => {
+      // The back button consumed our dummy entry
+      historyPushedRef.current = false;
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [open, onClose]);
+
   const getChipVariant = useCallback(
     (val: string): 'verified' | 'custom' => optionsSet.has(val) ? 'verified' : 'custom',
     [optionsSet]

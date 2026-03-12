@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText } from 'lucide-react';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText, Phone, User, X, AlertTriangle } from 'lucide-react';
 import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
@@ -69,6 +69,8 @@ interface RequestFormData {
   // Section 1: Requester Details
   pickup_responsibility: PickupResponsibility;
   delivery_address?: string;
+  delivery_poc_name?: string;
+  delivery_poc_contacts?: string[];
   required_by: string;
   priority: 'urgent' | 'normal';
 
@@ -425,6 +427,9 @@ export default function NewRequest() {
   const clientType = watch('client_type');
   const packingDetails = watch('packing_details');
 
+  // POC contacts multi-input state
+  const [pocContactInput, setPocContactInput] = useState('');
+
   // Load draft data when editing — use reset() for atomic form population
   useEffect(() => {
     if (isEditMode && existingDraft) {
@@ -455,6 +460,8 @@ export default function NewRequest() {
         priority: (existingDraft.priority as 'urgent' | 'normal') || 'normal',
         pickup_responsibility: (existingDraft.pickup_responsibility as PickupResponsibility) || undefined,
         delivery_address: existingDraft.delivery_address || '',
+        delivery_poc_name: existingDraft.delivery_poc_name || '',
+        delivery_poc_contacts: existingDraft.delivery_poc_contacts || [],
         required_by: requiredBy,
 
         // Section 2: Client Project Details
@@ -548,6 +555,13 @@ export default function NewRequest() {
     window.history.pushState({ formGuard: true }, '');
 
     const handlePopState = () => {
+      // Skip synthetic popstate events from child components (e.g. quality picker cleanup)
+      if ((window as any).__pickerHistoryCleanup) {
+        delete (window as any).__pickerHistoryCleanup;
+        // Re-push our own guard entry since the cleanup consumed a history entry
+        window.history.pushState({ formGuard: true }, '');
+        return;
+      }
       if (allowExitRef.current) return;
       if (isFormDirty) {
         // Re-push so URL stays on the form while the modal is shown
@@ -685,6 +699,12 @@ export default function NewRequest() {
     if (data.pickup_responsibility && data.pickup_responsibility !== 'self_pickup' && !data.delivery_address) {
       missingFields.push('Delivery Address');
     }
+    if (data.pickup_responsibility === 'field_boy') {
+      if (!data.delivery_poc_name) missingFields.push('Delivery Point of Contact — Name');
+      if (!data.delivery_poc_contacts || data.delivery_poc_contacts.length === 0) {
+        missingFields.push('Delivery Point of Contact — at least one Contact Number');
+      }
+    }
     if (!data.required_by) missingFields.push('Required By Date');
     if (!data.priority) missingFields.push('Priority');
 
@@ -776,6 +796,9 @@ export default function NewRequest() {
         mobile_no: profile.phone || null,
         pickup_responsibility: formValues.pickup_responsibility || null,
         delivery_address: formValues.delivery_address || null,
+        delivery_poc_name: formValues.pickup_responsibility === 'field_boy' ? (formValues.delivery_poc_name || null) : null,
+        delivery_poc_contacts: formValues.pickup_responsibility === 'field_boy' && formValues.delivery_poc_contacts?.length
+          ? formValues.delivery_poc_contacts : null,
         required_by: formValues.required_by ? new Date(formValues.required_by).toISOString() : null,
         priority: formValues.priority || null,
 
@@ -947,6 +970,9 @@ export default function NewRequest() {
         mobile_no: profile.phone!,
         pickup_responsibility: data.pickup_responsibility,
         delivery_address: data.pickup_responsibility === 'self_pickup' ? null : data.delivery_address,
+        delivery_poc_name: data.pickup_responsibility === 'field_boy' ? (data.delivery_poc_name || null) : null,
+        delivery_poc_contacts: data.pickup_responsibility === 'field_boy' && data.delivery_poc_contacts?.length
+          ? data.delivery_poc_contacts : null,
         required_by: new Date(data.required_by).toISOString(),
         priority: data.priority,
 
@@ -1104,13 +1130,16 @@ export default function NewRequest() {
   // ============================================================
 
   // Section 1: Requester Details - check if essential fields are filled
+  const pocName = watch('delivery_poc_name');
+  const pocContacts = watch('delivery_poc_contacts');
   const isSection1Complete = Boolean(
     profile?.department &&
     profile?.phone &&
     pickupResponsibility &&
     watch('required_by') &&
     watch('priority') &&
-    (pickupResponsibility === 'self_pickup' || watch('delivery_address'))
+    (pickupResponsibility === 'self_pickup' || watch('delivery_address')) &&
+    (pickupResponsibility !== 'field_boy' || (pocName && pocContacts && pocContacts.length > 0))
   );
 
   // Section 2: Client Project Details - check required fields (with conditional logic)
@@ -1357,6 +1386,104 @@ export default function NewRequest() {
                     />
                   </div>
                 )}
+
+                {/* Point of Contact — shown when "Field Boy" is selected */}
+                {pickupResponsibility === 'field_boy' && (
+                  <div className="md:col-span-2">
+                    <fieldset className="border-2 border-indigo-200 rounded-xl p-4 space-y-4 bg-indigo-50/30">
+                      <legend className="px-2 text-sm font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5" />
+                        Point of Contact
+                      </legend>
+
+                      {/* POC Name */}
+                      <div>
+                        <Label htmlFor="delivery_poc_name" className="text-slate-700 font-semibold">
+                          Receiver's Name *
+                        </Label>
+                        <Input
+                          id="delivery_poc_name"
+                          {...register('delivery_poc_name')}
+                          placeholder="Name of person receiving the delivery"
+                          className="mt-1.5 h-12 border-slate-200 bg-white focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* POC Contact Numbers (multi-input) */}
+                      <div>
+                        <Label className="text-slate-700 font-semibold flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5" />
+                          Contact Numbers *
+                        </Label>
+                        <p className="text-xs text-slate-500 mt-0.5 mb-2">Add one or more 10-digit mobile numbers</p>
+
+                        {/* Existing contacts as chips */}
+                        {(watch('delivery_poc_contacts') || []).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {(watch('delivery_poc_contacts') || []).map((num, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-200"
+                              >
+                                {num}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const current = watch('delivery_poc_contacts') || [];
+                                    setValue('delivery_poc_contacts', current.filter((_, idx) => idx !== i), { shouldDirty: true });
+                                  }}
+                                  className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 min-w-[24px] min-h-[24px] flex items-center justify-center"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Input for adding new contact */}
+                        <div className="flex gap-2">
+                          <Input
+                            value={pocContactInput}
+                            onChange={(e) => setPocContactInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (/^\d{10}$/.test(pocContactInput)) {
+                                  const current = watch('delivery_poc_contacts') || [];
+                                  if (!current.includes(pocContactInput)) {
+                                    setValue('delivery_poc_contacts', [...current, pocContactInput], { shouldDirty: true });
+                                  }
+                                  setPocContactInput('');
+                                }
+                              }
+                            }}
+                            placeholder="Enter 10-digit number"
+                            inputMode="numeric"
+                            maxLength={10}
+                            className="h-12 border-slate-200 bg-white focus:ring-indigo-500 flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={!/^\d{10}$/.test(pocContactInput)}
+                            onClick={() => {
+                              const current = watch('delivery_poc_contacts') || [];
+                              if (!current.includes(pocContactInput)) {
+                                setValue('delivery_poc_contacts', [...current, pocContactInput], { shouldDirty: true });
+                              }
+                              setPocContactInput('');
+                            }}
+                            className="h-12 px-4 border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold shrink-0"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    </fieldset>
+                  </div>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -1450,12 +1577,12 @@ export default function NewRequest() {
                     )}
 
                     {/* Project Placeholder */}
-                    <div className={watch('project_type') === 'other' ? '' : ''}>
-                      <Label htmlFor="project_placeholder" className="text-slate-700 font-semibold">Placeholder</Label>
+                    <div>
+                      <Label htmlFor="project_placeholder" className="text-slate-700 font-semibold">Placeholder (Project name)</Label>
                       <Input
                         id="project_placeholder"
                         {...register('project_placeholder')}
-                        placeholder="Enter placeholder (optional)"
+                        placeholder="e.g. ITC, Chennai (optional)"
                         className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                       />
                     </div>
@@ -1622,27 +1749,6 @@ export default function NewRequest() {
                 />
               </div>
 
-              {/* Mixed-category banner — shown when both Marble and Magro items are present */}
-              {(() => {
-                const hasMarble = products.some(p => p.category === 'marble');
-                const hasMagro  = products.some(p => p.category === 'magro');
-                if (!hasMarble || !hasMagro) return null;
-                const marbleCount = products.filter(p => p.category === 'marble').length;
-                const magroCount  = products.filter(p => p.category === 'magro').length;
-                return (
-                  <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
-                    <Sparkles className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-amber-800">Mixed categories detected</p>
-                      <p className="text-amber-700 mt-0.5">
-                        This form has {marbleCount} Marble and {magroCount} Magro product{magroCount > 1 ? 's' : ''}.
-                        On Submit, they will automatically be created as <strong>2 separate requests</strong>.
-                      </p>
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* Product Cards */}
               <div className="space-y-4">
                 {products.map((product, index) => (
@@ -1766,8 +1872,29 @@ export default function NewRequest() {
           />
         </div>
 
+        {/* Mixed-category warning — placed above action buttons so it's impossible to miss */}
+        {(() => {
+          const hasMarble = products.some(p => p.category === 'marble');
+          const hasMagro  = products.some(p => p.category === 'magro');
+          if (!hasMarble || !hasMagro) return null;
+          const marbleCount = products.filter(p => p.category === 'marble').length;
+          const magroCount  = products.filter(p => p.category === 'magro').length;
+          return (
+            <div className="mt-4 flex items-start gap-3 p-4 bg-amber-50 border-2 border-amber-300 rounded-xl text-sm">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-800">Mixed categories detected</p>
+                <p className="text-amber-700 mt-0.5">
+                  This form has {marbleCount} Marble and {magroCount} Magro product{magroCount > 1 ? 's' : ''}.
+                  On Submit, they will automatically be created as <strong>2 separate requests</strong>.
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Form Actions - Clean Card at bottom */}
-        <div className="mt-8 bg-white border border-slate-200 rounded-xl shadow-sm p-5">
+        <div className="mt-4 bg-white border border-slate-200 rounded-xl shadow-sm p-5">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end">
             {/* Cancel Button */}
             <Button

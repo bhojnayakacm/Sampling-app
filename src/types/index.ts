@@ -256,6 +256,10 @@ export interface Request {
   // Deadline history (audit trail for required_by changes)
   required_by_history: RequiredByHistoryEntry[] | null;
 
+  // Delivery Point of Contact (required when pickup_responsibility = 'field_boy')
+  delivery_poc_name: string | null;
+  delivery_poc_contacts: string[] | null;
+
   // Schedule change warning (set when coordinator changes required_by)
   has_schedule_warning: boolean;
 
