@@ -7,10 +7,48 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Eye, EyeOff, LayoutDashboard } from 'lucide-react';
+import { Eye, EyeOff, LayoutDashboard, Wrench } from 'lucide-react';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SIGNUP TOGGLE — set to true to re-enable signups.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const SIGNUPS_ENABLED = false;
 
 export default function Signup() {
   const navigate = useNavigate();
+
+  // Gate: If signups are disabled, show a friendly message instead of the form
+  if (!SIGNUPS_ENABLED) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 px-4">
+        <Card className="w-full max-w-md bg-white border border-slate-200 shadow-lg rounded-xl">
+          <CardHeader className="space-y-1 text-center pb-2">
+            <div className="flex justify-center mb-4">
+              <div className="h-14 w-14 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                <Wrench className="h-7 w-7 text-white" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold text-slate-900">Signups Paused</CardTitle>
+            <CardDescription className="text-slate-500 text-sm leading-relaxed pt-1">
+              Signups are temporarily paused while we upgrade our systems to serve you better.
+              Please check back later!
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2 pb-6">
+            <Link to="/login">
+              <Button
+                variant="outline"
+                className="w-full min-h-[48px] text-base font-semibold border-slate-200"
+              >
+                Back to Sign In
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',

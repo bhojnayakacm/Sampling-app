@@ -6,7 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Eye, EyeOff, LayoutDashboard } from 'lucide-react';
+import { Eye, EyeOff, LayoutDashboard, AlertTriangle } from 'lucide-react';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MAINTENANCE MODE TOGGLE — set to false to remove
+// the warning banner and restore the signup link.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const MAINTENANCE_MODE = true;
 
 export default function Login() {
   const navigate = useNavigate();
@@ -50,6 +56,22 @@ export default function Login() {
           <CardDescription className="text-slate-500">Enter your credentials to access the system</CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
+          {/* Maintenance Warning Banner */}
+          {MAINTENANCE_MODE && (
+            <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-3.5">
+              <div className="flex gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">System Upgrade in Progress</p>
+                  <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                    The app is currently undergoing scheduled maintenance.
+                    Please do not attempt to log in at this time unless you are an authorized tester.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-slate-700 font-medium">Email</Label>
@@ -103,12 +125,14 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="text-center text-sm text-slate-500 pt-2">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-indigo-600 hover:text-indigo-700 font-medium">
-                Sign up
-              </Link>
-            </div>
+            {!MAINTENANCE_MODE && (
+              <div className="text-center text-sm text-slate-500 pt-2">
+                Don't have an account?{' '}
+                <a href="/signup" className="text-indigo-600 hover:text-indigo-700 font-medium">
+                  Sign up
+                </a>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
