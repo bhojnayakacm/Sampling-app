@@ -33,6 +33,7 @@ import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Spark
 import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
+import KitItemCard from '@/components/requests/KitItemCard';
 import { SaveTemplateDialog } from '@/components/requests/SaveTemplateDialog';
 import { LoadTemplateDrawer } from '@/components/requests/LoadTemplateDrawer';
 import { LocationAutocomplete } from '@/components/ui/location-autocomplete';
@@ -50,6 +51,7 @@ import {
   PRODUCT_FINISH_OPTIONS,
   PRODUCT_SIZE_OPTIONS,
   PRODUCT_THICKNESS_OPTIONS,
+  KIT_SIZE_OPTIONS,
   getOptionsKey,
 } from '@/types';
 
@@ -203,6 +205,27 @@ function createEmptyProduct(): ProductItem {
   };
 }
 
+function createEmptyKit(): ProductItem {
+  return {
+    id: generateId(),
+    category: '',
+    sub_category: '',
+    selected_qualities: [],
+    quality: '',
+    sample_size: '',
+    sample_size_custom: '',
+    thickness: '',
+    thickness_custom: '',
+    finish: '',
+    finish_custom: '',
+    quantity: 1,
+    image_file: null,
+    image_preview: null,
+    image_url: null,
+    is_kit: true,
+  };
+}
+
 async function uploadSampleImage(file: File): Promise<string> {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Math.random()}.${fileExt}`;
@@ -253,6 +276,26 @@ function productToItemInput(
   imageUrl: string | null,
   qualityOverride?: string, // Used when exploding batch entries
 ): Omit<CreateRequestItemInput, 'request_id'> {
+  // Kit items: only pass category, size, quantity, and is_kit flag
+  if (product.is_kit) {
+    const resolvedSize = product.sample_size === 'Other'
+      ? (product.sample_size_custom || '')
+      : product.sample_size;
+
+    return {
+      item_index: 0,
+      product_type: product.category as RequestCategory,
+      sub_category: null,
+      quality: null,
+      sample_size: resolvedSize,
+      thickness: null,
+      finish: null,
+      quantity: product.quantity,
+      image_url: null,
+      is_kit: true,
+    };
+  }
+
   const optionsKey = getOptionsKey(product.category, product.sub_category);
   const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
@@ -301,9 +344,13 @@ function productToItemInput(
 type ItemPayload = Omit<CreateRequestItemInput, 'request_id'>;
 
 function consolidateItems(items: ItemPayload[]): ItemPayload[] {
+  // Kit items are never consolidated — each kit is a distinct placeholder
+  const kitItems = items.filter(item => item.is_kit);
+  const regularItems = items.filter(item => !item.is_kit);
+
   const map = new Map<string, ItemPayload>();
 
-  for (const item of items) {
+  for (const item of regularItems) {
     const key = [
       item.product_type,
       (item as any).sub_category ?? '',
@@ -325,8 +372,8 @@ function consolidateItems(items: ItemPayload[]): ItemPayload[] {
     }
   }
 
-  // Re-index items sequentially
-  return Array.from(map.values()).map((item, i) => ({
+  // Re-index all items sequentially: consolidated regular items, then kits
+  return [...Array.from(map.values()), ...kitItems].map((item, i) => ({
     ...item,
     item_index: i,
   }));
@@ -351,6 +398,17 @@ function explodeProducts(products: ProductItem[]): ExplodedItem[] {
   const exploded: ExplodedItem[] = [];
 
   products.forEach((product, originalIndex) => {
+    // Kit items pass through directly — no quality explosion
+    if (product.is_kit) {
+      exploded.push({
+        product,
+        quality: '',
+        originalIndex,
+        isFirstFromCard: true,
+      });
+      return;
+    }
+
     // Deduplicate selected_qualities (safety net against UI bugs)
     const uniqueQualities = [...new Set(product.selected_qualities)];
 
@@ -502,7 +560,8 @@ export default function NewRequest() {
           const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
           // Hybrid Read: detect custom values by checking against predefined options
-          const sizeOptions      = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey]      : [];
+          // Kit items use their own size options; regular items use product-type options
+          const sizeOptions      = item.is_kit ? [...KIT_SIZE_OPTIONS] : (optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey] : []);
           const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
           const finishOptionsList = optionsKey ? (PRODUCT_FINISH_OPTIONS[optionsKey] ?? []) : [];
 
@@ -520,13 +579,14 @@ export default function NewRequest() {
             // Hybrid Read: set select to "Other" and populate custom input for non-standard values
             sample_size:        isCustomSize      ? 'Other' : item.sample_size,
             sample_size_custom: isCustomSize      ? item.sample_size : '',
-            thickness:          isCustomThickness ? 'Other' : item.thickness,
-            thickness_custom:   isCustomThickness ? item.thickness : '',
+            thickness:          isCustomThickness ? 'Other' : (item.thickness || ''),
+            thickness_custom:   isCustomThickness ? item.thickness! : '',
             finish:             isCustomFinish    ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
             finish_custom:      isCustomFinish    ? item.finish! : '',
             quantity:           item.quantity,
             image_url:          item.image_url,
             image_preview:      item.image_url,
+            is_kit:             item.is_kit || false,
           };
         });
         setProducts(loadedProducts);
@@ -611,6 +671,10 @@ export default function NewRequest() {
     setProducts([...products, createEmptyProduct()]);
   };
 
+  const addKit = () => {
+    setProducts([...products, createEmptyKit()]);
+  };
+
   const removeProduct = (index: number) => {
     if (products.length > 1) {
       setProducts(products.filter((_, i) => i !== index));
@@ -642,11 +706,27 @@ export default function NewRequest() {
     const errors: string[] = [];
 
     products.forEach((product, index) => {
-      const prefix = products.length > 1 ? `Product ${index + 1}: ` : '';
+      const prefix = products.length > 1 ? `${product.is_kit ? 'Kit' : 'Product'} ${index + 1}: ` : '';
 
       if (!product.category) {
-        errors.push(`${prefix}Category is required`);
+        errors.push(`${prefix}${product.is_kit ? 'Kit Type' : 'Category'} is required`);
       }
+
+      // Kit items: only need category, size, and quantity
+      if (product.is_kit) {
+        if (!product.sample_size) {
+          errors.push(`${prefix}Kit Size is required`);
+        }
+        if (product.sample_size === 'Other' && !product.sample_size_custom) {
+          errors.push(`${prefix}Please specify the custom kit size`);
+        }
+        if (!product.quantity || product.quantity <= 0) {
+          errors.push(`${prefix}Quantity must be greater than 0`);
+        }
+        return; // Skip regular product validations
+      }
+
+      // Regular product validations below
       if (product.category === 'magro' && !product.sub_category) {
         errors.push(`${prefix}Sub Category is required for Magro products`);
       }
@@ -1167,6 +1247,16 @@ export default function NewRequest() {
   const isSection3Complete = Boolean(
     products.length > 0 &&
     products.every(product => {
+      // Kit items: only need category, size, and quantity
+      if (product.is_kit) {
+        return (
+          product.category &&
+          product.sample_size &&
+          (product.sample_size !== 'Other' || product.sample_size_custom) &&
+          product.quantity > 0
+        );
+      }
+
       const optionsKey = getOptionsKey(product.category, product.sub_category);
       const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
@@ -1750,30 +1840,52 @@ export default function NewRequest() {
                 />
               </div>
 
-              {/* Product Cards */}
+              {/* Product & Kit Cards */}
               <div className="space-y-4">
                 {products.map((product, index) => (
-                  <ProductItemCard
-                    key={product.id}
-                    item={product}
-                    index={index}
-                    canDelete={products.length > 1}
-                    onUpdate={updateProduct}
-                    onRemove={removeProduct}
-                  />
+                  product.is_kit ? (
+                    <KitItemCard
+                      key={product.id}
+                      item={product}
+                      index={index}
+                      canDelete={products.length > 1}
+                      onUpdate={updateProduct}
+                      onRemove={removeProduct}
+                    />
+                  ) : (
+                    <ProductItemCard
+                      key={product.id}
+                      item={product}
+                      index={index}
+                      canDelete={products.length > 1}
+                      onUpdate={updateProduct}
+                      onRemove={removeProduct}
+                    />
+                  )
                 ))}
               </div>
 
-              {/* Add Product Button */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addProduct}
-                className="w-full mt-4 border-dashed border-2 border-indigo-300 min-h-[56px] py-4 gap-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 font-semibold transition-all"
-              >
-                <Plus className="h-5 w-5" />
-                Add Another Product
-              </Button>
+              {/* Add Product / Add Kit Buttons */}
+              <div className="flex gap-3 mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addProduct}
+                  className="flex-1 border-dashed border-2 border-indigo-300 min-h-[56px] py-4 gap-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 font-semibold transition-all"
+                >
+                  <Plus className="h-5 w-5" />
+                  Add Product
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addKit}
+                  className="flex-1 border-dashed border-2 border-amber-300 min-h-[56px] py-4 gap-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-400 font-semibold transition-all"
+                >
+                  <Package className="h-5 w-5" />
+                  Add Kit
+                </Button>
+              </div>
 
               {/* Shared Details Divider */}
               <div className="mt-6 pt-6 border-t border-slate-200">

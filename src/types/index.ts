@@ -136,6 +136,9 @@ export interface ProductItem {
   image_file?: File | null;
   image_preview?: string | null;
   image_url?: string | null; // For existing images when editing
+
+  // Kit support — TRUE for kit placeholder items
+  is_kit?: boolean;
 }
 
 // Database model for request items (stored in request_items table)
@@ -145,14 +148,19 @@ export interface RequestItemDB {
   item_index: number;
   product_type: RequestCategory;  // 'marble' | 'magro'
   sub_category: SubCategory | null; // 'tile' | 'stone' | 'quartz' | 'terrazzo' | null
-  quality: string;
+  quality: string | null;    // NULL for kit placeholder rows
   sample_size: string;
-  thickness: string;
+  thickness: string | null;  // NULL for kit placeholder rows
   finish: string | null;
   quantity: number;
   image_url: string | null;
   created_at: string;
   updated_at: string;
+
+  // Kit support
+  is_kit: boolean;
+  is_unpacked: boolean;
+  kit_id: string | null;  // For unpacked child items: references parent kit row
 }
 
 // Input for creating request items
@@ -161,12 +169,15 @@ export interface CreateRequestItemInput {
   item_index: number;
   product_type: RequestCategory;    // 'marble' | 'magro'
   sub_category?: SubCategory | null; // null for marble, required for magro
-  quality: string;
+  quality?: string | null;          // NULL for kit placeholder rows
   sample_size: string;
-  thickness: string;
+  thickness?: string | null;        // NULL for kit placeholder rows
   finish?: string | null;
   quantity: number;
   image_url?: string | null;
+
+  // Kit support
+  is_kit?: boolean;
 }
 
 export type PackingType = 'wooden_crate' | 'cardboard' | 'bubble_wrap' | 'foam' | 'other';
@@ -312,6 +323,9 @@ export const PRODUCT_FINISH_OPTIONS: Record<OptionsKey, string[] | null> = {
   terrazzo: null,  // No finish for terrazzo
   quartz: null,    // No finish for quartz
 };
+
+// Kit size options (shared across Marble Kit and Magro Kit)
+export const KIT_SIZE_OPTIONS = ['4x4', '4x8', 'Other'] as const;
 
 // Thickness options by OptionsKey
 export const PRODUCT_THICKNESS_OPTIONS: Record<OptionsKey, string[]> = {

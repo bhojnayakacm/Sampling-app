@@ -87,6 +87,16 @@ export default function RequestActions({ request, userRole, isCompact = false, o
     }
   };
 
+  // Gate: prevent opening approve dialog when kits are not yet unpacked
+  const handleApproveClick = () => {
+    const hasUnpackedKits = request.items?.some(item => item.is_kit && !item.is_unpacked);
+    if (hasUnpackedKits) {
+      toast.error('All kits must be unpacked before approval');
+      return;
+    }
+    setApproveDialogOpen(true);
+  };
+
   const handleApprove = async () => {
     try {
       // If required_by date was modified, update it with history log
@@ -233,7 +243,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
           {request.status === 'pending_approval' && (
             <>
               <Button
-                onClick={() => setApproveDialogOpen(true)}
+                onClick={handleApproveClick}
                 size="sm"
                 className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
               >
@@ -728,7 +738,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
         {request.status === 'pending_approval' && (
           <>
             <Button
-              onClick={() => setApproveDialogOpen(true)}
+              onClick={handleApproveClick}
               size="sm"
               className="bg-green-600 hover:bg-green-700 gap-2"
             >

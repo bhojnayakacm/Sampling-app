@@ -50,6 +50,15 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
 
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
+    // Kit item: show "Marble Kit" / "Magro Kit"
+    if (item.is_kit) {
+      const kitLabel = item.product_type === 'marble' ? 'Marble Kit' : 'Magro Kit';
+      return {
+        text: `${kitLabel} · ${item.quantity} pcs`,
+        tooltip: `${kitLabel} — ${item.sample_size}`,
+        isMulti: false,
+      };
+    }
     const label = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category

@@ -44,6 +44,8 @@ function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
     sample_size_custom: item.sample_size_custom || '',
     thickness_custom: item.thickness_custom || '',
     finish_custom: item.finish_custom || '',
+    // Kit support
+    is_kit: item.is_kit || false,
     // Clear image fields (templates don't store images)
     image_file: null,
     image_preview: null,
@@ -142,13 +144,15 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
         {template.items.slice(0, 4).map((item, idx) => (
           <span
             key={idx}
-            className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded"
+            className={`text-xs px-2 py-0.5 rounded ${item.is_kit ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}
           >
-            {item.category === 'marble'
-              ? 'Marble'
-              : item.sub_category
-                ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
-                : 'Magro'}
+            {item.is_kit
+              ? `${item.category === 'marble' ? 'Marble' : 'Magro'} Kit`
+              : item.category === 'marble'
+                ? 'Marble'
+                : item.sub_category
+                  ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+                  : 'Magro'}
           </span>
         ))}
         {itemCount > 4 && (

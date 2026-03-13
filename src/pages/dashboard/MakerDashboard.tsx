@@ -22,6 +22,9 @@ function getItemSummary(request: Request): string {
   const itemCount = request.item_count || 0;
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
+    if (item.is_kit) {
+      return `${item.product_type === 'marble' ? 'Marble' : 'Magro'} Kit - ${item.sample_size}`;
+    }
     const label = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category

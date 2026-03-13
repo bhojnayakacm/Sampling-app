@@ -1232,6 +1232,61 @@ export function useUpdateRequiredBy() {
 }
 
 // Hook for dismissing schedule change warning
+// ============================================================
+// KIT UNPACKING
+// ============================================================
+
+export async function unpackKit(
+  kitItemId: string,
+  items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[]
+) {
+  const { data, error } = await supabase.rpc('unpack_kit', {
+    p_kit_item_id: kitItemId,
+    p_items: items,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export function useUnpackKit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ kitItemId, items }: {
+      kitItemId: string;
+      items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[];
+    }) => {
+      return unpackKit(kitItemId, items);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+    },
+  });
+}
+
+export async function repackKit(kitItemId: string) {
+  const { data, error } = await supabase.rpc('repack_kit', {
+    p_kit_item_id: kitItemId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export function useRepackKit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (kitItemId: string) => repackKit(kitItemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+    },
+  });
+}
+
 export function useDismissScheduleWarning() {
   const queryClient = useQueryClient();
 

@@ -29,7 +29,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRequestWithItems, useDismissScheduleWarning } from '@/lib/api/requests';
+import { useRequestWithItems, useDismissScheduleWarning, useRepackKit } from '@/lib/api/requests';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
@@ -37,6 +38,7 @@ import MakerActions from '@/components/requests/MakerActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 import EditRequiredByModal from '@/components/requests/EditRequiredByModal';
 import RequiredByHistory from '@/components/requests/RequiredByHistory';
+import UnpackKitDialog from '@/components/requests/UnpackKitDialog';
 import {
   MapPin,
   MessageSquare,
@@ -72,6 +74,7 @@ export default function RequestDetail() {
 
   const { data: request, isLoading, error } = useRequestWithItems(id);
   const dismissWarning = useDismissScheduleWarning();
+  const repackKit = useRepackKit();
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
@@ -117,6 +120,9 @@ export default function RequestDetail() {
 
   // Copy qualities state
   const [qualitiesCopied, setQualitiesCopied] = useState(false);
+
+  // Kit unpack dialog state
+  const [unpackKitItem, setUnpackKitItem] = useState<RequestItemDB | null>(null);
 
   useEffect(() => {
     if (request) {
@@ -392,6 +398,10 @@ export default function RequestDetail() {
     (item.product_type === 'magro' && (item.sub_category === 'tile' || item.sub_category === 'stone'));
 
   const formatItemLine = (item: RequestItemDB, num: number) => {
+    if (item.is_kit) {
+      const type = item.product_type === 'marble' ? 'Marble' : 'Magro';
+      return `${num}. ${type} Kit (${item.sample_size}) - Qty: ${item.quantity}${item.is_unpacked ? ' [Unpacked]' : ''}`;
+    }
     const parts = [item.sample_size, item.thickness];
     if (itemHasFinish(item) && item.finish) parts.push(item.finish);
     return `${num}. ${item.quality} (${parts.filter(Boolean).join(', ')}) - Qty: ${item.quantity}`;
@@ -424,10 +434,90 @@ export default function RequestDetail() {
     return groups;
   };
 
+  // Get children for a specific kit item
+  const getKitChildren = (allItems: RequestItemDB[], kitId: string) =>
+    allItems.filter(item => item.kit_id === kitId).sort((a, b) => a.item_index - b.item_index);
+
+  // Re-unpack: delete children and reset kit to packed state
+  const handleRepackKit = async (kitItemId: string) => {
+    try {
+      await repackKit.mutateAsync(kitItemId);
+      toast.success('Kit reset — you can now re-unpack it');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to re-unpack kit');
+    }
+  };
+
   // =============================================
   // MOBILE PRODUCT CARD COMPONENT
   // =============================================
   const ProductCard = ({ item, index }: { item: RequestItemDB; index: number }) => {
+    // ─── Kit item card (mobile) ───
+    if (item.is_kit) {
+      const type = item.product_type === 'marble' ? 'Marble' : 'Magro';
+      const children = getKitChildren(request?.items || [], item.id);
+      return (
+        <div className="space-y-1.5">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold shrink-0 mt-0.5">
+                  {index}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <p className="text-sm font-semibold text-amber-900 leading-tight truncate">{type} Kit</p>
+                    {item.is_unpacked ? (
+                      <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">Unpacked</span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-semibold">Pending</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-amber-600 mt-0.5">Size: {item.sample_size}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-medium">
+                  ×{item.quantity}
+                </span>
+                {isCoordinator && !item.is_unpacked && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setUnpackKitItem(item)}
+                    className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+                  >
+                    Unpack
+                  </Button>
+                )}
+                {isCoordinator && item.is_unpacked && request?.status === 'pending_approval' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleRepackKit(item.id)}
+                    disabled={repackKit.isPending}
+                    className="h-8 text-xs text-slate-400 hover:text-amber-700 hover:bg-amber-50"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" /> Re-unpack
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Render children if unpacked */}
+          {item.is_unpacked && children.length > 0 && (
+            <div className="ml-4 pl-3 border-l-2 border-amber-200 space-y-1.5">
+              {children.map((child, ci) => (
+                <ProductCard key={child.id} item={child} index={ci + 1} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ─── Regular item card (mobile) ───
     const showFinish = itemHasFinish(item);
 
     return (
@@ -825,7 +915,8 @@ export default function RequestDetail() {
                   <button
                     onClick={async () => {
                       if (!hasItems) return;
-                      const sorted = getSortedItems(request.items!);
+                      const topItems = request.items!.filter(i => !i.kit_id);
+                      const sorted = getSortedItems(topItems);
                       const lines = sorted.map((item, i) => formatItemLine(item, i + 1));
                       await navigator.clipboard.writeText(lines.join('\n'));
                       setQualitiesCopied(true);
@@ -844,9 +935,14 @@ export default function RequestDetail() {
               </CardHeader>
               <CardContent className="p-0">
                 {hasItems ? (() => {
+                  const allItems = request.items!;
+                  const regularItems = allItems.filter(i => !i.is_kit && !i.kit_id);
+                  const kitItems = allItems.filter(i => i.is_kit).sort((a, b) => a.item_index - b.item_index);
+                  const regularCount = regularItems.length;
+
                   const isMagro = request.category === 'magro';
-                  const sortedItems = getSortedItems(request.items!);
-                  const magroGroups = isMagro ? getGroupedMagroItems(request.items!) : [];
+                  const sortedItems = getSortedItems(regularItems);
+                  const magroGroups = isMagro ? getGroupedMagroItems(regularItems) : [];
                   // Pre-compute cumulative start index for each group
                   const groupStartIndices = magroGroups.reduce<number[]>((acc, _group, i) => {
                     acc.push(i === 0 ? 0 : acc[i - 1] + magroGroups[i - 1].items.length);
@@ -919,6 +1015,65 @@ export default function RequestDetail() {
                                 </TableRow>
                               ))
                             )}
+                            {/* Kit items (desktop) */}
+                            {kitItems.map((kit, ki) => {
+                              const children = getKitChildren(allItems, kit.id);
+                              const displayNum = regularCount + ki + 1;
+                              return (
+                                <React.Fragment key={kit.id}>
+                                  <TableRow className="bg-amber-50/60 hover:bg-amber-50">
+                                    <TableCell className="text-sm font-medium text-slate-400">{displayNum}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                        <span className="text-sm text-amber-900 font-medium">
+                                          {kit.product_type === 'marble' ? 'Marble' : 'Magro'} Kit
+                                        </span>
+                                        {kit.is_unpacked ? (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">Unpacked</span>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-semibold">Pending</span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-sm text-slate-700">{kit.sample_size}</TableCell>
+                                    <TableCell className="text-sm text-slate-400">—</TableCell>
+                                    <TableCell className="text-sm text-slate-400">—</TableCell>
+                                    <TableCell className="text-sm text-slate-900 font-medium text-right">{kit.quantity}</TableCell>
+                                    <TableCell>
+                                      {isCoordinator && !kit.is_unpacked && (
+                                        <Button size="sm" variant="outline" onClick={() => setUnpackKitItem(kit)} className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100">
+                                          Unpack
+                                        </Button>
+                                      )}
+                                      {isCoordinator && kit.is_unpacked && request.status === 'pending_approval' && (
+                                        <Button size="sm" variant="ghost" onClick={() => handleRepackKit(kit.id)} disabled={repackKit.isPending} className="h-7 text-xs text-slate-400 hover:text-amber-700 hover:bg-amber-50">
+                                          <RotateCcw className="h-3 w-3 mr-1" /> Redo
+                                        </Button>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                  {/* Kit children rows */}
+                                  {kit.is_unpacked && children.map((child) => (
+                                    <TableRow key={child.id} className="hover:bg-slate-50/50">
+                                      <TableCell className="text-sm text-slate-300 pl-6">↳</TableCell>
+                                      <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
+                                      <TableCell className="text-sm text-slate-700">{child.sample_size}</TableCell>
+                                      <TableCell className="text-sm text-slate-700">{child.thickness}</TableCell>
+                                      <TableCell className="text-sm text-slate-700">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
+                                      <TableCell className="text-sm text-slate-900 font-medium text-right">{child.quantity}</TableCell>
+                                      <TableCell>
+                                        {child.image_url ? (
+                                          <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
+                                            <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                          </button>
+                                        ) : <span className="text-slate-300">—</span>}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </React.Fragment>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
@@ -948,6 +1103,10 @@ export default function RequestDetail() {
                             <ProductCard key={item.id} item={item} index={index + 1} />
                           ))
                         )}
+                        {/* Kit items (mobile) */}
+                        {kitItems.map((kit, ki) => (
+                          <ProductCard key={kit.id} item={kit} index={regularCount + ki + 1} />
+                        ))}
                       </div>
                     </>
                   );
@@ -1471,6 +1630,18 @@ export default function RequestDetail() {
         open={isEditRequiredByOpen}
         onOpenChange={setIsEditRequiredByOpen}
       />
+
+      {/* =========================================== */}
+      {/* UNPACK KIT DIALOG */}
+      {/* =========================================== */}
+      {unpackKitItem && (
+        <UnpackKitDialog
+          kitItem={unpackKitItem}
+          open={!!unpackKitItem}
+          onOpenChange={(open) => { if (!open) setUnpackKitItem(null); }}
+          onUnpacked={() => setUnpackKitItem(null)}
+        />
+      )}
     </div>
   );
 }

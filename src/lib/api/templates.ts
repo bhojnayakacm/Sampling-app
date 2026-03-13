@@ -61,6 +61,7 @@ export async function createTemplate(
     finish: item.finish || '',
     finish_custom: item.finish_custom || '',
     quantity: item.quantity,
+    is_kit: item.is_kit || false,
     // Don't save image data - templates are for specs only
   }));
 
@@ -113,6 +114,7 @@ export async function updateTemplate(
       finish: item.finish || '',
       finish_custom: item.finish_custom || '',
       quantity: item.quantity,
+      is_kit: item.is_kit || false,
     }));
   }
 

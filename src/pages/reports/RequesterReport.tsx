@@ -69,9 +69,11 @@ function useRequesterReport() {
       if (reqError) throw reqError;
 
       // Fetch all request items for multi-product requests
+      // Exclude kit children (kit_id IS NOT NULL) to avoid double-counting
       const { data: items, error: itemsError } = await supabase
         .from('request_items')
-        .select('request_id, product_type, quantity');
+        .select('request_id, product_type, quantity, kit_id')
+        .is('kit_id', null);
 
       if (itemsError) throw itemsError;
 
