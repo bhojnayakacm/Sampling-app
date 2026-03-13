@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -28,9 +27,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useAllUsers, useUpdateUserRole, useDeleteUser } from '@/lib/api/users';
+import { useAllUsers, useUpdateUserRole, useDeleteUser, useToggleUserActive } from '@/lib/api/users';
 import type { Profile } from '@/types';
 import { toast } from 'sonner';
 import {
@@ -46,6 +46,7 @@ import {
   Mail,
   Phone,
   Building2,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UserManagementSkeleton } from '@/components/skeletons';
@@ -115,6 +116,7 @@ const ROLE_CONFIG: Record<string, {
 const DEPARTMENTS = ['sales', 'marketing', 'logistics'];
 
 type RoleFilter = 'all' | 'requester' | 'marble_coordinator' | 'magro_coordinator' | 'maker' | 'dispatcher' | 'admin';
+type StatusFilter = 'all' | 'active' | 'inactive';
 
 // ============================================================
 // SUB-COMPONENTS
@@ -143,9 +145,10 @@ function RoleBadge({ role, size = 'md' }: RoleBadgeProps) {
 interface AvatarInitialsProps {
   name: string;
   role: string;
+  inactive?: boolean;
 }
 
-function AvatarInitials({ name, role }: AvatarInitialsProps) {
+function AvatarInitials({ name, role, inactive }: AvatarInitialsProps) {
   const config = ROLE_CONFIG[role] || ROLE_CONFIG.requester;
   const initials = name
     .split(' ')
@@ -158,11 +161,28 @@ function AvatarInitials({ name, role }: AvatarInitialsProps) {
     <div
       className={cn(
         'flex h-10 w-10 items-center justify-center rounded-full font-bold text-sm shrink-0',
-        config.bg, config.color
+        inactive
+          ? 'bg-slate-100 text-slate-400'
+          : `${config.bg} ${config.color}`
       )}
     >
       {initials}
     </div>
+  );
+}
+
+function StatusBadge({ isActive }: { isActive: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border',
+        isActive
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          : 'bg-red-50 text-red-700 border-red-200'
+      )}
+    >
+      {isActive ? 'Active' : 'Suspended'}
+    </span>
   );
 }
 
@@ -197,11 +217,16 @@ export default function UserManagement() {
   const { data: users, isLoading, refetch } = useAllUsers();
   const updateRole = useUpdateUserRole();
   const deleteUser = useDeleteUser();
+  const toggleActive = useToggleUserActive();
 
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
-  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+  // Hard Delete Modal
+  const [userToHardDelete, setUserToHardDelete] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [hardDeleteEmailInput, setHardDeleteEmailInput] = useState('');
 
   // Create User Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -234,6 +259,13 @@ export default function UserManagement() {
       result = result.filter((u) => u.role === roleFilter);
     }
 
+    // Status filter
+    if (statusFilter === 'active') {
+      result = result.filter((u) => u.is_active);
+    } else if (statusFilter === 'inactive') {
+      result = result.filter((u) => !u.is_active);
+    }
+
     // Search by name or email
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -245,7 +277,7 @@ export default function UserManagement() {
     }
 
     return result;
-  }, [users, roleFilter, searchQuery]);
+  }, [users, roleFilter, statusFilter, searchQuery]);
 
   // Role counts for filter tabs
   const roleCounts = useMemo(() => {
@@ -258,6 +290,16 @@ export default function UserManagement() {
       maker: users.filter((u) => u.role === 'maker').length,
       dispatcher: users.filter((u) => u.role === 'dispatcher').length,
       admin: users.filter((u) => u.role === 'admin').length,
+    };
+  }, [users]);
+
+  // Status counts
+  const statusCounts = useMemo(() => {
+    if (!users) return { all: 0, active: 0, inactive: 0 };
+    return {
+      all: users.length,
+      active: users.filter((u) => u.is_active).length,
+      inactive: users.filter((u) => !u.is_active).length,
     };
   }, [users]);
 
@@ -318,26 +360,64 @@ export default function UserManagement() {
   };
 
   // ============================================================
-  // DELETE HANDLERS
+  // TOGGLE ACTIVE/INACTIVE HANDLER
   // ============================================================
 
-  const handleDeleteClick = (userId: string, userName: string) => {
-    if (userId === profile?.id) {
+  const handleToggleActive = async (user: Profile) => {
+    if (user.id === profile?.id) {
+      toast.error('You cannot suspend your own account');
+      return;
+    }
+
+    const newStatus = !user.is_active;
+    try {
+      await toggleActive.mutateAsync({ userId: user.id, isActive: newStatus });
+      toast.success(
+        <div>
+          <p className="font-semibold">{newStatus ? 'User Activated' : 'User Suspended'}</p>
+          <p className="text-sm">
+            {user.full_name} is now {newStatus ? 'active' : 'suspended'}
+          </p>
+        </div>
+      );
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update user status');
+    }
+  };
+
+  // ============================================================
+  // HARD DELETE HANDLERS
+  // ============================================================
+
+  const handleHardDeleteClick = (user: Profile) => {
+    if (user.id === profile?.id) {
       toast.error('You cannot delete your own account');
       return;
     }
-    setUserToDelete({ id: userId, name: userName });
+    setUserToHardDelete({
+      id: user.id,
+      name: user.full_name,
+      email: user.email || '',
+    });
+    setHardDeleteEmailInput('');
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!userToDelete) return;
+  const handleHardDeleteConfirm = async () => {
+    if (!userToHardDelete) return;
     try {
-      await deleteUser.mutateAsync(userToDelete.id);
-      toast.success('User deleted successfully');
-      setUserToDelete(null);
+      await deleteUser.mutateAsync(userToHardDelete.id);
+      toast.success(
+        <div>
+          <p className="font-semibold">User permanently deleted</p>
+          <p className="text-sm">{userToHardDelete.name} and all their data have been removed</p>
+        </div>
+      );
+      setUserToHardDelete(null);
+      setHardDeleteEmailInput('');
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete user');
-      setUserToDelete(null);
+      setUserToHardDelete(null);
+      setHardDeleteEmailInput('');
     }
   };
 
@@ -440,7 +520,9 @@ export default function UserManagement() {
                 </div>
                 <div>
                   <h1 className="text-lg sm:text-xl font-bold text-slate-900">User Management</h1>
-                  <p className="text-xs text-slate-500 hidden sm:block">{users?.length || 0} users total</p>
+                  <p className="text-xs text-slate-500 hidden sm:block">
+                    {statusCounts.active} active, {statusCounts.inactive} suspended
+                  </p>
                 </div>
               </div>
             </div>
@@ -464,10 +546,10 @@ export default function UserManagement() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Search + Filters Bar */}
-        <div className="space-y-4 mb-6">
+        {/* Search + Status Filter Row */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
           {/* Search */}
-          <div className="relative">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Search by name or email..."
@@ -477,44 +559,75 @@ export default function UserManagement() {
             />
           </div>
 
-          {/* Role Filter Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {/* Status Filter */}
+          <div className="flex rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0">
             {(
               [
                 { key: 'all', label: 'All' },
-                { key: 'requester', label: 'Requesters' },
-                { key: 'marble_coordinator', label: 'Marble Coord.' },
-                { key: 'magro_coordinator', label: 'Magro Coord.' },
-                { key: 'maker', label: 'Makers' },
-                { key: 'dispatcher', label: 'Dispatchers' },
-                { key: 'admin', label: 'Admins' },
-              ] as { key: RoleFilter; label: string }[]
+                { key: 'active', label: 'Active' },
+                { key: 'inactive', label: 'Suspended' },
+              ] as { key: StatusFilter; label: string }[]
             ).map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setRoleFilter(tab.key)}
+                onClick={() => setStatusFilter(tab.key)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all',
-                  roleFilter === tab.key
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  'px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
+                  statusFilter === tab.key
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-600 hover:bg-slate-50'
                 )}
               >
                 {tab.label}
-                <span
-                  className={cn(
-                    'text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center',
-                    roleFilter === tab.key
-                      ? 'bg-white/20 text-white'
-                      : 'bg-slate-100 text-slate-500'
-                  )}
-                >
-                  {roleCounts[tab.key]}
+                <span className={cn(
+                  'ml-1.5 text-xs',
+                  statusFilter === tab.key ? 'text-white/70' : 'text-slate-400'
+                )}>
+                  {statusCounts[tab.key]}
                 </span>
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Role Filter Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 mb-4">
+          {(
+            [
+              { key: 'all', label: 'All' },
+              { key: 'requester', label: 'Requesters' },
+              { key: 'marble_coordinator', label: 'Marble Coord.' },
+              { key: 'magro_coordinator', label: 'Magro Coord.' },
+              { key: 'maker', label: 'Makers' },
+              { key: 'dispatcher', label: 'Dispatchers' },
+              { key: 'admin', label: 'Admins' },
+            ] as { key: RoleFilter; label: string }[]
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setRoleFilter(tab.key)}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all',
+                roleFilter === tab.key
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              )}
+            >
+              {tab.label}
+              <span
+                className={cn(
+                  'text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center',
+                  roleFilter === tab.key
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 text-slate-500'
+                )}
+              >
+                {roleCounts[tab.key]}
+              </span>
+            </button>
+          ))}
         </div>
 
         {/* Results Count */}
@@ -534,14 +647,16 @@ export default function UserManagement() {
               <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
               <h3 className="font-semibold text-slate-700 mb-1">No users found</h3>
               <p className="text-sm text-slate-500">
-                {searchQuery ? 'Try a different search term' : 'No users match the selected filter'}
+                {searchQuery ? 'Try a different search term' : 'No users match the selected filters'}
               </p>
             </CardContent>
           </Card>
         ) : (
           <>
-            {/* Desktop Table */}
-            <div className="hidden md:block">
+            {/* ============================================================ */}
+            {/* DESKTOP TABLE */}
+            {/* ============================================================ */}
+            <div className="hidden lg:block">
               <Card className="border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -552,74 +667,211 @@ export default function UserManagement() {
                         <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider text-slate-500">Department</th>
                         <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider text-slate-500">Role</th>
                         <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider text-slate-500">Change Role</th>
+                        <th className="text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider text-slate-500">Status</th>
                         <th className="text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider text-slate-500">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredUsers.map((user) => (
-                        <tr
-                          key={user.id}
-                          className={cn(
-                            'hover:bg-slate-50/70 transition-colors',
-                            user.id === profile?.id && 'bg-indigo-50/30'
-                          )}
-                        >
-                          {/* User: Avatar + Name */}
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
-                              <AvatarInitials name={user.full_name} role={user.role} />
-                              <div className="min-w-0">
-                                <p className="font-semibold text-slate-900 truncate">
-                                  {user.full_name}
-                                  {user.id === profile?.id && (
-                                    <span className="text-xs font-normal text-indigo-500 ml-1.5">(You)</span>
-                                  )}
-                                </p>
-                                <p className="text-sm text-slate-500 truncate flex items-center gap-1">
-                                  <Mail className="h-3 w-3 shrink-0" />
-                                  {user.email || 'N/A'}
-                                </p>
+                      {filteredUsers.map((user) => {
+                        const isSelf = user.id === profile?.id;
+                        const inactive = !user.is_active;
+
+                        return (
+                          <tr
+                            key={user.id}
+                            className={cn(
+                              'transition-colors',
+                              isSelf && 'bg-indigo-50/30',
+                              inactive && !isSelf && 'bg-slate-50/50',
+                              !inactive && 'hover:bg-slate-50/70',
+                            )}
+                          >
+                            {/* User: Avatar + Name + Email */}
+                            <td className="py-3 px-4">
+                              <div className={cn('flex items-center gap-3', inactive && 'opacity-60')}>
+                                <AvatarInitials name={user.full_name} role={user.role} inactive={inactive} />
+                                <div className="min-w-0">
+                                  <p className={cn('font-semibold truncate', inactive ? 'text-slate-500' : 'text-slate-900')}>
+                                    {user.full_name}
+                                    {isSelf && (
+                                      <span className="text-xs font-normal text-indigo-500 ml-1.5">(You)</span>
+                                    )}
+                                  </p>
+                                  <p className="text-sm text-slate-500 truncate flex items-center gap-1 max-w-[220px]" title={user.email || ''}>
+                                    <Mail className="h-3 w-3 shrink-0" />
+                                    {user.email || 'N/A'}
+                                  </p>
+                                </div>
                               </div>
+                            </td>
+
+                            {/* Contact */}
+                            <td className="py-3 px-4">
+                              <span className={cn('text-sm flex items-center gap-1', inactive ? 'text-slate-400' : 'text-slate-600')}>
+                                {user.phone ? (
+                                  <>
+                                    <Phone className="h-3 w-3 shrink-0 text-slate-400" />
+                                    {user.phone}
+                                  </>
+                                ) : (
+                                  <span className="text-slate-400">--</span>
+                                )}
+                              </span>
+                            </td>
+
+                            {/* Department */}
+                            <td className="py-3 px-4">
+                              {user.department ? (
+                                <span className={cn(
+                                  'inline-flex items-center gap-1 text-sm capitalize',
+                                  inactive ? 'text-slate-400' : 'text-slate-700'
+                                )}>
+                                  <Building2 className="h-3 w-3 text-slate-400" />
+                                  {user.department}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-slate-400">--</span>
+                              )}
+                            </td>
+
+                            {/* Current Role */}
+                            <td className="py-3 px-4">
+                              <div className={cn(inactive && 'opacity-60')}>
+                                <RoleBadge role={user.role} />
+                              </div>
+                            </td>
+
+                            {/* Change Role - WIDER DROPDOWN */}
+                            <td className="py-3 px-4">
+                              <Select
+                                value={user.role}
+                                onValueChange={(value) => initiateRoleChange(user, value)}
+                                disabled={updateRole.isPending || isSelf}
+                              >
+                                <SelectTrigger className="w-[190px] h-9 text-sm">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="requester">Requester</SelectItem>
+                                  <SelectItem value="maker">Maker</SelectItem>
+                                  <SelectItem value="dispatcher">Dispatcher</SelectItem>
+                                  <SelectItem value="marble_coordinator">Marble Coordinator</SelectItem>
+                                  <SelectItem value="magro_coordinator">Magro Coordinator</SelectItem>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+
+                            {/* Status Toggle */}
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col items-center gap-1">
+                                <Switch
+                                  checked={user.is_active}
+                                  onCheckedChange={() => handleToggleActive(user)}
+                                  disabled={toggleActive.isPending || isSelf}
+                                  className={user.is_active ? 'bg-emerald-500' : 'bg-slate-300'}
+                                />
+                                <span className={cn(
+                                  'text-[10px] font-medium',
+                                  user.is_active ? 'text-emerald-600' : 'text-red-500'
+                                )}>
+                                  {user.is_active ? 'Active' : 'Suspended'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Actions - Hard Delete */}
+                            <td className="py-3 px-4 text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleHardDeleteClick(user)}
+                                disabled={deleteUser.isPending || isSelf}
+                                className="text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                title="Permanently delete user and all their data"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+
+            {/* ============================================================ */}
+            {/* MOBILE / TABLET CARDS */}
+            {/* ============================================================ */}
+            <div className="lg:hidden space-y-3">
+              {filteredUsers.map((user) => {
+                const isSelf = user.id === profile?.id;
+                const inactive = !user.is_active;
+
+                return (
+                  <Card
+                    key={user.id}
+                    className={cn(
+                      'border-slate-200 overflow-hidden',
+                      isSelf && 'ring-1 ring-indigo-200',
+                      inactive && 'border-red-100 bg-slate-50/50'
+                    )}
+                  >
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        {/* Header: Avatar + Name + Status Badge */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <AvatarInitials name={user.full_name} role={user.role} inactive={inactive} />
+                            <div className="min-w-0">
+                              <p className={cn(
+                                'font-semibold truncate',
+                                inactive ? 'text-slate-500' : 'text-slate-900'
+                              )}>
+                                {user.full_name}
+                                {isSelf && (
+                                  <span className="text-xs font-normal text-indigo-500 ml-1">(You)</span>
+                                )}
+                              </p>
+                              <p className="text-sm text-slate-500 truncate" title={user.email || ''}>
+                                {user.email || 'N/A'}
+                              </p>
                             </div>
-                          </td>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <RoleBadge role={user.role} size="sm" />
+                            <StatusBadge isActive={user.is_active} />
+                          </div>
+                        </div>
 
-                          {/* Contact */}
-                          <td className="py-3 px-4">
-                            {user.phone ? (
-                              <span className="text-sm text-slate-600 flex items-center gap-1">
-                                <Phone className="h-3 w-3 shrink-0 text-slate-400" />
-                                {user.phone}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-slate-400">--</span>
-                            )}
-                          </td>
+                        {/* Info Row */}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                          {user.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3 text-slate-400" />
+                              {user.phone}
+                            </span>
+                          )}
+                          {user.department && (
+                            <span className="flex items-center gap-1 capitalize">
+                              <Building2 className="h-3 w-3 text-slate-400" />
+                              {user.department}
+                            </span>
+                          )}
+                        </div>
 
-                          {/* Department */}
-                          <td className="py-3 px-4">
-                            {user.department ? (
-                              <span className="inline-flex items-center gap-1 text-sm text-slate-700 capitalize">
-                                <Building2 className="h-3 w-3 text-slate-400" />
-                                {user.department}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-slate-400">--</span>
-                            )}
-                          </td>
-
-                          {/* Current Role */}
-                          <td className="py-3 px-4">
-                            <RoleBadge role={user.role} />
-                          </td>
-
+                        {/* Actions Row */}
+                        <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
                           {/* Change Role */}
-                          <td className="py-3 px-4">
+                          <div className="flex-1 min-w-0">
                             <Select
                               value={user.role}
                               onValueChange={(value) => initiateRoleChange(user, value)}
-                              disabled={updateRole.isPending || user.id === profile?.id}
+                              disabled={updateRole.isPending || isSelf}
                             >
-                              <SelectTrigger className="w-[140px] h-9 text-sm">
+                              <SelectTrigger className="h-9 text-sm w-full">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -631,108 +883,34 @@ export default function UserManagement() {
                                 <SelectItem value="admin">Admin</SelectItem>
                               </SelectContent>
                             </Select>
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3 px-4 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(user.id, user.full_name)}
-                              disabled={deleteUser.isPending || user.id === profile?.id}
-                              className="text-slate-400 hover:text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-3">
-              {filteredUsers.map((user) => (
-                <Card
-                  key={user.id}
-                  className={cn(
-                    'border-slate-200 overflow-hidden',
-                    user.id === profile?.id && 'ring-1 ring-indigo-200'
-                  )}
-                >
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {/* Header: Avatar + Name + Role Badge */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <AvatarInitials name={user.full_name} role={user.role} />
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 truncate">
-                              {user.full_name}
-                              {user.id === profile?.id && (
-                                <span className="text-xs font-normal text-indigo-500 ml-1">(You)</span>
-                              )}
-                            </p>
-                            <p className="text-sm text-slate-500 truncate">{user.email || 'N/A'}</p>
                           </div>
-                        </div>
-                        <RoleBadge role={user.role} size="sm" />
-                      </div>
 
-                      {/* Info Row */}
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-                        {user.phone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="h-3 w-3 text-slate-400" />
-                            {user.phone}
-                          </span>
-                        )}
-                        {user.department && (
-                          <span className="flex items-center gap-1 capitalize">
-                            <Building2 className="h-3 w-3 text-slate-400" />
-                            {user.department}
-                          </span>
-                        )}
-                      </div>
+                          {/* Status Toggle */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Switch
+                              checked={user.is_active}
+                              onCheckedChange={() => handleToggleActive(user)}
+                              disabled={toggleActive.isPending || isSelf}
+                              className={user.is_active ? 'bg-emerald-500' : 'bg-slate-300'}
+                            />
+                          </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
-                        <div className="flex-1">
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => initiateRoleChange(user, value)}
-                            disabled={updateRole.isPending || user.id === profile?.id}
+                          {/* Hard Delete */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleHardDeleteClick(user)}
+                            disabled={deleteUser.isPending || isSelf}
+                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
                           >
-                            <SelectTrigger className="h-9 text-sm">
-                              <span className="text-slate-500 mr-1">Role:</span>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="requester">Requester</SelectItem>
-                              <SelectItem value="maker">Maker</SelectItem>
-                              <SelectItem value="dispatcher">Dispatcher</SelectItem>
-                              <SelectItem value="coordinator">Coordinator</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteClick(user.id, user.full_name)}
-                          disabled={deleteUser.isPending || user.id === profile?.id}
-                          className="text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </>
         )}
@@ -972,25 +1150,82 @@ export default function UserManagement() {
       </Dialog>
 
       {/* ============================================================ */}
-      {/* DIALOG: Delete Confirmation */}
+      {/* DIALOG: Hard Delete Confirmation (Strict Email Verification) */}
       {/* ============================================================ */}
-      <AlertDialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={!!userToHardDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUserToHardDelete(null);
+            setHardDeleteEmailInput('');
+          }
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-[480px]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the user <strong>{userToDelete?.name}</strong> and all their
-              associated data. This action cannot be undone.
+            <AlertDialogTitle className="flex items-center gap-2 text-red-700">
+              <div className="h-8 w-8 rounded-lg bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+              </div>
+              Permanently Delete User
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                You are about to permanently delete <strong className="text-slate-900">{userToHardDelete?.name}</strong>.
+                This action <strong className="text-red-600">cannot be undone</strong>.
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800 space-y-1">
+                <p className="font-semibold">This will permanently destroy:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-red-700">
+                  <li>The user's account and profile</li>
+                  <li>ALL sample requests they created</li>
+                  <li>ALL request items and tracking history</li>
+                  <li>ALL saved product templates</li>
+                </ul>
+              </div>
+              <div className="pt-1">
+                <p className="text-sm font-medium text-slate-700 mb-1.5">
+                  Type <strong className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-900">{userToHardDelete?.email}</strong> to confirm:
+                </p>
+                <Input
+                  value={hardDeleteEmailInput}
+                  onChange={(e) => setHardDeleteEmailInput(e.target.value)}
+                  placeholder="Type email address here..."
+                  className="h-10 font-mono text-sm border-red-200 focus-visible:ring-red-500"
+                  autoComplete="off"
+                />
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700"
+            <AlertDialogCancel
+              onClick={() => {
+                setUserToHardDelete(null);
+                setHardDeleteEmailInput('');
+              }}
             >
-              Delete User
-            </AlertDialogAction>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              onClick={handleHardDeleteConfirm}
+              disabled={
+                deleteUser.isPending ||
+                hardDeleteEmailInput !== userToHardDelete?.email
+              }
+              className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleteUser.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Permanently
+                </>
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

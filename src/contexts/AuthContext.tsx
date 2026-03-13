@@ -177,6 +177,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Success - profile found
       console.log('[Auth] Profile loaded successfully for', userId);
+
+      // Block suspended users from accessing the app
+      if (data && !data.is_active) {
+        console.warn('[Auth] User account is suspended, signing out');
+        isFetchingRef.current = false;
+        clearTimeouts();
+        lastFetchedUserIdRef.current = null;
+        setProfile(null);
+        setLoading(false);
+        // Sign out and let them land on login page
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        // Brief delay to ensure sign-out completes before alert
+        setTimeout(() => {
+          window.alert('Your account has been suspended. Please contact an administrator.');
+        }, 100);
+        return;
+      }
+
       lastFetchedUserIdRef.current = userId;
       isFetchingRef.current = false;
       clearTimeouts();
