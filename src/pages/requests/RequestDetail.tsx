@@ -29,8 +29,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRequestWithItems, useDismissScheduleWarning, useRepackKit } from '@/lib/api/requests';
-import { toast } from 'sonner';
+import { useRequestWithItems, useDismissScheduleWarning } from '@/lib/api/requests';
 import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
@@ -74,7 +73,6 @@ export default function RequestDetail() {
 
   const { data: request, isLoading, error } = useRequestWithItems(id);
   const dismissWarning = useDismissScheduleWarning();
-  const repackKit = useRepackKit();
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
@@ -438,14 +436,9 @@ export default function RequestDetail() {
   const getKitChildren = (allItems: RequestItemDB[], kitId: string) =>
     allItems.filter(item => item.kit_id === kitId).sort((a, b) => a.item_index - b.item_index);
 
-  // Re-unpack: delete children and reset kit to packed state
-  const handleRepackKit = async (kitItemId: string) => {
-    try {
-      await repackKit.mutateAsync(kitItemId);
-      toast.success('Kit reset — you can now re-unpack it');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to re-unpack kit');
-    }
+  // Edit kit: open the unpack dialog pre-filled with existing children
+  const handleEditKit = (kit: RequestItemDB) => {
+    setUnpackKitItem(kit);
   };
 
   // =============================================
@@ -495,11 +488,10 @@ export default function RequestDetail() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => handleRepackKit(item.id)}
-                    disabled={repackKit.isPending}
-                    className="h-8 text-xs text-slate-400 hover:text-amber-700 hover:bg-amber-50"
+                    onClick={() => handleEditKit(item)}
+                    className="h-8 text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50"
                   >
-                    <RotateCcw className="h-3 w-3 mr-1" /> Re-unpack
+                    <Pencil className="h-3 w-3 mr-1" /> Edit Kit
                   </Button>
                 )}
               </div>
@@ -1047,8 +1039,8 @@ export default function RequestDetail() {
                                         </Button>
                                       )}
                                       {isCoordinator && kit.is_unpacked && request.status === 'pending_approval' && (
-                                        <Button size="sm" variant="ghost" onClick={() => handleRepackKit(kit.id)} disabled={repackKit.isPending} className="h-7 text-xs text-slate-400 hover:text-amber-700 hover:bg-amber-50">
-                                          <RotateCcw className="h-3 w-3 mr-1" /> Redo
+                                        <Button size="sm" variant="ghost" onClick={() => handleEditKit(kit)} className="h-7 text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50">
+                                          <Pencil className="h-3 w-3 mr-1" /> Edit
                                         </Button>
                                       )}
                                     </TableCell>
@@ -1640,6 +1632,11 @@ export default function RequestDetail() {
           open={!!unpackKitItem}
           onOpenChange={(open) => { if (!open) setUnpackKitItem(null); }}
           onUnpacked={() => setUnpackKitItem(null)}
+          existingChildren={
+            unpackKitItem.is_unpacked
+              ? (request?.items || []).filter((i) => i.kit_id === unpackKitItem.id)
+              : undefined
+          }
         />
       )}
     </div>

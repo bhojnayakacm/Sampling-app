@@ -460,7 +460,7 @@ export default function NewRequest() {
   const [isSavingFromDialog, setIsSavingFromDialog] = useState(false);
 
   // Multi-product state
-  const [products, setProducts] = useState<ProductItem[]>([createEmptyProduct()]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
 
   // Use the new hook that fetches request with items
   const { data: existingDraft, isLoading: isDraftLoading } = useRequestWithItems(draftId);
@@ -676,9 +676,7 @@ export default function NewRequest() {
   };
 
   const removeProduct = (index: number) => {
-    if (products.length > 1) {
-      setProducts(products.filter((_, i) => i !== index));
-    }
+    setProducts(products.filter((_, i) => i !== index));
   };
 
   const updateProduct = (index: number, updates: Partial<ProductItem>) => {
@@ -689,7 +687,7 @@ export default function NewRequest() {
   const loadFromTemplate = (items: ProductItem[], mode: 'append' | 'replace') => {
     if (mode === 'replace') {
       // Replace current products with template items
-      setProducts(items.length > 0 ? items : [createEmptyProduct()]);
+      setProducts(items);
     } else {
       // Append template items to current products
       // Filter out empty products before appending
@@ -704,6 +702,11 @@ export default function NewRequest() {
 
   const validateProducts = (): string[] => {
     const errors: string[] = [];
+
+    if (products.length === 0) {
+      errors.push('Add at least one product or kit');
+      return errors;
+    }
 
     products.forEach((product, index) => {
       const prefix = products.length > 1 ? `${product.is_kit ? 'Kit' : 'Product'} ${index + 1}: ` : '';
@@ -1462,8 +1465,8 @@ export default function NewRequest() {
                   />
                 </div>
 
-                {/* Delivery Address - Hidden for Self Pickup */}
-                {pickupResponsibility !== 'self_pickup' && (
+                {/* Delivery Address - only shown when a delivery method is explicitly selected */}
+                {pickupResponsibility && pickupResponsibility !== 'self_pickup' && (
                   <div className="md:col-span-2">
                     <Label htmlFor="delivery_address" className="text-slate-700 font-semibold">
                       Full Delivery Address (House No, Street, Landmark, City) *
@@ -1840,52 +1843,91 @@ export default function NewRequest() {
                 />
               </div>
 
-              {/* Product & Kit Cards */}
-              <div className="space-y-4">
-                {products.map((product, index) => (
-                  product.is_kit ? (
-                    <KitItemCard
-                      key={product.id}
-                      item={product}
-                      index={index}
-                      canDelete={products.length > 1}
-                      onUpdate={updateProduct}
-                      onRemove={removeProduct}
-                    />
-                  ) : (
-                    <ProductItemCard
-                      key={product.id}
-                      item={product}
-                      index={index}
-                      canDelete={products.length > 1}
-                      onUpdate={updateProduct}
-                      onRemove={removeProduct}
-                    />
-                  )
-                ))}
-              </div>
+              {/* Empty state — prominent add buttons when no items exist */}
+              {products.length === 0 ? (
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 sm:p-8">
+                  <p className="text-center text-sm text-slate-500 mb-5">
+                    What would you like to request?
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={addProduct}
+                      className="flex flex-col items-center gap-2 rounded-xl border-2 border-indigo-200 bg-indigo-50/50 p-5 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
+                    >
+                      <div className="h-11 w-11 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <Plus className="h-5 w-5" />
+                      </div>
+                      <span className="text-sm font-semibold">Add Custom Product</span>
+                      <span className="text-xs text-indigo-500 leading-snug text-center">
+                        Pick exact quality, size, thickness & finish
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addKit}
+                      className="flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 bg-amber-50/50 p-5 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-colors"
+                    >
+                      <div className="h-11 w-11 rounded-full bg-amber-100 flex items-center justify-center">
+                        <Package className="h-5 w-5" />
+                      </div>
+                      <span className="text-sm font-semibold">Add Standard Kit</span>
+                      <span className="text-xs text-amber-500 leading-snug text-center">
+                        Pick type & size — Coordinator selects qualities
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Product & Kit Cards */}
+                  <div className="space-y-4">
+                    {products.map((product, index) => (
+                      product.is_kit ? (
+                        <KitItemCard
+                          key={product.id}
+                          item={product}
+                          index={index}
+                          canDelete
+                          onUpdate={updateProduct}
+                          onRemove={removeProduct}
+                        />
+                      ) : (
+                        <ProductItemCard
+                          key={product.id}
+                          item={product}
+                          index={index}
+                          canDelete
+                          onUpdate={updateProduct}
+                          onRemove={removeProduct}
+                        />
+                      )
+                    ))}
+                  </div>
 
-              {/* Add Product / Add Kit Buttons */}
-              <div className="flex gap-3 mt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addProduct}
-                  className="flex-1 border-dashed border-2 border-indigo-300 min-h-[56px] py-4 gap-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 font-semibold transition-all"
-                >
-                  <Plus className="h-5 w-5" />
-                  Add Product
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addKit}
-                  className="flex-1 border-dashed border-2 border-amber-300 min-h-[56px] py-4 gap-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-400 font-semibold transition-all"
-                >
-                  <Package className="h-5 w-5" />
-                  Add Kit
-                </Button>
-              </div>
+                  {/* Add more buttons */}
+                  <div className="flex gap-3 mt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addProduct}
+                      className="flex-1 border-dashed border-2 border-indigo-300 min-h-[48px] py-3 gap-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 font-semibold transition-all"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Product
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addKit}
+                      className="flex-1 border-dashed border-2 border-amber-300 min-h-[48px] py-3 gap-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-400 font-semibold transition-all"
+                    >
+                      <Package className="h-4 w-4" />
+                      Add Kit
+                    </Button>
+                  </div>
+                </>
+              )}
 
               {/* Shared Details Divider */}
               <div className="mt-6 pt-6 border-t border-slate-200">

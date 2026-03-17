@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
-import { Package, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Package, Plus, Trash2, Loader2, Pencil, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RequestItemDB, SubCategory, OptionsKey } from '@/types';
 import {
@@ -32,7 +33,7 @@ import {
   POPULAR_QUALITIES,
   type ProductTypeKey,
 } from '@/lib/productData';
-import { useUnpackKit } from '@/lib/api/requests';
+import { useUnpackKit, useUpdateKitContents } from '@/lib/api/requests';
 
 // ============================================================
 // TYPES
@@ -43,6 +44,8 @@ interface UnpackKitDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUnpacked?: () => void;
+  /** Pass existing children to open in "edit" mode */
+  existingChildren?: RequestItemDB[];
 }
 
 interface UnpackEntry {
@@ -67,6 +70,103 @@ function createEmptyEntry(): UnpackEntry {
     finish_custom: '',
     quantity: 1,
   };
+}
+
+// ============================================================
+// REVERSE-MAP: DB children → UnpackEntry[] for edit mode
+// ============================================================
+// Groups children by (sub_category, thickness, finish) so the
+// coordinator sees the same "entry groups" they originally created.
+
+function childrenToEntries(
+  children: RequestItemDB[],
+  isMarble: boolean,
+): UnpackEntry[] {
+  if (children.length === 0) return [createEmptyEntry()];
+
+  const groups = new Map<string, UnpackEntry>();
+
+  for (const child of children) {
+    // Detect "Other" thickness
+    const optionsKey: OptionsKey | null = isMarble
+      ? 'marble'
+      : child.sub_category
+        ? (getOptionsKey('magro', child.sub_category as SubCategory) as OptionsKey)
+        : null;
+
+    const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
+    const finishOptionsList = optionsKey ? (PRODUCT_FINISH_OPTIONS[optionsKey] ?? []) : [];
+
+    const isCustomThickness = child.thickness != null && !thicknessOptions.includes(child.thickness);
+    const isCustomFinish = child.finish != null && child.finish !== '' && !finishOptionsList.includes(child.finish);
+
+    const resolvedThickness = isCustomThickness ? 'Other' : (child.thickness || '');
+    const resolvedFinish = isCustomFinish ? 'Other' : (child.finish || '');
+
+    const key = [
+      child.sub_category || '',
+      resolvedThickness,
+      isCustomThickness ? child.thickness : '',
+      resolvedFinish,
+      isCustomFinish ? child.finish : '',
+    ].join('||');
+
+    const existing = groups.get(key);
+    if (existing) {
+      // Add quality to the existing group (if not already present)
+      if (child.quality && !existing.selected_qualities.includes(child.quality)) {
+        existing.selected_qualities.push(child.quality);
+      }
+      // Keep the quantity from the first child (they should all match within a group)
+    } else {
+      groups.set(key, {
+        id: crypto.randomUUID(),
+        sub_category: (child.sub_category || '') as SubCategory | '',
+        selected_qualities: child.quality ? [child.quality] : [],
+        thickness: resolvedThickness,
+        thickness_custom: isCustomThickness ? (child.thickness || '') : '',
+        finish: resolvedFinish,
+        finish_custom: isCustomFinish ? (child.finish || '') : '',
+        quantity: child.quantity,
+      });
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
+// ============================================================
+// CONSOLIDATE: merge duplicate items before sending to RPC
+// ============================================================
+
+interface UnpackPayloadItem {
+  quality: string;
+  sub_category: string | null;
+  thickness: string;
+  finish: string | null;
+  quantity: number;
+}
+
+function consolidateItems(items: UnpackPayloadItem[]): UnpackPayloadItem[] {
+  const map = new Map<string, UnpackPayloadItem>();
+
+  for (const item of items) {
+    const key = [
+      item.quality,
+      item.sub_category || '',
+      item.thickness,
+      item.finish || '',
+    ].join('||');
+
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      map.set(key, { ...item });
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 // ============================================================
@@ -197,6 +297,14 @@ function EntryCard({
                 ))}
               </SelectContent>
             </Select>
+            {entry.thickness === 'Other' && (
+              <Input
+                value={entry.thickness_custom}
+                onChange={(e) => onUpdate({ thickness_custom: e.target.value })}
+                placeholder="e.g. 25mm"
+                className="mt-1"
+              />
+            )}
           </div>
 
           {showFinish && (
@@ -219,6 +327,14 @@ function EntryCard({
                   ))}
                 </SelectContent>
               </Select>
+              {entry.finish === 'Other' && (
+                <Input
+                  value={entry.finish_custom}
+                  onChange={(e) => onUpdate({ finish_custom: e.target.value })}
+                  placeholder="e.g. Honed"
+                  className="mt-1"
+                />
+              )}
             </div>
           )}
 
@@ -237,75 +353,16 @@ function EntryCard({
           </div>
         </div>
       )}
-
-      {/* Custom thickness input */}
-      {entry.thickness === 'Other' && (
-        <div>
-          <Label className="text-xs">Custom Thickness *</Label>
-          <Input
-            value={entry.thickness_custom}
-            onChange={(e) => onUpdate({ thickness_custom: e.target.value })}
-            placeholder="Enter custom thickness"
-            className="mt-1"
-          />
-        </div>
-      )}
-
-      {/* Custom finish input */}
-      {entry.finish === 'Other' && showFinish && (
-        <div>
-          <Label className="text-xs">Custom Finish *</Label>
-          <Input
-            value={entry.finish_custom}
-            onChange={(e) => onUpdate({ finish_custom: e.target.value })}
-            placeholder="Enter custom finish"
-            className="mt-1"
-          />
-        </div>
-      )}
     </div>
   );
 }
 
 // ============================================================
-// MAIN DIALOG
+// VALIDATE a set of entries
 // ============================================================
 
-export default function UnpackKitDialog({
-  kitItem,
-  open,
-  onOpenChange,
-  onUnpacked,
-}: UnpackKitDialogProps) {
-  const [entries, setEntries] = useState<UnpackEntry[]>([createEmptyEntry()]);
-  const unpackKit = useUnpackKit();
-
-  const isMarble = kitItem.product_type === 'marble';
-  const kitLabel = isMarble ? 'Marble Kit' : 'Magro Kit';
-
-  // Reset entries when dialog opens
-  useEffect(() => {
-    if (open) {
-      setEntries([createEmptyEntry()]);
-    }
-  }, [open]);
-
-  const updateEntry = (id: string, updates: Partial<UnpackEntry>) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
-    );
-  };
-
-  const removeEntry = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-  };
-
-  const addEntry = () => {
-    setEntries((prev) => [...prev, createEmptyEntry()]);
-  };
-
-  // Validate all entries
-  const isValid =
+function validateEntries(entries: UnpackEntry[], isMarble: boolean): boolean {
+  return (
     entries.length > 0 &&
     entries.every((entry) => {
       if (entry.selected_qualities.length === 0) return false;
@@ -325,73 +382,304 @@ export default function UnpackKitDialog({
         }
       }
       return true;
-    });
+    })
+  );
+}
 
-  // Total child items that will be created
-  const totalItems = entries.reduce(
-    (sum, e) => sum + e.selected_qualities.length,
-    0,
+// ============================================================
+// EXPLODE entries → payload items
+// ============================================================
+
+function entriesToPayload(entries: UnpackEntry[]): UnpackPayloadItem[] {
+  return entries.flatMap((entry) =>
+    entry.selected_qualities.map((quality) => ({
+      quality,
+      sub_category: entry.sub_category || null,
+      thickness:
+        entry.thickness === 'Other'
+          ? entry.thickness_custom
+          : entry.thickness,
+      finish:
+        entry.finish === 'Other'
+          ? entry.finish_custom
+          : entry.finish || null,
+      quantity: entry.quantity,
+    })),
+  );
+}
+
+// ============================================================
+// MAIN DIALOG
+// ============================================================
+
+export default function UnpackKitDialog({
+  kitItem,
+  open,
+  onOpenChange,
+  onUnpacked,
+  existingChildren,
+}: UnpackKitDialogProps) {
+  const isEditMode = !!existingChildren && existingChildren.length > 0;
+  const kitQty = kitItem.quantity;
+  const showQtyHandling = kitQty > 1;
+
+  const unpackKit = useUnpackKit();
+  const updateKitContents = useUpdateKitContents();
+  const isMutating = unpackKit.isPending || updateKitContents.isPending;
+
+  const isMarble = kitItem.product_type === 'marble';
+  const kitLabel = isMarble ? 'Marble Kit' : 'Magro Kit';
+
+  // ── Qty > 1 handling ──
+  const [kitsIdentical, setKitsIdentical] = useState(true);
+  // Tab state for non-identical kits: index 0..(kitQty-1)
+  const [activeTab, setActiveTab] = useState(0);
+
+  // ── Entries state ──
+  // For identical kits (or qty=1): single flat array.
+  // For non-identical: array of arrays, one per kit copy.
+  const [singleEntries, setSingleEntries] = useState<UnpackEntry[]>([createEmptyEntry()]);
+  const [tabbedEntries, setTabbedEntries] = useState<UnpackEntry[][]>([]);
+
+  // ── Initialize on open ──
+  useEffect(() => {
+    if (!open) return;
+
+    setActiveTab(0);
+
+    if (isEditMode) {
+      // Edit mode: pre-fill from existing children
+      const prefilled = childrenToEntries(existingChildren!, isMarble);
+      setSingleEntries(prefilled);
+      setKitsIdentical(true);
+      // For tabbed: pre-fill every tab with the same entries (best guess)
+      if (kitQty > 1) {
+        setTabbedEntries(
+          Array.from({ length: kitQty }, () =>
+            prefilled.map((e) => ({ ...e, id: crypto.randomUUID() })),
+          ),
+        );
+      }
+    } else {
+      // Fresh unpack
+      setSingleEntries([createEmptyEntry()]);
+      setKitsIdentical(true);
+      if (kitQty > 1) {
+        setTabbedEntries(
+          Array.from({ length: kitQty }, () => [createEmptyEntry()]),
+        );
+      }
+    }
+  }, [open, isEditMode, isMarble, kitQty, existingChildren]);
+
+  // ── When toggling identical ↔ non-identical, sync data ──
+  const handleIdenticalToggle = useCallback(
+    (checked: boolean) => {
+      if (checked) {
+        // Switching TO identical: copy active tab's entries into the single array
+        if (tabbedEntries.length > 0 && tabbedEntries[activeTab]) {
+          setSingleEntries(
+            tabbedEntries[activeTab].map((e) => ({ ...e, id: crypto.randomUUID() })),
+          );
+        }
+      } else {
+        // Switching TO non-identical: fan out single entries to all tabs
+        setTabbedEntries(
+          Array.from({ length: kitQty }, () =>
+            singleEntries.map((e) => ({ ...e, id: crypto.randomUUID() })),
+          ),
+        );
+        setActiveTab(0);
+      }
+      setKitsIdentical(checked);
+    },
+    [singleEntries, tabbedEntries, activeTab, kitQty],
   );
 
+  // ── Entry CRUD helpers (works on active dataset) ──
+  const getActiveEntries = (): UnpackEntry[] => {
+    if (!showQtyHandling || kitsIdentical) return singleEntries;
+    return tabbedEntries[activeTab] || [];
+  };
+
+  const setActiveEntries = (updater: (prev: UnpackEntry[]) => UnpackEntry[]) => {
+    if (!showQtyHandling || kitsIdentical) {
+      setSingleEntries(updater);
+    } else {
+      setTabbedEntries((prev) =>
+        prev.map((tab, i) => (i === activeTab ? updater(tab) : tab)),
+      );
+    }
+  };
+
+  const updateEntry = (id: string, updates: Partial<UnpackEntry>) => {
+    setActiveEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+    );
+  };
+
+  const removeEntry = (id: string) => {
+    setActiveEntries((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const addEntry = () => {
+    setActiveEntries((prev) => [...prev, createEmptyEntry()]);
+  };
+
+  // ── Validation across all entries ──
+  const allEntrySets: UnpackEntry[][] = (() => {
+    if (!showQtyHandling || kitsIdentical) return [singleEntries];
+    return tabbedEntries;
+  })();
+
+  const isValid = allEntrySets.every((entries) => validateEntries(entries, isMarble));
+
+  // ── Total child item count preview ──
+  const totalItems = allEntrySets.reduce(
+    (sum, entries) =>
+      sum +
+      entries.reduce((s, e) => s + e.selected_qualities.length, 0),
+    0,
+  );
+  // If identical and qty > 1, multiply
+  const displayTotal =
+    showQtyHandling && kitsIdentical ? totalItems * kitQty : totalItems;
+
+  // ── Submit ──
   const handleConfirm = async () => {
     if (!isValid) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    // Explode: each quality in each entry becomes a separate child item
-    const items = entries.flatMap((entry) =>
-      entry.selected_qualities.map((quality) => ({
-        quality,
-        sub_category: entry.sub_category || null,
-        thickness:
-          entry.thickness === 'Other'
-            ? entry.thickness_custom
-            : entry.thickness,
-        finish:
-          entry.finish === 'Other'
-            ? entry.finish_custom
-            : entry.finish || null,
-        quantity: entry.quantity,
-      })),
-    );
+    let payload: UnpackPayloadItem[];
+
+    if (!showQtyHandling || kitsIdentical) {
+      // Single set — multiply quantities by kit qty
+      const raw = entriesToPayload(singleEntries);
+      payload = raw.map((item) => ({
+        ...item,
+        quantity: item.quantity * kitQty,
+      }));
+    } else {
+      // Non-identical: flatten all tabs
+      const raw = tabbedEntries.flatMap((tabEntries) =>
+        entriesToPayload(tabEntries),
+      );
+      payload = raw;
+    }
+
+    // Consolidate duplicates
+    payload = consolidateItems(payload);
 
     try {
-      await unpackKit.mutateAsync({ kitItemId: kitItem.id, items });
-      toast.success(
-        `Kit unpacked with ${items.length} item${items.length > 1 ? 's' : ''}`,
-      );
+      if (isEditMode) {
+        await updateKitContents.mutateAsync({
+          kitItemId: kitItem.id,
+          items: payload,
+        });
+        toast.success(
+          `Kit updated with ${payload.length} item${payload.length !== 1 ? 's' : ''}`,
+        );
+      } else {
+        await unpackKit.mutateAsync({
+          kitItemId: kitItem.id,
+          items: payload,
+        });
+        toast.success(
+          `Kit unpacked with ${payload.length} item${payload.length !== 1 ? 's' : ''}`,
+        );
+      }
       onOpenChange(false);
       onUnpacked?.();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to unpack kit');
+      toast.error(error.message || 'Failed to save kit contents');
     }
   };
+
+  const activeEntries = getActiveEntries();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-amber-800">
-            <Package className="h-5 w-5" />
-            Unpack {kitLabel} — {kitItem.sample_size}
+            {isEditMode ? (
+              <Pencil className="h-5 w-5" />
+            ) : (
+              <Package className="h-5 w-5" />
+            )}
+            {isEditMode ? 'Edit' : 'Unpack'} {kitLabel} — {kitItem.sample_size}
+            {kitQty > 1 && (
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                ×{kitQty}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Specify the exact qualities and specs for this kit. The size (
-            {kitItem.sample_size}) is inherited from the kit. Each selected
-            quality becomes a separate item.
+            {isEditMode
+              ? 'Edit the qualities and specs for this kit. Changes replace the current contents.'
+              : `Specify the exact qualities and specs for this kit. The size (${kitItem.sample_size}) is inherited from the kit. Each selected quality becomes a separate item.`}
           </p>
 
-          {entries.map((entry, idx) => (
+          {/* ── Qty > 1: identical toggle ── */}
+          {showQtyHandling && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-700">
+                  All {kitQty} kits are identical?
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {kitsIdentical
+                    ? 'Fill once — contents are multiplied across all kits.'
+                    : `Fill each kit separately using the tabs below.`}
+                </p>
+              </div>
+              <Switch
+                checked={kitsIdentical}
+                onCheckedChange={handleIdenticalToggle}
+              />
+            </div>
+          )}
+
+          {/* ── Tabs for non-identical kits ── */}
+          {showQtyHandling && !kitsIdentical && (
+            <div className="flex gap-1 overflow-x-auto pb-1">
+              {Array.from({ length: kitQty }, (_, i) => {
+                const tabValid = validateEntries(tabbedEntries[i] || [], isMarble);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setActiveTab(i)}
+                    className={[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap',
+                      activeTab === i
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                    ].join(' ')}
+                  >
+                    Kit {i + 1}
+                    {tabValid && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-400 inline-block" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Entry cards ── */}
+          {activeEntries.map((entry, idx) => (
             <EntryCard
               key={entry.id}
               entry={entry}
               index={idx}
               isMarble={isMarble}
-              canRemove={entries.length > 1}
+              canRemove={activeEntries.length > 1}
               onUpdate={(updates) => updateEntry(entry.id, updates)}
               onRemove={() => removeEntry(entry.id)}
             />
@@ -405,30 +693,56 @@ export default function UnpackKitDialog({
             <Plus className="h-4 w-4" />
             Add Another Item Group
           </button>
+
+          {/* ── Copy to all tabs shortcut ── */}
+          {showQtyHandling && !kitsIdentical && activeEntries.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setTabbedEntries((prev) =>
+                  prev.map((_, i) =>
+                    i === activeTab
+                      ? prev[i]
+                      : activeEntries.map((e) => ({ ...e, id: crypto.randomUUID() })),
+                  ),
+                );
+                toast.success(`Kit ${activeTab + 1} contents copied to all other tabs`);
+              }}
+              className="w-full flex items-center justify-center gap-2 h-9 rounded-lg text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy this tab to all other kits
+            </button>
+          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          {totalItems > 0 && (
+          {displayTotal > 0 && (
             <span className="text-xs text-slate-500 mr-auto">
-              {totalItems} item{totalItems !== 1 ? 's' : ''} will be created
+              {displayTotal} item{displayTotal !== 1 ? 's' : ''} will be {isEditMode ? 'saved' : 'created'}
             </span>
           )}
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={unpackKit.isPending}
+            disabled={isMutating}
           >
             Cancel
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!isValid || unpackKit.isPending}
+            disabled={!isValid || isMutating}
             className="bg-amber-600 hover:bg-amber-700"
           >
-            {unpackKit.isPending ? (
+            {isMutating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Unpacking...
+                Saving...
+              </>
+            ) : isEditMode ? (
+              <>
+                <Pencil className="mr-2 h-4 w-4" />
+                Save Changes
               </>
             ) : (
               <>

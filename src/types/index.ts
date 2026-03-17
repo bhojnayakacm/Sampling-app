@@ -325,7 +325,7 @@ export const PRODUCT_FINISH_OPTIONS: Record<OptionsKey, string[] | null> = {
 };
 
 // Kit size options (shared across Marble Kit and Magro Kit)
-export const KIT_SIZE_OPTIONS = ['4x4', '4x8', 'Other'] as const;
+export const KIT_SIZE_OPTIONS = ['6x4', '6x6', 'Other'] as const;
 
 // Thickness options by OptionsKey
 export const PRODUCT_THICKNESS_OPTIONS: Record<OptionsKey, string[]> = {

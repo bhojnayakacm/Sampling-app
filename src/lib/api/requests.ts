@@ -1287,6 +1287,37 @@ export function useRepackKit() {
   });
 }
 
+// Non-destructive edit: replaces child items of an already-unpacked kit
+export async function updateKitContents(
+  kitItemId: string,
+  items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[]
+) {
+  const { data, error } = await supabase.rpc('update_kit_contents', {
+    p_kit_item_id: kitItemId,
+    p_items: items,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export function useUpdateKitContents() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ kitItemId, items }: {
+      kitItemId: string;
+      items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[];
+    }) => {
+      return updateKitContents(kitItemId, items);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+    },
+  });
+}
+
 export function useDismissScheduleWarning() {
   const queryClient = useQueryClient();
 

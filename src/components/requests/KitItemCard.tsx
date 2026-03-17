@@ -129,7 +129,7 @@ export default function KitItemCard({
               </div>
             </div>
 
-            {/* Kit Size */}
+            {/* Kit Size + inline "Other" input */}
             <div>
               <Label>Kit Size *</Label>
               <Select
@@ -148,6 +148,14 @@ export default function KitItemCard({
                   ))}
                 </SelectContent>
               </Select>
+              {item.sample_size === 'Other' && (
+                <Input
+                  value={item.sample_size_custom || ''}
+                  onChange={(e) => onUpdate(index, { sample_size_custom: e.target.value })}
+                  placeholder="e.g. 8x4, 12x6…"
+                  className="mt-1.5"
+                />
+              )}
             </div>
 
             {/* Quantity */}
@@ -163,18 +171,6 @@ export default function KitItemCard({
               />
             </div>
           </div>
-
-          {/* Custom size input when "Other" */}
-          {item.sample_size === 'Other' && (
-            <div>
-              <Label>Specify Size *</Label>
-              <Input
-                value={item.sample_size_custom || ''}
-                onChange={(e) => onUpdate(index, { sample_size_custom: e.target.value })}
-                placeholder="Enter custom kit size"
-              />
-            </div>
-          )}
         </CardContent>
       )}
     </Card>
