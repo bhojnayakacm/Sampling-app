@@ -8,12 +8,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, Loader2, Trash2, Package, Plus, Replace, AlertCircle, Sparkles } from 'lucide-react';
+import { FolderOpen, Loader2, Trash2, Plus, Replace, AlertCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTemplates, useDeleteTemplate, type ProductTemplate } from '@/lib/api/templates';
 import type { ProductItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { TemplateDrawerSkeleton } from '@/components/skeletons';
+import { groupProductTemplateItems } from '@/lib/templateGrouping';
+import { TemplateGroupList } from '@/components/requests/SaveTemplateDialog';
 
 // ============================================================
 // TYPES
@@ -35,8 +37,7 @@ function generateId(): string {
 function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
   return items.map((item) => ({
     ...item,
-    id: generateId(), // Generate NEW unique ID for React
-    // Ensure all required fields exist with defaults
+    id: generateId(),
     category: item.category || '',
     sub_category: item.sub_category || '',
     selected_qualities: item.selected_qualities || [],
@@ -44,9 +45,7 @@ function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
     sample_size_custom: item.sample_size_custom || '',
     thickness_custom: item.thickness_custom || '',
     finish_custom: item.finish_custom || '',
-    // Kit support
     is_kit: item.is_kit || false,
-    // Clear image fields (templates don't store images)
     image_file: null,
     image_preview: null,
     image_url: null,
@@ -66,14 +65,7 @@ interface TemplateCardProps {
 
 function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const itemCount = template.items.length;
-
-  // Calculate total qualities across all items
-  const totalQualities = template.items.reduce((sum, item) => {
-    if (item.selected_qualities?.length > 0) return sum + item.selected_qualities.length;
-    if (item.quality) return sum + 1;
-    return sum;
-  }, 0);
+  const groups = groupProductTemplateItems(template);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -82,7 +74,6 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
       setConfirmDelete(false);
     } else {
       setConfirmDelete(true);
-      // Auto-reset after 3 seconds
       setTimeout(() => setConfirmDelete(false), 3000);
     }
   };
@@ -99,18 +90,7 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h4 className="font-semibold text-slate-800 truncate">{template.template_name}</h4>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-              <Package className="h-3 w-3" />
-              {itemCount} {itemCount === 1 ? 'product' : 'products'}
-            </span>
-            {totalQualities > itemCount && (
-              <span className="text-xs text-slate-500">
-                ({totalQualities} items total)
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-slate-400 mt-1">
             Saved {new Date(template.created_at).toLocaleDateString()}
           </p>
         </div>
@@ -139,25 +119,9 @@ function TemplateCard({ template, onSelect, onDelete, isDeleting }: TemplateCard
         </Button>
       </div>
 
-      {/* Product type pills */}
-      <div className="flex flex-wrap gap-1.5 mt-3">
-        {template.items.slice(0, 4).map((item, idx) => (
-          <span
-            key={idx}
-            className={`text-xs px-2 py-0.5 rounded ${item.is_kit ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}
-          >
-            {item.is_kit
-              ? `${item.category === 'marble' ? 'Marble' : 'Magro'} Kit`
-              : item.category === 'marble'
-                ? 'Marble'
-                : item.sub_category
-                  ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
-                  : 'Magro'}
-          </span>
-        ))}
-        {itemCount > 4 && (
-          <span className="text-xs text-slate-500 px-1">+{itemCount - 4}</span>
-        )}
+      {/* Grouped content preview */}
+      <div className="mt-2.5">
+        <TemplateGroupList groups={groups} />
       </div>
     </div>
   );
@@ -175,6 +139,8 @@ interface LoadModeSelectorProps {
 }
 
 function LoadModeSelector({ template, hasExistingProducts, onConfirm, onBack }: LoadModeSelectorProps) {
+  const groups = groupProductTemplateItems(template);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 pb-4 border-b">
@@ -183,8 +149,13 @@ function LoadModeSelector({ template, hasExistingProducts, onConfirm, onBack }: 
         </Button>
         <div className="flex-1">
           <h4 className="font-semibold text-slate-800">{template.template_name}</h4>
-          <p className="text-xs text-slate-500">{template.items.length} products</p>
+          <p className="text-xs text-slate-500">{template.items.length} item{template.items.length !== 1 ? 's' : ''}</p>
         </div>
+      </div>
+
+      {/* Grouped preview */}
+      <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+        <TemplateGroupList groups={groups} />
       </div>
 
       <div className="space-y-3">
@@ -203,7 +174,7 @@ function LoadModeSelector({ template, hasExistingProducts, onConfirm, onBack }: 
                   Append to List
                 </p>
                 <p className="text-sm text-slate-500">
-                  Add these products to your existing list
+                  Add these items to your existing list
                 </p>
               </div>
             </div>
@@ -225,8 +196,8 @@ function LoadModeSelector({ template, hasExistingProducts, onConfirm, onBack }: 
               </p>
               <p className="text-sm text-slate-500">
                 {hasExistingProducts
-                  ? 'Remove current products and use template only'
-                  : 'Start with these products'
+                  ? 'Remove current items and use template only'
+                  : 'Start with these items'
                 }
               </p>
             </div>
@@ -237,7 +208,7 @@ function LoadModeSelector({ template, hasExistingProducts, onConfirm, onBack }: 
       {hasExistingProducts && (
         <p className="text-xs text-amber-600 flex items-start gap-1.5 bg-amber-50 p-2 rounded">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          "Replace" will remove your current products. This cannot be undone.
+          "Replace" will remove your current items. This cannot be undone.
         </p>
       )}
     </div>
@@ -256,10 +227,8 @@ export function LoadTemplateDrawer({ onLoadTemplate, hasExistingProducts }: Load
 
   const handleSelect = (template: ProductTemplate) => {
     if (!hasExistingProducts) {
-      // No existing products - just load directly
       handleConfirmLoad(template, 'replace');
     } else {
-      // Show mode selector
       setSelectedTemplate(template);
     }
   };
@@ -272,7 +241,7 @@ export function LoadTemplateDrawer({ onLoadTemplate, hasExistingProducts }: Load
       <div>
         <p className="font-semibold">Template loaded!</p>
         <p className="text-sm">
-          {mode === 'append' ? 'Added' : 'Loaded'} {hydratedItems.length} product{hydratedItems.length !== 1 ? 's' : ''} from "{template.template_name}"
+          {mode === 'append' ? 'Added' : 'Loaded'} {hydratedItems.length} item{hydratedItems.length !== 1 ? 's' : ''} from "{template.template_name}"
         </p>
       </div>
     );
@@ -314,12 +283,12 @@ export function LoadTemplateDrawer({ onLoadTemplate, hasExistingProducts }: Load
             <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center">
               <Sparkles className="h-4 w-4 text-indigo-600" />
             </div>
-            {selectedTemplate ? 'Load Template' : 'Your Product Buckets'}
+            {selectedTemplate ? 'Load Template' : 'Your Saved Buckets'}
           </DialogTitle>
           <DialogDescription>
             {selectedTemplate
               ? 'Choose how to load this template'
-              : 'Select a saved template to quickly add products'
+              : 'Select a saved template to quickly add items'
             }
           </DialogDescription>
         </DialogHeader>
@@ -346,7 +315,7 @@ export function LoadTemplateDrawer({ onLoadTemplate, hasExistingProducts }: Load
               </div>
               <h4 className="font-semibold text-slate-700 mb-2">No Templates Yet</h4>
               <p className="text-sm text-slate-500 max-w-[280px] mx-auto">
-                Create your first template by adding products and clicking "Save as Template" in the form.
+                Create your first template by adding items and clicking "Save as Template" in the form.
               </p>
             </div>
           ) : (

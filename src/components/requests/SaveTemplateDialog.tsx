@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useCreateTemplate } from '@/lib/api/templates';
 import { useAuth } from '@/contexts/AuthContext';
 import type { ProductItem } from '@/types';
+import { groupTemplateItems, type TemplateGroup } from '@/lib/templateGrouping';
 
 interface SaveTemplateDialogProps {
   products: ProductItem[];
@@ -28,8 +29,8 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
   const { profile } = useAuth();
   const createTemplate = useCreateTemplate();
 
-  // Count valid products (those with at least a category selected)
-  const validProductCount = products.filter((p) => p.category).length;
+  // Count valid items (those with at least a category selected)
+  const validItemCount = products.filter((p) => p.category).length;
 
   const handleSave = async () => {
     if (!profile?.id) {
@@ -42,13 +43,12 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
       return;
     }
 
-    if (validProductCount === 0) {
-      toast.error('Add at least one product before saving');
+    if (validItemCount === 0) {
+      toast.error('Add at least one item before saving');
       return;
     }
 
     try {
-      // Only save products that have a category selected
       const validProducts = products.filter((p) => p.category);
 
       await createTemplate.mutateAsync({
@@ -62,7 +62,7 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
       toast.success(
         <div>
           <p className="font-semibold">Template saved!</p>
-          <p className="text-sm">"{templateName}" with {validProducts.length} product{validProducts.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm">"{templateName}" with {validProducts.length} item{validProducts.length !== 1 ? 's' : ''}</p>
         </div>
       );
 
@@ -73,6 +73,8 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
     }
   };
 
+  const groups = groupTemplateItems(products.filter((p) => p.category));
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -80,7 +82,7 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || validProductCount === 0}
+          disabled={disabled || validItemCount === 0}
           className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300"
         >
           <Bookmark className="h-4 w-4" />
@@ -98,7 +100,7 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
             Save as Template
           </DialogTitle>
           <DialogDescription>
-            Save your current product list for quick reuse in future requests.
+            Save your current item list for quick reuse in future requests.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,41 +121,14 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
               />
             </div>
 
-            {/* Preview of what will be saved */}
+            {/* Grouped preview of what will be saved */}
             <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
               <p className="text-sm font-medium text-slate-700 mb-2">Will save:</p>
-              <div className="space-y-1">
-                {products.filter((p) => p.category).slice(0, 3).map((product, index) => {
-                  const qualityCount = product.selected_qualities?.length || (product.quality ? 1 : 0);
-                  const productLabel = product.category === 'marble'
-                    ? 'Marble'
-                    : product.sub_category
-                      ? `Magro ${product.sub_category.charAt(0).toUpperCase() + product.sub_category.slice(1)}`
-                      : 'Magro';
-                  return (
-                    <div key={index} className="flex items-center gap-2 text-sm text-slate-600">
-                      <span className="h-5 w-5 rounded bg-indigo-100 text-indigo-600 text-xs flex items-center justify-center font-medium">
-                        {index + 1}
-                      </span>
-                      <span>{productLabel}</span>
-                      {qualityCount > 0 && (
-                        <span className="text-xs text-slate-400">
-                          ({qualityCount} {qualityCount === 1 ? 'quality' : 'qualities'})
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-                {validProductCount > 3 && (
-                  <p className="text-xs text-slate-500 pl-7">
-                    +{validProductCount - 3} more product{validProductCount - 3 !== 1 ? 's' : ''}
-                  </p>
-                )}
-              </div>
+              <TemplateGroupList groups={groups} />
             </div>
 
             <p className="text-xs text-slate-500">
-              Note: Images are not saved in templates. Only product specifications are stored.
+              Note: Images are not saved in templates. Only item specifications are stored.
             </p>
           </div>
         </div>
@@ -188,5 +163,30 @@ export function SaveTemplateDialog({ products, disabled }: SaveTemplateDialogPro
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ============================================================
+// Shared grouped rendering component
+// ============================================================
+
+export function TemplateGroupList({ groups }: { groups: TemplateGroup[] }) {
+  if (groups.length === 0) {
+    return <p className="text-xs text-slate-400 italic">No items</p>;
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {groups.map((group) => (
+        <div key={group.label} className="flex items-baseline gap-1.5 text-sm leading-snug">
+          <span className={`font-semibold shrink-0 ${group.isKit ? 'text-amber-700' : 'text-indigo-700'}`}>
+            {group.label}:
+          </span>
+          <span className="text-slate-500 text-xs">
+            {group.qualities.join(', ')}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

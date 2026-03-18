@@ -32,8 +32,8 @@ function getItemSummary(request: Request): string {
         : 'Magro';
     return `${label} - ${item.quality || 'N/A'}`;
   }
-  if (itemCount <= 1) return '1 Product';
-  return `${itemCount} Products`;
+  if (itemCount <= 1) return '1 Item';
+  return `${itemCount} Items`;
 }
 
 export default function MakerDashboard() {
@@ -192,7 +192,7 @@ export default function MakerDashboard() {
                         <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
                           <Package className="h-5 w-5 text-slate-400 flex-shrink-0" />
                           <div>
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Product</p>
+                            <p className="text-xs text-slate-500 uppercase tracking-wide">Category</p>
                             <p className="text-slate-900 font-medium">{getItemSummary(task)}</p>
                           </div>
                         </div>
@@ -267,7 +267,7 @@ export default function MakerDashboard() {
                         <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
                           <Package className="h-5 w-5 text-slate-400 flex-shrink-0" />
                           <div>
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Product</p>
+                            <p className="text-xs text-slate-500 uppercase tracking-wide">Category</p>
                             <p className="text-slate-900 font-medium">{getItemSummary(task)}</p>
                           </div>
                         </div>

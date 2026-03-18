@@ -148,7 +148,7 @@ export default function ProductItemCard({
 
   // ── Header label ────────────────────────────────────────────
   const getProductLabel = () => {
-    if (!item.category) return 'New Product';
+    if (!item.category) return 'New Item';
     if (item.category === 'marble') return CATEGORY_LABELS.marble;
     if (item.category === 'magro' && item.sub_category) {
       return `${CATEGORY_LABELS.magro} ${SUB_CATEGORY_LABELS[item.sub_category]}`;
@@ -471,7 +471,7 @@ export default function ProductItemCard({
                 <div className="mt-2 relative inline-block">
                   <img
                     src={imagePreview}
-                    alt="Product reference"
+                    alt="Sample reference"
                     className="max-w-full h-32 object-contain rounded-lg border"
                   />
                   <button

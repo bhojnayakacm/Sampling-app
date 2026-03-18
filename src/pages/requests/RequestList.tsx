@@ -72,12 +72,12 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
   }
 
   if (itemCount <= 1) {
-    return { text: '1 product', tooltip: 'Click to view details', isMulti: false };
+    return { text: '1 item', tooltip: 'Click to view details', isMulti: false };
   }
 
   return {
-    text: `${itemCount} products`,
-    tooltip: 'Click to view all products',
+    text: `${itemCount} items`,
+    tooltip: 'Click to view all items',
     isMulti: true,
   };
 }

@@ -705,12 +705,12 @@ export default function NewRequest() {
     const errors: string[] = [];
 
     if (products.length === 0) {
-      errors.push('Add at least one product or kit');
+      errors.push('Add at least one item or kit');
       return errors;
     }
 
     products.forEach((product, index) => {
-      const prefix = products.length > 1 ? `${product.is_kit ? 'Kit' : 'Product'} ${index + 1}: ` : '';
+      const prefix = products.length > 1 ? `${product.is_kit ? 'Kit' : 'Item'} ${index + 1}: ` : '';
 
       if (!product.category) {
         errors.push(`${prefix}${product.is_kit ? 'Kit Type' : 'Category'} is required`);
@@ -732,7 +732,7 @@ export default function NewRequest() {
 
       // Regular product validations below
       if (product.category === 'magro' && !product.sub_category) {
-        errors.push(`${prefix}Sub Category is required for Magro products`);
+        errors.push(`${prefix}Sub Category is required for Magro items`);
       }
 
       // Quality validation: at least one quality must be selected (verified or custom)
