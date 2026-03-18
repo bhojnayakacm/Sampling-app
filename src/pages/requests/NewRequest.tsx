@@ -118,8 +118,8 @@ function getFriendlyErrorMessage(error: any): { title: string; description: stri
   // Check constraint violations
   if (message.includes('valid_product_type') || message.includes('product_type')) {
     return {
-      title: 'Invalid Product Type',
-      description: 'The selected product type is not valid. Please select a different product type.',
+      title: 'Invalid Category',
+      description: 'The selected category is not valid. Please select a different category.',
     };
   }
 
@@ -1805,7 +1805,7 @@ export default function NewRequest() {
                   {isSection3Complete ? <Check className="h-5 w-5" /> : '3'}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-base sm:text-lg text-slate-800">Products</span>
+                  <span className="font-bold text-base sm:text-lg text-slate-800">Items</span>
                   {(() => {
                     // Calculate total items including batch entries
                     const totalItems = products.reduce((sum, p) => {
@@ -1859,7 +1859,7 @@ export default function NewRequest() {
                       <div className="h-11 w-11 rounded-full bg-indigo-100 flex items-center justify-center">
                         <Plus className="h-5 w-5" />
                       </div>
-                      <span className="text-sm font-semibold">Add Custom Product</span>
+                      <span className="text-sm font-semibold">Add Custom Item</span>
                       <span className="text-xs text-indigo-500 leading-snug text-center">
                         Pick exact quality, size, thickness & finish
                       </span>
@@ -1915,7 +1915,7 @@ export default function NewRequest() {
                       className="flex-1 border-dashed border-2 border-indigo-300 min-h-[48px] py-3 gap-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400 font-semibold transition-all"
                     >
                       <Plus className="h-4 w-4" />
-                      Add Product
+                      Add Item
                     </Button>
                     <Button
                       type="button"
@@ -1934,7 +1934,7 @@ export default function NewRequest() {
               <div className="mt-6 pt-6 border-t border-slate-200">
                 <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
                   <Package className="h-5 w-5 text-indigo-500" />
-                  Shared Details (Applied to All Products)
+                  Shared Details (Applied to All Items)
                 </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

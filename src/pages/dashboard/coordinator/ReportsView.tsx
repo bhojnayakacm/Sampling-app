@@ -181,7 +181,7 @@ export default function ReportsView() {
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
 
-            {/* Product Report Button - Disabled */}
+            {/* Category Report Button - Disabled */}
             <Button
               variant="outline"
               size="sm"
@@ -189,7 +189,7 @@ export default function ReportsView() {
               className="h-8 gap-2 opacity-50"
             >
               <Package className="h-3.5 w-3.5" />
-              <span>Product Report</span>
+              <span>Category Report</span>
               <Lock className="h-3 w-3 text-muted-foreground" />
             </Button>
           </div>

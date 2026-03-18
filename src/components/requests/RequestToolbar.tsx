@@ -146,10 +146,10 @@ export default function RequestToolbar({
               onValueChange={(v) => onProductTypeChange(v === 'all' ? null : v)}
             >
               <SelectTrigger className="h-10 w-full">
-                <SelectValue placeholder="All Products" />
+                <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Products</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {PRODUCT_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
@@ -260,10 +260,10 @@ export default function RequestToolbar({
               onValueChange={(v) => onProductTypeChange(v === 'all' ? null : v)}
             >
               <SelectTrigger className="h-10 w-full">
-                <SelectValue placeholder="All Products" />
+                <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Products</SelectItem>
+                <SelectItem value="all">All Categories</SelectItem>
                 {PRODUCT_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}

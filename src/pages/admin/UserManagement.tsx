@@ -1180,7 +1180,7 @@ export default function UserManagement() {
                   <li>The user's account and profile</li>
                   <li>ALL sample requests they created</li>
                   <li>ALL request items and tracking history</li>
-                  <li>ALL saved product templates</li>
+                  <li>ALL saved item templates</li>
                 </ul>
               </div>
               <div className="pt-1">

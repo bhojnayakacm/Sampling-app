@@ -489,7 +489,7 @@ export default function ProductItemCard({
                   <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-700 leading-relaxed">
                     <span className="font-semibold">Note:</span> This image will be attached to the first item only.
-                    To add specific images for other items, please use the "Add Another Product" button below.
+                    To add specific images for other items, please use the "Add Another Item" button below.
                   </p>
                 </div>
               )}

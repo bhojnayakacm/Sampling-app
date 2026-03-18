@@ -130,7 +130,7 @@ export default function ProductPieChart({ dateRange = 'this_month' }: ProductPie
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
             <PieChartIcon className="h-4 w-4 text-primary" />
-            Product Distribution
+            Category Distribution
           </CardTitle>
           <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
             {total} total
