@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
-import { Package, Plus, Trash2, Loader2, Pencil, Copy } from 'lucide-react';
+import { Package, Plus, Trash2, Loader2, Pencil, Copy, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { RequestItemDB, SubCategory, OptionsKey } from '@/types';
 import {
@@ -77,17 +77,21 @@ function createEmptyEntry(): UnpackEntry {
 // ============================================================
 // Groups children by (sub_category, thickness, finish) so the
 // coordinator sees the same "entry groups" they originally created.
+//
+// kitQty: the parent kit's quantity. When > 1 and identical mode
+// was used, DB quantities are already multiplied. We divide back
+// to recover the per-kit base value the coordinator originally typed.
 
 function childrenToEntries(
   children: RequestItemDB[],
   isMarble: boolean,
+  kitQty: number,
 ): UnpackEntry[] {
   if (children.length === 0) return [createEmptyEntry()];
 
   const groups = new Map<string, UnpackEntry>();
 
   for (const child of children) {
-    // Detect "Other" thickness
     const optionsKey: OptionsKey | null = isMarble
       ? 'marble'
       : child.sub_category
@@ -113,12 +117,16 @@ function childrenToEntries(
 
     const existing = groups.get(key);
     if (existing) {
-      // Add quality to the existing group (if not already present)
       if (child.quality && !existing.selected_qualities.includes(child.quality)) {
         existing.selected_qualities.push(child.quality);
       }
-      // Keep the quantity from the first child (they should all match within a group)
     } else {
+      // Divide by kitQty to recover per-kit base value.
+      // If it doesn't divide evenly, use Math.round as a safe fallback.
+      const baseQty = kitQty > 1
+        ? Math.max(1, Math.round(child.quantity / kitQty))
+        : child.quantity;
+
       groups.set(key, {
         id: crypto.randomUUID(),
         sub_category: (child.sub_category || '') as SubCategory | '',
@@ -127,12 +135,15 @@ function childrenToEntries(
         thickness_custom: isCustomThickness ? (child.thickness || '') : '',
         finish: resolvedFinish,
         finish_custom: isCustomFinish ? (child.finish || '') : '',
-        quantity: child.quantity,
+        quantity: baseQty,
       });
     }
   }
 
-  return Array.from(groups.values());
+  // Sort entries so same sub_category groups together (magro kits)
+  const entries = Array.from(groups.values());
+  entries.sort((a, b) => (a.sub_category || '').localeCompare(b.sub_category || ''));
+  return entries;
 }
 
 // ============================================================
@@ -145,17 +156,20 @@ interface UnpackPayloadItem {
   thickness: string;
   finish: string | null;
   quantity: number;
+  kit_index?: number | null;
 }
 
 function consolidateItems(items: UnpackPayloadItem[]): UnpackPayloadItem[] {
   const map = new Map<string, UnpackPayloadItem>();
 
   for (const item of items) {
+    // Include kit_index in key so items from different kits are never merged
     const key = [
       item.quality,
       item.sub_category || '',
       item.thickness,
       item.finish || '',
+      item.kit_index ?? '',
     ].join('||');
 
     const existing = map.get(key);
@@ -178,6 +192,8 @@ function EntryCard({
   index,
   isMarble,
   canRemove,
+  kitQty,
+  showMultiplier,
   onUpdate,
   onRemove,
 }: {
@@ -185,6 +201,9 @@ function EntryCard({
   index: number;
   isMarble: boolean;
   canRemove: boolean;
+  kitQty: number;
+  /** Show the "× N kits = total" math next to quantity */
+  showMultiplier: boolean;
   onUpdate: (updates: Partial<UnpackEntry>) => void;
   onRemove: () => void;
 }) {
@@ -338,6 +357,7 @@ function EntryCard({
             </div>
           )}
 
+          {/* Quantity — with optional multiplier math display */}
           <div>
             <Label className="text-xs">Qty per quality</Label>
             <Input
@@ -350,6 +370,11 @@ function EntryCard({
               placeholder="1"
               className="mt-1"
             />
+            {showMultiplier && entry.quantity > 0 && (
+              <p className="text-[11px] text-indigo-600 mt-1 leading-tight">
+                {entry.quantity} × {kitQty} kits = <span className="font-semibold">{entry.quantity * kitQty}</span> total
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -432,36 +457,70 @@ export default function UnpackKitDialog({
 
   // ── Qty > 1 handling ──
   const [kitsIdentical, setKitsIdentical] = useState(true);
-  // Tab state for non-identical kits: index 0..(kitQty-1)
   const [activeTab, setActiveTab] = useState(0);
 
   // ── Entries state ──
-  // For identical kits (or qty=1): single flat array.
-  // For non-identical: array of arrays, one per kit copy.
   const [singleEntries, setSingleEntries] = useState<UnpackEntry[]>([createEmptyEntry()]);
   const [tabbedEntries, setTabbedEntries] = useState<UnpackEntry[][]>([]);
 
+  // Guard: prevent re-initialization when React Query refetches on window focus
+  const initializedRef = useRef(false);
+
   // ── Initialize on open ──
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      initializedRef.current = false;
+      return;
+    }
+
+    // Once initialized for this open cycle, skip re-initialization
+    if (initializedRef.current) return;
+    initializedRef.current = true;
 
     setActiveTab(0);
 
     if (isEditMode) {
-      // Edit mode: pre-fill from existing children
-      const prefilled = childrenToEntries(existingChildren!, isMarble);
-      setSingleEntries(prefilled);
-      setKitsIdentical(true);
-      // For tabbed: pre-fill every tab with the same entries (best guess)
-      if (kitQty > 1) {
-        setTabbedEntries(
-          Array.from({ length: kitQty }, () =>
-            prefilled.map((e) => ({ ...e, id: crypto.randomUUID() })),
-          ),
-        );
+      // Detect whether original save used non-identical mode via kit_index
+      const hasKitIndex = kitQty > 1 && existingChildren!.some((c) => c.kit_index != null);
+
+      if (hasKitIndex) {
+        // Non-identical mode: group children by their kit_index to reconstruct exact tabs
+        setKitsIdentical(false);
+
+        const tabMap = new Map<number, RequestItemDB[]>();
+        for (const child of existingChildren!) {
+          const idx = child.kit_index ?? 0;
+          if (!tabMap.has(idx)) tabMap.set(idx, []);
+          tabMap.get(idx)!.push(child);
+        }
+
+        const tabs: UnpackEntry[][] = [];
+        for (let i = 0; i < kitQty; i++) {
+          const tabChildren = tabMap.get(i) || [];
+          tabs.push(
+            tabChildren.length > 0
+              ? childrenToEntries(tabChildren, isMarble, 1) // no division — raw per-kit values
+              : [createEmptyEntry()],
+          );
+        }
+
+        setTabbedEntries(tabs);
+        // singleEntries gets tab 0 as default for toggle sync
+        setSingleEntries(tabs[0] || [createEmptyEntry()]);
+      } else {
+        // Identical mode (or single-qty kit): divide quantities back to per-kit base values
+        const prefilled = childrenToEntries(existingChildren!, isMarble, kitQty);
+        setSingleEntries(prefilled);
+        setKitsIdentical(true);
+        if (kitQty > 1) {
+          setTabbedEntries(
+            Array.from({ length: kitQty }, () =>
+              prefilled.map((e) => ({ ...e, id: crypto.randomUUID() })),
+            ),
+          );
+        }
       }
     } else {
-      // Fresh unpack
       setSingleEntries([createEmptyEntry()]);
       setKitsIdentical(true);
       if (kitQty > 1) {
@@ -476,14 +535,12 @@ export default function UnpackKitDialog({
   const handleIdenticalToggle = useCallback(
     (checked: boolean) => {
       if (checked) {
-        // Switching TO identical: copy active tab's entries into the single array
         if (tabbedEntries.length > 0 && tabbedEntries[activeTab]) {
           setSingleEntries(
             tabbedEntries[activeTab].map((e) => ({ ...e, id: crypto.randomUUID() })),
           );
         }
       } else {
-        // Switching TO non-identical: fan out single entries to all tabs
         setTabbedEntries(
           Array.from({ length: kitQty }, () =>
             singleEntries.map((e) => ({ ...e, id: crypto.randomUUID() })),
@@ -495,6 +552,18 @@ export default function UnpackKitDialog({
     },
     [singleEntries, tabbedEntries, activeTab, kitQty],
   );
+
+  // ── Start Fresh: wipe everything back to blank ──
+  const handleStartFresh = () => {
+    setSingleEntries([createEmptyEntry()]);
+    if (showQtyHandling) {
+      setTabbedEntries(
+        Array.from({ length: kitQty }, () => [createEmptyEntry()]),
+      );
+    }
+    setActiveTab(0);
+    setKitsIdentical(true);
+  };
 
   // ── Entry CRUD helpers (works on active dataset) ──
   const getActiveEntries = (): UnpackEntry[] => {
@@ -541,9 +610,16 @@ export default function UnpackKitDialog({
       entries.reduce((s, e) => s + e.selected_qualities.length, 0),
     0,
   );
-  // If identical and qty > 1, multiply
   const displayTotal =
     showQtyHandling && kitsIdentical ? totalItems * kitQty : totalItems;
+
+  // Whether the multiplier math line should show on entry cards
+  const showMultiplier = showQtyHandling && kitsIdentical;
+
+  // Check if dialog has any meaningful data (for Start Fresh visibility)
+  const hasData = allEntrySets.some((entries) =>
+    entries.some((e) => e.selected_qualities.length > 0 || e.thickness || e.sub_category),
+  );
 
   // ── Submit ──
   const handleConfirm = async () => {
@@ -555,22 +631,24 @@ export default function UnpackKitDialog({
     let payload: UnpackPayloadItem[];
 
     if (!showQtyHandling || kitsIdentical) {
-      // Single set — multiply quantities by kit qty
+      // Identical mode: multiply quantities, no kit_index
       const raw = entriesToPayload(singleEntries);
       payload = raw.map((item) => ({
         ...item,
         quantity: item.quantity * kitQty,
       }));
+      payload = consolidateItems(payload);
     } else {
-      // Non-identical: flatten all tabs
-      const raw = tabbedEntries.flatMap((tabEntries) =>
-        entriesToPayload(tabEntries),
-      );
-      payload = raw;
+      // Non-identical mode: per-tab consolidation, tag with kit_index
+      payload = tabbedEntries.flatMap((tabEntries, tabIdx) => {
+        const tabPayload = entriesToPayload(tabEntries);
+        const consolidated = consolidateItems(tabPayload);
+        return consolidated.map((item) => ({
+          ...item,
+          kit_index: tabIdx,
+        }));
+      });
     }
-
-    // Consolidate duplicates
-    payload = consolidateItems(payload);
 
     try {
       if (isEditMode) {
@@ -603,19 +681,32 @@ export default function UnpackKitDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-amber-800">
-            {isEditMode ? (
-              <Pencil className="h-5 w-5" />
-            ) : (
-              <Package className="h-5 w-5" />
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2 text-amber-800">
+              {isEditMode ? (
+                <Pencil className="h-5 w-5" />
+              ) : (
+                <Package className="h-5 w-5" />
+              )}
+              {isEditMode ? 'Edit' : 'Unpack'} {kitLabel} — {kitItem.sample_size}
+              {kitQty > 1 && (
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                  ×{kitQty}
+                </span>
+              )}
+            </DialogTitle>
+            {/* Start Fresh button — visible when there's data to clear */}
+            {hasData && (
+              <button
+                type="button"
+                onClick={handleStartFresh}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Start Fresh
+              </button>
             )}
-            {isEditMode ? 'Edit' : 'Unpack'} {kitLabel} — {kitItem.sample_size}
-            {kitQty > 1 && (
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
-                ×{kitQty}
-              </span>
-            )}
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
@@ -634,7 +725,7 @@ export default function UnpackKitDialog({
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {kitsIdentical
-                    ? 'Fill once — contents are multiplied across all kits.'
+                    ? 'Fill once — quantities are multiplied across all kits.'
                     : `Fill each kit separately using the tabs below.`}
                 </p>
               </div>
@@ -680,6 +771,8 @@ export default function UnpackKitDialog({
               index={idx}
               isMarble={isMarble}
               canRemove={activeEntries.length > 1}
+              kitQty={kitQty}
+              showMultiplier={showMultiplier}
               onUpdate={(updates) => updateEntry(entry.id, updates)}
               onRemove={() => removeEntry(entry.id)}
             />
@@ -719,7 +812,9 @@ export default function UnpackKitDialog({
         <DialogFooter className="flex-col sm:flex-row gap-2">
           {displayTotal > 0 && (
             <span className="text-xs text-slate-500 mr-auto">
-              {displayTotal} item{displayTotal !== 1 ? 's' : ''} will be {isEditMode ? 'saved' : 'created'}
+              {showMultiplier
+                ? `${totalItems} × ${kitQty} kits = ${displayTotal} total item${displayTotal !== 1 ? 's' : ''}`
+                : `${displayTotal} item${displayTotal !== 1 ? 's' : ''} will be ${isEditMode ? 'saved' : 'created'}`}
             </span>
           )}
           <Button

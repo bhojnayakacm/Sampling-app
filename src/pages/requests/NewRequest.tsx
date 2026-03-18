@@ -334,6 +334,7 @@ function productToItemInput(
     finish: resolvedFinish,
     quantity: product.quantity,
     image_url: imageUrl,
+    is_kit: false,
   };
 }
 
@@ -1693,7 +1694,7 @@ export default function NewRequest() {
                   </Label>
                   <Input
                     id="client_contact_name"
-                    {...register('client_contact_name', { required: 'Contact name is required' })}
+                    {...register('client_contact_name')}
                     placeholder={
                       clientType === 'retail' ? 'Enter client name' :
                       clientType === 'architect' ? 'Enter architect name' :

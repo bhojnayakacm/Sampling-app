@@ -161,6 +161,7 @@ export interface RequestItemDB {
   is_kit: boolean;
   is_unpacked: boolean;
   kit_id: string | null;  // For unpacked child items: references parent kit row
+  kit_index: number | null; // Non-identical kits: 0-based tab index; NULL for identical/regular
 }
 
 // Input for creating request items
@@ -324,8 +325,11 @@ export const PRODUCT_FINISH_OPTIONS: Record<OptionsKey, string[] | null> = {
   quartz: null,    // No finish for quartz
 };
 
-// Kit size options (shared across Marble Kit and Magro Kit)
-export const KIT_SIZE_OPTIONS = ['6x4', '6x6', 'Other'] as const;
+// Kit size options — differ by category
+export const MARBLE_KIT_SIZE_OPTIONS = ['6x4', '6x6', 'Other'] as const;
+export const MAGRO_KIT_SIZE_OPTIONS = ['4x4', '4x8', 'Other'] as const;
+// Combined superset — used for hybrid-read "Other" detection when loading drafts
+export const KIT_SIZE_OPTIONS = [...new Set([...MARBLE_KIT_SIZE_OPTIONS, ...MAGRO_KIT_SIZE_OPTIONS])] as string[];
 
 // Thickness options by OptionsKey
 export const PRODUCT_THICKNESS_OPTIONS: Record<OptionsKey, string[]> = {

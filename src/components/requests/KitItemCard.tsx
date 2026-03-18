@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Trash2, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import type { ProductItem, RequestCategory } from '@/types';
-import { KIT_SIZE_OPTIONS } from '@/types';
+import { MARBLE_KIT_SIZE_OPTIONS, MAGRO_KIT_SIZE_OPTIONS } from '@/types';
 
 interface KitItemCardProps {
   item: ProductItem;
@@ -41,6 +41,10 @@ export default function KitItemCard({
   const kitLabel = item.category
     ? `${item.category === 'marble' ? 'Marble' : 'Magro'} Kit`
     : 'New Kit';
+
+  const sizeOptions = item.category === 'magro'
+    ? MAGRO_KIT_SIZE_OPTIONS
+    : MARBLE_KIT_SIZE_OPTIONS;
 
   return (
     <Card className="border-amber-200 shadow-sm overflow-hidden border-l-4 border-l-amber-400">
@@ -143,7 +147,7 @@ export default function KitItemCard({
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
-                  {KIT_SIZE_OPTIONS.map((size) => (
+                  {sizeOptions.map((size) => (
                     <SelectItem key={size} value={size}>{size}</SelectItem>
                   ))}
                 </SelectContent>

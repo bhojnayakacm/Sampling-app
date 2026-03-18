@@ -62,7 +62,8 @@ import {
   Copy,
   RotateCcw,
 } from 'lucide-react';
-import type { RequestItemDB } from '@/types';
+import type { RequestItemDB, SubCategory } from '@/types';
+import { SUB_CATEGORY_LABELS } from '@/types';
 import { RequestDetailSkeleton } from '@/components/skeletons';
 
 export default function RequestDetail() {
@@ -436,6 +437,30 @@ export default function RequestDetail() {
   const getKitChildren = (allItems: RequestItemDB[], kitId: string) =>
     allItems.filter(item => item.kit_id === kitId).sort((a, b) => a.item_index - b.item_index);
 
+  // Group children by sub_category for magro kit display
+  const groupBySubCategory = (items: RequestItemDB[]) => {
+    const map = new Map<string, RequestItemDB[]>();
+    for (const item of items) {
+      const key = item.sub_category || '';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([sub, items]) => ({
+        sub_category: sub,
+        label: sub ? SUB_CATEGORY_LABELS[sub as SubCategory] || sub : 'Other',
+        items,
+      }));
+  };
+
+  // For child items of multi-qty kits: compute the per-kit base quantity
+  const getParentKitQty = (allItems: RequestItemDB[], childItem: RequestItemDB): number | null => {
+    if (!childItem.kit_id) return null;
+    const parent = allItems.find(i => i.id === childItem.kit_id);
+    return parent && parent.quantity > 1 ? parent.quantity : null;
+  };
+
   // Edit kit: open the unpack dialog pre-filled with existing children
   const handleEditKit = (kit: RequestItemDB) => {
     setUnpackKitItem(kit);
@@ -498,19 +523,85 @@ export default function RequestDetail() {
             </div>
           </div>
           {/* Render children if unpacked */}
-          {item.is_unpacked && children.length > 0 && (
-            <div className="ml-4 pl-3 border-l-2 border-amber-200 space-y-1.5">
-              {children.map((child, ci) => (
-                <ProductCard key={child.id} item={child} index={ci + 1} />
-              ))}
-            </div>
-          )}
+          {item.is_unpacked && children.length > 0 && (() => {
+            const isMagroKit = item.product_type === 'magro';
+            const isGrouped = children.some((c) => c.kit_index != null);
+
+            // Renders a flat list of children, optionally sub-grouped by sub_category for magro
+            const renderChildList = (items: RequestItemDB[]) => {
+              if (isMagroKit) {
+                const subGroups = groupBySubCategory(items);
+                if (subGroups.length > 1 || (subGroups.length === 1 && subGroups[0].sub_category)) {
+                  return (
+                    <div className="space-y-2">
+                      {subGroups.map((sg) => (
+                        <div key={sg.sub_category}>
+                          <div className="flex items-center gap-1.5 py-0.5 pl-1">
+                            <span className="text-[10px] font-medium text-emerald-600 italic">{sg.label}</span>
+                            <div className="h-px flex-1 bg-emerald-100" />
+                          </div>
+                          <div className="space-y-1.5">
+                            {sg.items.map((child, ci) => (
+                              <ProductCard key={child.id} item={child} index={ci + 1} />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+              }
+              return (
+                <div className="space-y-1.5">
+                  {items.map((child, ci) => (
+                    <ProductCard key={child.id} item={child} index={ci + 1} />
+                  ))}
+                </div>
+              );
+            };
+
+            if (isGrouped) {
+              // Non-identical: group children by kit_index
+              const groups = new Map<number, typeof children>();
+              for (const child of children) {
+                const idx = child.kit_index ?? 0;
+                if (!groups.has(idx)) groups.set(idx, []);
+                groups.get(idx)!.push(child);
+              }
+              const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+              return (
+                <div className="ml-4 pl-3 border-l-2 border-amber-200 space-y-2">
+                  {sortedKeys.map((kitIdx) => {
+                    const groupChildren = groups.get(kitIdx)!;
+                    return (
+                      <div key={kitIdx}>
+                        <div className="flex items-center gap-2 py-1">
+                          <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                            Kit {kitIdx + 1}
+                          </span>
+                          <div className="h-px flex-1 bg-amber-100" />
+                        </div>
+                        {renderChildList(groupChildren)}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+            return (
+              <div className="ml-4 pl-3 border-l-2 border-amber-200 space-y-1.5">
+                {renderChildList(children)}
+              </div>
+            );
+          })()}
         </div>
       );
     }
 
     // ─── Regular item card (mobile) ───
     const showFinish = itemHasFinish(item);
+    const parentKitQty = getParentKitQty(request?.items || [], item);
+    const perKit = parentKitQty ? Math.round(item.quantity / parentKitQty) : null;
 
     return (
       <div className="bg-white border border-slate-200 rounded-lg p-3.5">
@@ -530,9 +621,16 @@ export default function RequestDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-medium">
-              ×{item.quantity}
-            </span>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                ×{item.quantity}
+              </span>
+              {perKit !== null && perKit !== item.quantity && (
+                <span className="text-[10px] text-slate-400">
+                  {perKit} per kit
+                </span>
+              )}
+            </div>
             {item.image_url && (
               <button
                 onClick={() => setPreviewImage(item.image_url)}
@@ -1046,23 +1144,114 @@ export default function RequestDetail() {
                                     </TableCell>
                                   </TableRow>
                                   {/* Kit children rows */}
-                                  {kit.is_unpacked && children.map((child) => (
-                                    <TableRow key={child.id} className="hover:bg-slate-50/50">
-                                      <TableCell className="text-sm text-slate-300 pl-6">↳</TableCell>
-                                      <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
-                                      <TableCell className="text-sm text-slate-700">{child.sample_size}</TableCell>
-                                      <TableCell className="text-sm text-slate-700">{child.thickness}</TableCell>
-                                      <TableCell className="text-sm text-slate-700">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
-                                      <TableCell className="text-sm text-slate-900 font-medium text-right">{child.quantity}</TableCell>
-                                      <TableCell>
-                                        {child.image_url ? (
-                                          <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
-                                            <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                          </button>
-                                        ) : <span className="text-slate-300">—</span>}
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
+                                  {kit.is_unpacked && (() => {
+                                    const isMagroKit = kit.product_type === 'magro';
+                                    const isGrouped = children.some((c) => c.kit_index != null);
+
+                                    // Renders table rows for a list of children, with optional sub-category sub-headers for magro
+                                    const renderChildRows = (items: RequestItemDB[], indent: number, kitQtyForBreakdown?: number) => {
+                                      const subGroups = isMagroKit ? groupBySubCategory(items) : null;
+                                      const hasSubGroups = subGroups && (subGroups.length > 1 || (subGroups.length === 1 && subGroups[0].sub_category));
+
+                                      if (hasSubGroups) {
+                                        return subGroups!.map((sg) => (
+                                          <React.Fragment key={`sub-${sg.sub_category}`}>
+                                            <TableRow className="bg-emerald-50/30">
+                                              <TableCell style={{ paddingLeft: indent }} className="text-sm text-emerald-400"></TableCell>
+                                              <TableCell colSpan={6}>
+                                                <span className="text-[10px] font-medium text-emerald-600 italic">{sg.label}</span>
+                                              </TableCell>
+                                            </TableRow>
+                                            {sg.items.map((child) => {
+                                              const childPerKit = kitQtyForBreakdown && kitQtyForBreakdown > 1
+                                                ? Math.round(child.quantity / kitQtyForBreakdown) : null;
+                                              return (
+                                                <TableRow key={child.id} className="hover:bg-slate-50/50">
+                                                  <TableCell style={{ paddingLeft: indent + 16 }} className="text-sm text-slate-300"></TableCell>
+                                                  <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
+                                                  <TableCell className="text-sm text-slate-700">{child.sample_size}</TableCell>
+                                                  <TableCell className="text-sm text-slate-700">{child.thickness}</TableCell>
+                                                  <TableCell className="text-sm text-slate-700">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
+                                                  <TableCell className="text-sm text-right">
+                                                    <span className="text-slate-900 font-medium">{child.quantity}</span>
+                                                    {childPerKit !== null && childPerKit !== child.quantity && (
+                                                      <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-400 font-normal">
+                                                        {childPerKit} per kit
+                                                      </span>
+                                                    )}
+                                                  </TableCell>
+                                                  <TableCell>
+                                                    {child.image_url ? (
+                                                      <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
+                                                        <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                                      </button>
+                                                    ) : <span className="text-slate-300">—</span>}
+                                                  </TableCell>
+                                                </TableRow>
+                                              );
+                                            })}
+                                          </React.Fragment>
+                                        ));
+                                      }
+
+                                      // No sub-category grouping (marble kit or single sub-category)
+                                      return items.map((child) => {
+                                        const childPerKit = kitQtyForBreakdown && kitQtyForBreakdown > 1
+                                          ? Math.round(child.quantity / kitQtyForBreakdown) : null;
+                                        return (
+                                          <TableRow key={child.id} className="hover:bg-slate-50/50">
+                                            <TableCell style={{ paddingLeft: indent }} className="text-sm text-slate-300">↳</TableCell>
+                                            <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
+                                            <TableCell className="text-sm text-slate-700">{child.sample_size}</TableCell>
+                                            <TableCell className="text-sm text-slate-700">{child.thickness}</TableCell>
+                                            <TableCell className="text-sm text-slate-700">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
+                                            <TableCell className="text-sm text-right">
+                                              <span className="text-slate-900 font-medium">{child.quantity}</span>
+                                              {childPerKit !== null && childPerKit !== child.quantity && (
+                                                <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-400 font-normal">
+                                                  {childPerKit} per kit
+                                                </span>
+                                              )}
+                                            </TableCell>
+                                            <TableCell>
+                                              {child.image_url ? (
+                                                <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
+                                                  <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                                </button>
+                                              ) : <span className="text-slate-300">—</span>}
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      });
+                                    };
+
+                                    if (isGrouped) {
+                                      // Non-identical: render grouped by kit_index with sub-headers
+                                      const groups = new Map<number, typeof children>();
+                                      for (const child of children) {
+                                        const idx = child.kit_index ?? 0;
+                                        if (!groups.has(idx)) groups.set(idx, []);
+                                        groups.get(idx)!.push(child);
+                                      }
+                                      const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+                                      return sortedKeys.map((kitIdx) => {
+                                        const groupChildren = groups.get(kitIdx)!;
+                                        return (
+                                          <React.Fragment key={`grp-${kitIdx}`}>
+                                            <TableRow className="bg-amber-50/30">
+                                              <TableCell className="text-sm text-amber-500 pl-6">↳</TableCell>
+                                              <TableCell colSpan={6}>
+                                                <span className="text-[11px] font-semibold text-amber-600">Kit {kitIdx + 1}</span>
+                                              </TableCell>
+                                            </TableRow>
+                                            {renderChildRows(groupChildren, 40)}
+                                          </React.Fragment>
+                                        );
+                                      });
+                                    }
+                                    // Identical mode: flat list with per-kit breakdown
+                                    return renderChildRows(children, 24, kit.quantity);
+                                  })()}
                                 </React.Fragment>
                               );
                             })}

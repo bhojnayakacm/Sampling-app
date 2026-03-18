@@ -1238,7 +1238,7 @@ export function useUpdateRequiredBy() {
 
 export async function unpackKit(
   kitItemId: string,
-  items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[]
+  items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number; kit_index?: number | null }[]
 ) {
   const { data, error } = await supabase.rpc('unpack_kit', {
     p_kit_item_id: kitItemId,
@@ -1254,7 +1254,7 @@ export function useUnpackKit() {
   return useMutation({
     mutationFn: async ({ kitItemId, items }: {
       kitItemId: string;
-      items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[];
+      items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number; kit_index?: number | null }[];
     }) => {
       return unpackKit(kitItemId, items);
     },
@@ -1290,7 +1290,7 @@ export function useRepackKit() {
 // Non-destructive edit: replaces child items of an already-unpacked kit
 export async function updateKitContents(
   kitItemId: string,
-  items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[]
+  items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number; kit_index?: number | null }[]
 ) {
   const { data, error } = await supabase.rpc('update_kit_contents', {
     p_kit_item_id: kitItemId,
@@ -1306,7 +1306,7 @@ export function useUpdateKitContents() {
   return useMutation({
     mutationFn: async ({ kitItemId, items }: {
       kitItemId: string;
-      items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number }[];
+      items: { quality: string; sub_category?: string | null; thickness: string; finish?: string | null; quantity: number; kit_index?: number | null }[];
     }) => {
       return updateKitContents(kitItemId, items);
     },
