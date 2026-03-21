@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Dialog,
@@ -79,18 +78,13 @@ export default function RequestDetail() {
   const isMaker = profile?.role === 'maker';
 
   // Role-aware back navigation
-  // Dispatchers, Makers, Coordinators, Admins → Dashboard (/)
-  // Requesters → Request List (/requests)
   const backDestination = profile?.role === 'requester' ? '/requests' : '/';
   const backButtonText = profile?.role === 'requester' ? 'Back' : 'Dashboard';
 
-  // Smart back: use browser history when possible (preserves URL state like ?tab=today)
   const handleBack = () => {
-    // Check if we have history to go back to (came from within the app)
     if (window.history.length > 1) {
       navigate(-1);
     } else {
-      // Fallback to explicit destination (e.g., opened via direct link)
       navigate(backDestination);
     }
   };
@@ -209,7 +203,6 @@ export default function RequestDetail() {
     const needsAddress = isNowDelivery && !request.delivery_address;
     const hasMethodChange = editedDeliveryMethod !== originalMethod;
 
-    // If switching to a delivery method and no address exists, require one
     if (needsAddress && !deliveryMethodAddress.trim()) {
       alert('Please enter a delivery address before saving.');
       return;
@@ -229,7 +222,6 @@ export default function RequestDetail() {
         updated_at: new Date().toISOString(),
       };
 
-      // Include the address when switching away from self_pickup
       if (needsAddress && deliveryMethodAddress.trim()) {
         updatePayload.delivery_address = deliveryMethodAddress.trim();
         updatePayload.is_address_edited = true;
@@ -353,23 +345,23 @@ export default function RequestDetail() {
     }, 250);
   };
 
-  // Status badge
+  // Status badge — borderless, rounded-full, bold colors
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
-      draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600 border-slate-200' },
-      pending_approval: { label: 'Pending', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-      approved: { label: 'Approved', className: 'bg-sky-50 text-sky-700 border-sky-200' },
-      assigned: { label: 'Assigned', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-      in_production: { label: 'In Production', className: 'bg-violet-50 text-violet-700 border-violet-200' },
-      ready: { label: 'Ready', className: 'bg-teal-50 text-teal-700 border-teal-200' },
-      dispatched: { label: 'Dispatched', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-      received: { label: 'Received', className: 'bg-green-50 text-green-700 border-green-200' },
-      rejected: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
+      draft: { label: 'Draft', className: 'bg-slate-100 text-slate-600' },
+      pending_approval: { label: 'Pending', className: 'bg-amber-100 text-amber-700' },
+      approved: { label: 'Approved', className: 'bg-sky-100 text-sky-700' },
+      assigned: { label: 'Assigned', className: 'bg-indigo-100 text-indigo-700' },
+      in_production: { label: 'In Production', className: 'bg-violet-100 text-violet-700' },
+      ready: { label: 'Ready', className: 'bg-teal-100 text-teal-700' },
+      dispatched: { label: 'Dispatched', className: 'bg-emerald-100 text-emerald-700' },
+      received: { label: 'Received', className: 'bg-green-100 text-green-700' },
+      rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
     };
 
-    const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-600 border-slate-200' };
+    const { label, className } = statusMap[status] || { label: status, className: 'bg-slate-100 text-slate-600' };
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${className}`}>
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${className}`}>
         {label}
       </span>
     );
@@ -406,7 +398,6 @@ export default function RequestDetail() {
     return `${num}. ${item.quality} (${parts.filter(Boolean).join(', ')}) - Qty: ${item.quantity}`;
   };
 
-  // Sort items: for magro requests, group by sub_category in defined order
   const getSortedItems = (items: RequestItemDB[]) => {
     if (request?.category === 'magro') {
       return [...items].sort((a, b) =>
@@ -416,7 +407,6 @@ export default function RequestDetail() {
     return items;
   };
 
-  // Group magro items by sub_category, preserving sort order
   const getGroupedMagroItems = (items: RequestItemDB[]) => {
     const sorted = getSortedItems(items);
     const groups: { label: string; items: RequestItemDB[] }[] = [];
@@ -433,11 +423,9 @@ export default function RequestDetail() {
     return groups;
   };
 
-  // Get children for a specific kit item
   const getKitChildren = (allItems: RequestItemDB[], kitId: string) =>
     allItems.filter(item => item.kit_id === kitId).sort((a, b) => a.item_index - b.item_index);
 
-  // Group children by sub_category for magro kit display
   const groupBySubCategory = (items: RequestItemDB[]) => {
     const map = new Map<string, RequestItemDB[]>();
     for (const item of items) {
@@ -454,49 +442,41 @@ export default function RequestDetail() {
       }));
   };
 
-  // For child items of multi-qty kits: compute the per-kit base quantity
   const getParentKitQty = (allItems: RequestItemDB[], childItem: RequestItemDB): number | null => {
     if (!childItem.kit_id) return null;
     const parent = allItems.find(i => i.id === childItem.kit_id);
     return parent && parent.quantity > 1 ? parent.quantity : null;
   };
 
-  // Edit kit: open the unpack dialog pre-filled with existing children
   const handleEditKit = (kit: RequestItemDB) => {
     setUnpackKitItem(kit);
   };
 
   // =============================================
-  // MOBILE PRODUCT CARD COMPONENT
+  // MOBILE PRODUCT CARD
   // =============================================
   const ProductCard = ({ item, index }: { item: RequestItemDB; index: number }) => {
-    // ─── Kit item card (mobile) ───
     if (item.is_kit) {
       const type = item.product_type === 'marble' ? 'Marble' : 'Magro';
       const children = getKitChildren(request?.items || [], item.id);
       return (
         <div className="space-y-1.5">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2.5 min-w-0">
-                <span className="flex items-center justify-center h-5 w-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold shrink-0 mt-0.5">
+          <div className="rounded-lg bg-amber-50/80 border border-amber-200/60 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="h-5 w-5 rounded-full bg-amber-200/60 text-amber-800 text-[10px] font-bold flex items-center justify-center shrink-0">
                   {index}
                 </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    <p className="text-sm font-semibold text-amber-900 leading-tight truncate">{type} Kit</p>
-                    {item.is_unpacked ? (
-                      <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">Unpacked</span>
-                    ) : (
-                      <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-semibold">Pending</span>
-                    )}
-                  </div>
-                  <p className="text-xs text-amber-600 mt-0.5">Size: {item.sample_size}</p>
-                </div>
+                <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span className="text-sm font-semibold text-amber-900 truncate">{type} Kit</span>
+                {item.is_unpacked ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">Unpacked</span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-semibold">Pending</span>
+                )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-medium">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
                   ×{item.quantity}
                 </span>
                 {isCoordinator && !item.is_unpacked && (
@@ -504,7 +484,7 @@ export default function RequestDetail() {
                     size="sm"
                     variant="outline"
                     onClick={() => setUnpackKitItem(item)}
-                    className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
+                    className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100"
                   >
                     Unpack
                   </Button>
@@ -514,20 +494,20 @@ export default function RequestDetail() {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleEditKit(item)}
-                    className="h-8 text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50"
+                    className="h-7 text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50"
                   >
-                    <Pencil className="h-3 w-3 mr-1" /> Edit Kit
+                    <Pencil className="h-3 w-3 mr-1" /> Edit
                   </Button>
                 )}
               </div>
             </div>
+            <p className="text-[11px] text-amber-600 mt-1 ml-7">Size: {item.sample_size}</p>
           </div>
-          {/* Render children if unpacked */}
+          {/* Kit children */}
           {item.is_unpacked && children.length > 0 && (() => {
             const isMagroKit = item.product_type === 'magro';
             const isGrouped = children.some((c) => c.kit_index != null);
 
-            // Renders a flat list of children, optionally sub-grouped by sub_category for magro
             const renderChildList = (items: RequestItemDB[]) => {
               if (isMagroKit) {
                 const subGroups = groupBySubCategory(items);
@@ -561,7 +541,6 @@ export default function RequestDetail() {
             };
 
             if (isGrouped) {
-              // Non-identical: group children by kit_index
               const groups = new Map<number, typeof children>();
               for (const child of children) {
                 const idx = child.kit_index ?? 0;
@@ -570,7 +549,7 @@ export default function RequestDetail() {
               }
               const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
               return (
-                <div className="ml-4 pl-3 border-l-2 border-amber-200 space-y-2">
+                <div className="ml-5 pl-3 border-l-2 border-amber-300/60 space-y-2">
                   {sortedKeys.map((kitIdx) => {
                     const groupChildren = groups.get(kitIdx)!;
                     return (
@@ -589,7 +568,7 @@ export default function RequestDetail() {
               );
             }
             return (
-              <div className="ml-4 pl-3 border-l-2 border-amber-200 space-y-1.5">
+              <div className="ml-5 pl-3 border-l-2 border-amber-300/60 space-y-1.5">
                 {renderChildList(children)}
               </div>
             );
@@ -598,22 +577,21 @@ export default function RequestDetail() {
       );
     }
 
-    // ─── Regular item card (mobile) ───
+    // Regular item card
     const showFinish = itemHasFinish(item);
     const parentKitQty = getParentKitQty(request?.items || [], item);
     const perKit = parentKitQty ? Math.round(item.quantity / parentKitQty) : null;
 
     return (
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5">
-        {/* Header: Quality name prominent, specs inline */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2.5 min-w-0">
-            <span className="flex items-center justify-center h-5 w-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold shrink-0 mt-0.5">
+      <div className="rounded-lg bg-white border border-slate-200/80 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-5 w-5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold flex items-center justify-center shrink-0">
               {index}
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900 leading-tight truncate">{item.quality}</p>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-sm font-semibold text-slate-900 truncate">{item.quality}</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 {[item.sample_size, item.thickness, showFinish && item.finish ? item.finish : null]
                   .filter(Boolean)
                   .join(' · ')}
@@ -622,19 +600,17 @@ export default function RequestDetail() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex flex-col items-end gap-0.5">
-              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold">
+              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full">
                 ×{item.quantity}
               </span>
               {perKit !== null && perKit !== item.quantity && (
-                <span className="text-[10px] text-slate-400">
-                  {perKit} per kit
-                </span>
+                <span className="text-[10px] text-slate-400">{perKit}/kit</span>
               )}
             </div>
             {item.image_url && (
               <button
                 onClick={() => setPreviewImage(item.image_url)}
-                className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors"
+                className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors"
               >
                 <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
               </button>
@@ -645,25 +621,23 @@ export default function RequestDetail() {
     );
   };
 
-  // Loading state
+  // Loading
   if (isLoading) {
     return <RequestDetailSkeleton />;
   }
 
-  // Error state
+  // Error
   if (error || !request) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <Card className="max-w-sm bg-white border border-slate-200 shadow-sm">
-          <CardContent className="p-6 text-center">
-            <XCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-            <p className="text-slate-900 font-medium mb-1">Request not found</p>
-            <p className="text-slate-500 text-sm mb-4">Unable to load request details.</p>
-            <Button onClick={handleBack} className="bg-indigo-600 hover:bg-indigo-700">
-              {backButtonText}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="max-w-sm rounded-xl bg-white border border-slate-200 shadow-sm p-6 text-center">
+          <XCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
+          <p className="text-slate-900 font-medium mb-1">Request not found</p>
+          <p className="text-slate-500 text-sm mb-4">Unable to load request details.</p>
+          <Button onClick={handleBack} className="bg-indigo-600 hover:bg-indigo-700">
+            {backButtonText}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -671,143 +645,133 @@ export default function RequestDetail() {
   const hasItems = request.items && request.items.length > 0;
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
-  // Helper to determine deadline status for consistent styling
   const getDeadlineStatus = () => {
     if (!request.required_by) return { status: 'normal', className: '', label: '' };
-
     const now = new Date();
     const deadline = new Date(request.required_by);
     const hoursUntilDeadline = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    // Already received - no urgency styling needed
     if (request.status === 'received') {
       return { status: 'completed', className: 'text-green-600', label: '' };
     }
-
-    // Overdue
     if (hoursUntilDeadline < 0) {
       return { status: 'overdue', className: 'text-red-600', label: 'Overdue' };
     }
-
-    // Due within 24 hours OR marked as urgent priority
     if (hoursUntilDeadline <= 24 || request.priority === 'urgent') {
       return { status: 'urgent', className: 'text-amber-600', label: request.priority === 'urgent' ? 'Urgent' : 'Due Soon' };
     }
-
     return { status: 'normal', className: 'text-slate-600', label: '' };
   };
 
   const deadlineStatus = getDeadlineStatus();
-
-  // Statuses where shipping details can still be edited
   const EDITABLE_STATUSES = ['pending_approval', 'approved', 'assigned', 'in_production', 'ready'];
   const canEditShipping = isCoordinator && EDITABLE_STATUSES.includes(request.status);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32 md:pb-24">
-      {/* =========================================== */}
-      {/* HEADER - Mobile Optimized */}
-      {/* =========================================== */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-2">
-            {/* Left: Back + Request Info */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBack}
-                className="h-9 w-9 p-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-base sm:text-xl font-semibold text-slate-900 truncate">
-                    {request.request_number}
-                  </h1>
-                  {getStatusBadge(request.status)}
-                  {request.priority === 'urgent' && (
-                    <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 border border-red-200">
-                      Urgent
+      {/* ======== HEADER ======== */}
+      <header className="bg-white/95 backdrop-blur-sm border-b border-slate-200/80 sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 h-14 flex items-center justify-between gap-2">
+          {/* Left */}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBack}
+              className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600 hover:bg-slate-100 shrink-0"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className="text-base font-semibold text-slate-900 truncate">
+                  {request.request_number}
+                </h1>
+                {getStatusBadge(request.status)}
+                {request.priority === 'urgent' && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">
+                    Urgent
+                  </span>
+                )}
+                {request.category && (
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                    request.category === 'marble' ? 'bg-stone-100 text-stone-600' : 'bg-cyan-50 text-cyan-700'
+                  }`}>
+                    {request.category === 'marble' ? 'Marble' : 'Magro'}
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] mt-0.5 truncate">
+                {/* Mobile: due date only */}
+                <span className={`sm:hidden flex items-center gap-1 ${deadlineStatus.className || 'text-slate-400'}`}>
+                  <Calendar className="h-3 w-3" />
+                  Due: {formatDateTime(request.required_by)}
+                  {deadlineStatus.label && (
+                    <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-semibold ${
+                      deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {deadlineStatus.label}
                     </span>
                   )}
-                </div>
-                {/* Mobile: Show only due date with urgency styling */}
-                <p className="text-xs mt-0.5 truncate">
-                  <span className={`sm:hidden flex items-center gap-1 ${deadlineStatus.className || 'text-slate-500'}`}>
+                </span>
+                {/* Desktop: both dates */}
+                <span className="hidden sm:inline-flex items-center gap-4 text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Created {formatDateTime(request.created_at)}
+                  </span>
+                  <span className={`flex items-center gap-1 ${deadlineStatus.className || ''}`}>
                     <Calendar className="h-3 w-3" />
-                    Due: {formatDateTime(request.required_by)}
+                    Due {formatDateTime(request.required_by)}
                     {deadlineStatus.label && (
-                      <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-medium ${
+                      <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-semibold ${
                         deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {deadlineStatus.label}
                       </span>
                     )}
                   </span>
-                  <span className="hidden sm:inline-flex items-center gap-4 text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Created {formatDateTime(request.created_at)}
-                    </span>
-                    <span className={`flex items-center gap-1 ${deadlineStatus.className || ''}`}>
-                      <Calendar className="h-3 w-3" />
-                      Due {formatDateTime(request.required_by)}
-                      {deadlineStatus.label && (
-                        <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-medium ${
-                          deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {deadlineStatus.label}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                </p>
+                </span>
               </div>
             </div>
+          </div>
 
-            {/* Right: Actions */}
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-              <TrackingDialog
-                request={request}
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 w-9 sm:w-auto sm:px-3 p-0 text-xs border-slate-200 text-slate-600"
-                  >
-                    <MapPin className="h-4 w-4 sm:mr-1.5" />
-                    <span className="hidden sm:inline">Track</span>
-                  </Button>
-                }
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={signOut}
-                className="h-9 px-2 sm:px-3 text-xs text-slate-500 hover:bg-slate-100 hidden md:flex"
-              >
-                Sign Out
-              </Button>
-            </div>
+          {/* Right */}
+          <div className="flex items-center gap-1 shrink-0">
+            <TrackingDialog
+              request={request}
+              trigger={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 sm:w-auto sm:px-3 p-0 text-xs border-slate-200 text-slate-500"
+                >
+                  <MapPin className="h-4 w-4 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Track</span>
+                </Button>
+              }
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={signOut}
+              className="h-8 px-2.5 text-xs text-slate-400 hover:bg-slate-100 hidden md:flex"
+            >
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
-        {/* =========================================== */}
-        {/* ALERTS */}
-        {/* =========================================== */}
+      <main className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5">
+        {/* ======== ALERTS ======== */}
 
-        {/* Requester Special Instructions */}
         {request.requester_message && (
-          <Alert className="mb-4 border border-violet-200 bg-violet-50 rounded-lg">
+          <Alert className="mb-3 border border-violet-200 bg-violet-50 rounded-xl">
             <div className="flex items-start gap-2">
               <MessageSquare className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
               <div className="min-w-0">
-                <AlertTitle className="text-sm font-medium text-violet-900">Special Instructions from Requester</AlertTitle>
-                <AlertDescription className="text-sm text-violet-700 mt-1">{request.requester_message}</AlertDescription>
+                <AlertTitle className="text-sm font-medium text-violet-900">Special Instructions</AlertTitle>
+                <AlertDescription className="text-sm text-violet-700 mt-0.5">{request.requester_message}</AlertDescription>
               </div>
             </div>
           </Alert>
@@ -815,7 +779,7 @@ export default function RequestDetail() {
 
         {request.coordinator_message && (
           <Alert
-            className={`mb-4 border rounded-lg ${
+            className={`mb-3 border rounded-xl ${
               request.status === 'rejected'
                 ? 'border-red-200 bg-red-50'
                 : request.status === 'approved'
@@ -833,22 +797,21 @@ export default function RequestDetail() {
               )}
               <div className="min-w-0 flex-1">
                 <AlertTitle className="text-sm font-medium text-slate-900">Coordinator Message</AlertTitle>
-                <AlertDescription className="text-sm text-slate-600 mt-1">{request.coordinator_message}</AlertDescription>
+                <AlertDescription className="text-sm text-slate-600 mt-0.5">{request.coordinator_message}</AlertDescription>
               </div>
             </div>
           </Alert>
         )}
 
-        {/* Edit & Resubmit CTA for rejected requests (requester only) */}
         {request.status === 'rejected' && profile?.id === request.created_by && (
-          <div className="mb-4 border-2 border-dashed border-amber-300 bg-amber-50 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="mb-3 border-2 border-dashed border-amber-300 bg-amber-50 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+              <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
                 <RotateCcw className="h-4 w-4 text-amber-700" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-amber-900">Want to fix and resubmit?</p>
-                <p className="text-xs text-amber-700">Edit your request based on the feedback above and send it for review again.</p>
+                <p className="text-[11px] text-amber-700">Edit based on feedback above and send for review again.</p>
               </div>
             </div>
             <Button
@@ -863,24 +826,24 @@ export default function RequestDetail() {
         )}
 
         {request.dispatch_notes && (request.status === 'dispatched' || request.status === 'received') && (
-          <Alert className="mb-4 border border-emerald-200 bg-emerald-50 rounded-lg">
+          <Alert className="mb-3 border border-emerald-200 bg-emerald-50 rounded-xl">
             <div className="flex items-start gap-2">
               <Truck className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <AlertTitle className="text-sm font-medium text-slate-900">Dispatch Info</AlertTitle>
-                <AlertDescription className="text-sm text-slate-600 mt-1">{request.dispatch_notes}</AlertDescription>
+                <AlertDescription className="text-sm text-slate-600 mt-0.5">{request.dispatch_notes}</AlertDescription>
               </div>
             </div>
           </Alert>
         )}
 
         {request.status === 'received' && request.received_by && (
-          <Alert className="mb-4 border border-green-200 bg-green-50 rounded-lg">
+          <Alert className="mb-3 border border-green-200 bg-green-50 rounded-xl">
             <div className="flex items-start gap-2">
               <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <AlertTitle className="text-sm font-medium text-slate-900">Received</AlertTitle>
-                <AlertDescription className="text-sm text-slate-600 mt-1">
+                <AlertDescription className="text-sm text-slate-600 mt-0.5">
                   Received by <span className="font-medium text-slate-700">{request.received_by}</span>
                   {request.received_at && (
                     <span className="text-slate-400"> — {formatDateTime(request.received_at)}</span>
@@ -891,27 +854,19 @@ export default function RequestDetail() {
           </Alert>
         )}
 
-        {/* Mobile: Urgent Priority Badge */}
-        {request.priority === 'urgent' && (
-          <div className="sm:hidden mb-4 p-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-red-500" />
-            <span className="text-sm font-medium text-red-700">Urgent Priority</span>
-          </div>
-        )}
-
-        {/* Schedule Change Warning Banner — only visible to the request owner */}
+        {/* Schedule Change Warning */}
         {request.has_schedule_warning && profile?.role === 'requester' && profile?.id === request.created_by && (
           <button
             onClick={() => dismissWarning.mutate(request.id)}
             disabled={dismissWarning.isPending}
-            className="w-full mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-center gap-3 text-left hover:bg-amber-100 active:bg-amber-100 transition-colors"
+            className="w-full mb-3 p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-3 text-left hover:bg-amber-100 active:bg-amber-100 transition-colors"
           >
             <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-amber-900">Schedule has been updated</p>
-              <p className="text-xs text-amber-700">The deadline was changed. Tap to dismiss.</p>
+              <p className="text-[11px] text-amber-700">The deadline was changed. Tap to dismiss.</p>
             </div>
             {dismissWarning.isPending ? (
               <Loader2 className="h-4 w-4 text-amber-500 animate-spin shrink-0" />
@@ -921,420 +876,392 @@ export default function RequestDetail() {
           </button>
         )}
 
-        {/* =========================================== */}
-        {/* MAIN GRID - Responsive */}
-        {/* =========================================== */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
-          {/* LEFT COLUMN - Main Content */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-5">
+        {/* ======== MAIN GRID ======== */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* LEFT COLUMN */}
+          <div className="lg:col-span-2 space-y-4">
 
-            {/* =========================================== */}
-            {/* REQUIRED BY / DEADLINE - Moved to top for mobile access */}
-            {/* =========================================== */}
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardContent className="p-3 sm:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
-                      deadlineStatus.status === 'overdue' ? 'bg-red-100' :
-                      deadlineStatus.status === 'urgent' ? 'bg-amber-100' :
-                      deadlineStatus.status === 'completed' ? 'bg-green-100' :
-                      'bg-slate-100'
-                    }`}>
-                      <Calendar className={`h-5 w-5 ${
-                        deadlineStatus.status === 'overdue' ? 'text-red-600' :
-                        deadlineStatus.status === 'urgent' ? 'text-amber-600' :
-                        deadlineStatus.status === 'completed' ? 'text-green-600' :
-                        'text-slate-500'
-                      }`} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Required By</p>
-                      <p className={`text-base sm:text-lg font-bold leading-tight ${
-                        deadlineStatus.status === 'overdue' ? 'text-red-700' :
-                        deadlineStatus.status === 'urgent' ? 'text-amber-700' :
-                        deadlineStatus.status === 'completed' ? 'text-green-700' :
-                        'text-slate-900'
-                      }`}>
-                        {formatDateTime(request.required_by)}
-                      </p>
-                      {deadlineStatus.label && (
-                        <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                          deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
-                          {deadlineStatus.label}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {isCoordinator && request.status !== 'pending_approval' && (
-                    <button
-                      onClick={() => setIsEditRequiredByOpen(true)}
-                      className="h-10 w-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors shrink-0"
-                      title="Edit deadline"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
+            {/* ── Deadline Bar ── */}
+            <div className={`flex items-center justify-between rounded-xl p-3 shadow-sm ${
+              deadlineStatus.status === 'overdue' ? 'bg-red-50 border border-red-200/60' :
+              deadlineStatus.status === 'urgent' ? 'bg-amber-50 border border-amber-200/60' :
+              deadlineStatus.status === 'completed' ? 'bg-green-50 border border-green-200/60' :
+              'bg-white border border-slate-200/80'
+            }`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Calendar className={`h-4 w-4 shrink-0 ${
+                  deadlineStatus.status === 'overdue' ? 'text-red-500' :
+                  deadlineStatus.status === 'urgent' ? 'text-amber-500' :
+                  deadlineStatus.status === 'completed' ? 'text-green-500' :
+                  'text-slate-400'
+                }`} />
+                <div className="min-w-0">
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block leading-none mb-0.5">Required By</span>
+                  <span className={`text-sm font-bold leading-tight ${
+                    deadlineStatus.status === 'overdue' ? 'text-red-700' :
+                    deadlineStatus.status === 'urgent' ? 'text-amber-700' :
+                    deadlineStatus.status === 'completed' ? 'text-green-700' :
+                    'text-slate-900'
+                  }`}>
+                    {formatDateTime(request.required_by)}
+                  </span>
+                </div>
+                {deadlineStatus.label && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                    deadlineStatus.status === 'overdue' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    <AlertCircle className="h-2.5 w-2.5 inline mr-0.5" />
+                    {deadlineStatus.label}
+                  </span>
+                )}
+              </div>
+              {isCoordinator && request.status !== 'pending_approval' && (
+                <button
+                  onClick={() => setIsEditRequiredByOpen(true)}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors shrink-0"
+                  title="Edit deadline"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {/* Deadline History */}
+            {request.required_by_history && request.required_by_history.length > 0 && (
+              <div className="-mt-2">
+                <RequiredByHistory history={request.required_by_history} />
+              </div>
+            )}
+
+            {/* ── Product Items ── */}
+            <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-indigo-500" />
+                  <h3 className="text-sm font-semibold text-slate-900">Items</h3>
+                  {hasItems && (
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      ({request.items!.filter(i => !i.kit_id).length})
+                    </span>
                   )}
                 </div>
-                {/* Deadline History — collapsible inline */}
-                {request.required_by_history && request.required_by_history.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <RequiredByHistory history={request.required_by_history} />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <button
+                  onClick={async () => {
+                    if (!hasItems) return;
+                    const topItems = request.items!.filter(i => !i.kit_id);
+                    const sorted = getSortedItems(topItems);
+                    const lines = sorted.map((item, i) => formatItemLine(item, i + 1));
+                    await navigator.clipboard.writeText(lines.join('\n'));
+                    setQualitiesCopied(true);
+                    setTimeout(() => setQualitiesCopied(false), 2000);
+                  }}
+                  className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  title="Copy item list"
+                >
+                  {qualitiesCopied ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
 
-            {/* =========================================== */}
-            {/* PRODUCT ITEMS - Responsive View Swap */}
-            {/* =========================================== */}
-            <Card className="bg-white border border-slate-200 shadow-sm overflow-hidden">
-              <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                    <Package className="h-4 w-4 text-indigo-500" />
-                    Product Items
-                    {hasItems && (
-                      <span className="text-xs font-normal text-slate-500">
-                        ({request.items!.length})
-                      </span>
-                    )}
-                  </CardTitle>
-                  <button
-                    onClick={async () => {
-                      if (!hasItems) return;
-                      const topItems = request.items!.filter(i => !i.kit_id);
-                      const sorted = getSortedItems(topItems);
-                      const lines = sorted.map((item, i) => formatItemLine(item, i + 1));
-                      await navigator.clipboard.writeText(lines.join('\n'));
-                      setQualitiesCopied(true);
-                      setTimeout(() => setQualitiesCopied(false), 2000);
-                    }}
-                    className="h-9 w-9 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
-                    title="Copy item list"
-                  >
-                    {qualitiesCopied ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-600" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {hasItems ? (() => {
-                  const allItems = request.items!;
-                  const regularItems = allItems.filter(i => !i.is_kit && !i.kit_id);
-                  const kitItems = allItems.filter(i => i.is_kit).sort((a, b) => a.item_index - b.item_index);
-                  const regularCount = regularItems.length;
+              {hasItems ? (() => {
+                const allItems = request.items!;
+                const regularItems = allItems.filter(i => !i.is_kit && !i.kit_id);
+                const kitItems = allItems.filter(i => i.is_kit).sort((a, b) => a.item_index - b.item_index);
+                const regularCount = regularItems.length;
 
-                  const isMagro = request.category === 'magro';
-                  const sortedItems = getSortedItems(regularItems);
-                  const magroGroups = isMagro ? getGroupedMagroItems(regularItems) : [];
-                  // Pre-compute cumulative start index for each group
-                  const groupStartIndices = magroGroups.reduce<number[]>((acc, _group, i) => {
-                    acc.push(i === 0 ? 0 : acc[i - 1] + magroGroups[i - 1].items.length);
-                    return acc;
-                  }, []);
+                const isMagro = request.category === 'magro';
+                const sortedItems = getSortedItems(regularItems);
+                const magroGroups = isMagro ? getGroupedMagroItems(regularItems) : [];
+                const groupStartIndices = magroGroups.reduce<number[]>((acc, _group, i) => {
+                  acc.push(i === 0 ? 0 : acc[i - 1] + magroGroups[i - 1].items.length);
+                  return acc;
+                }, []);
 
-                  return (
-                    <>
-                      {/* DESKTOP: Data Table (hidden on mobile) */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50 hover:bg-slate-50">
-                              <TableHead className="w-10 text-xs font-medium text-slate-500">#</TableHead>
-                              <TableHead className="text-xs font-medium text-slate-500">Quality</TableHead>
-                              <TableHead className="text-xs font-medium text-slate-500">Size</TableHead>
-                              <TableHead className="text-xs font-medium text-slate-500">Thickness</TableHead>
-                              <TableHead className="text-xs font-medium text-slate-500">Finish</TableHead>
-                              <TableHead className="text-xs font-medium text-slate-500 text-right">Qty</TableHead>
-                              <TableHead className="w-10 text-xs font-medium text-slate-500">Img</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {isMagro ? (
-                              magroGroups.map((group, gi) => {
-                                const groupStartIndex = groupStartIndices[gi];
-                                return (
-                                  <React.Fragment key={group.label}>
-                                    <TableRow className="bg-slate-100/60 hover:bg-slate-100/60">
-                                      <TableCell colSpan={7} className="py-2 px-4">
-                                        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{group.label}</span>
-                                      </TableCell>
-                                    </TableRow>
-                                    {group.items.map((item, i) => (
-                                      <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                        <TableCell className="text-sm font-medium text-slate-400">{groupStartIndex + i + 1}</TableCell>
-                                        <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
-                                        <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
-                                        <TableCell className="text-sm text-slate-700">{item.thickness}</TableCell>
-                                        <TableCell className="text-sm text-slate-700">{itemHasFinish(item) && item.finish ? item.finish : '—'}</TableCell>
-                                        <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
-                                        <TableCell>
-                                          {item.image_url ? (
-                                            <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
-                                              <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                            </button>
-                                          ) : <span className="text-slate-300">—</span>}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </React.Fragment>
-                                );
-                              })
-                            ) : (
-                              sortedItems.map((item, index) => (
-                                <TableRow key={item.id} className="hover:bg-slate-50/50">
-                                  <TableCell className="text-sm font-medium text-slate-400">{index + 1}</TableCell>
-                                  <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
-                                  <TableCell className="text-sm text-slate-700">{item.sample_size}</TableCell>
-                                  <TableCell className="text-sm text-slate-700">{item.thickness}</TableCell>
-                                  <TableCell className="text-sm text-slate-700">{item.finish || '—'}</TableCell>
-                                  <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
-                                  <TableCell>
-                                    {item.image_url ? (
-                                      <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
-                                        <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                      </button>
-                                    ) : <span className="text-slate-300">—</span>}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                            {/* Kit items (desktop) */}
-                            {kitItems.map((kit, ki) => {
-                              const children = getKitChildren(allItems, kit.id);
-                              const displayNum = regularCount + ki + 1;
+                return (
+                  <>
+                    {/* DESKTOP TABLE */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent border-b border-slate-100">
+                            <TableHead className="w-10 text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">#</TableHead>
+                            <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Quality</TableHead>
+                            <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Size</TableHead>
+                            <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Thickness</TableHead>
+                            <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Finish</TableHead>
+                            <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5 text-right">Qty</TableHead>
+                            <TableHead className="w-10 text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Img</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {isMagro ? (
+                            magroGroups.map((group, gi) => {
+                              const groupStartIndex = groupStartIndices[gi];
                               return (
-                                <React.Fragment key={kit.id}>
-                                  <TableRow className="bg-amber-50/60 hover:bg-amber-50">
-                                    <TableCell className="text-sm font-medium text-slate-400">{displayNum}</TableCell>
-                                    <TableCell>
-                                      <div className="flex items-center gap-2">
-                                        <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                                        <span className="text-sm text-amber-900 font-medium">
-                                          {kit.product_type === 'marble' ? 'Marble' : 'Magro'} Kit
-                                        </span>
-                                        {kit.is_unpacked ? (
-                                          <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">Unpacked</span>
-                                        ) : (
-                                          <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-semibold">Pending</span>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-sm text-slate-700">{kit.sample_size}</TableCell>
-                                    <TableCell className="text-sm text-slate-400">—</TableCell>
-                                    <TableCell className="text-sm text-slate-400">—</TableCell>
-                                    <TableCell className="text-sm text-slate-900 font-medium text-right">{kit.quantity}</TableCell>
-                                    <TableCell>
-                                      {isCoordinator && !kit.is_unpacked && (
-                                        <Button size="sm" variant="outline" onClick={() => setUnpackKitItem(kit)} className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100">
-                                          Unpack
-                                        </Button>
-                                      )}
-                                      {isCoordinator && kit.is_unpacked && request.status === 'pending_approval' && (
-                                        <Button size="sm" variant="ghost" onClick={() => handleEditKit(kit)} className="h-7 text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50">
-                                          <Pencil className="h-3 w-3 mr-1" /> Edit
-                                        </Button>
-                                      )}
+                                <React.Fragment key={group.label}>
+                                  <TableRow className="hover:bg-transparent border-b-0">
+                                    <TableCell colSpan={7} className="py-1.5 px-4">
+                                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{group.label}</span>
                                     </TableCell>
                                   </TableRow>
-                                  {/* Kit children rows */}
-                                  {kit.is_unpacked && (() => {
-                                    const isMagroKit = kit.product_type === 'magro';
-                                    const isGrouped = children.some((c) => c.kit_index != null);
-
-                                    // Renders table rows for a list of children, with optional sub-category sub-headers for magro
-                                    const renderChildRows = (items: RequestItemDB[], indent: number, kitQtyForBreakdown?: number) => {
-                                      const subGroups = isMagroKit ? groupBySubCategory(items) : null;
-                                      const hasSubGroups = subGroups && (subGroups.length > 1 || (subGroups.length === 1 && subGroups[0].sub_category));
-
-                                      if (hasSubGroups) {
-                                        return subGroups!.map((sg) => (
-                                          <React.Fragment key={`sub-${sg.sub_category}`}>
-                                            <TableRow className="bg-emerald-50/30">
-                                              <TableCell style={{ paddingLeft: indent }} className="text-sm text-emerald-400"></TableCell>
-                                              <TableCell colSpan={6}>
-                                                <span className="text-[10px] font-medium text-emerald-600 italic">{sg.label}</span>
-                                              </TableCell>
-                                            </TableRow>
-                                            {sg.items.map((child) => {
-                                              const childPerKit = kitQtyForBreakdown && kitQtyForBreakdown > 1
-                                                ? Math.round(child.quantity / kitQtyForBreakdown) : null;
-                                              return (
-                                                <TableRow key={child.id} className="hover:bg-slate-50/50">
-                                                  <TableCell style={{ paddingLeft: indent + 16 }} className="text-sm text-slate-300"></TableCell>
-                                                  <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
-                                                  <TableCell className="text-sm text-slate-700">{child.sample_size}</TableCell>
-                                                  <TableCell className="text-sm text-slate-700">{child.thickness}</TableCell>
-                                                  <TableCell className="text-sm text-slate-700">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
-                                                  <TableCell className="text-sm text-right">
-                                                    <span className="text-slate-900 font-medium">{child.quantity}</span>
-                                                    {childPerKit !== null && childPerKit !== child.quantity && (
-                                                      <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-400 font-normal">
-                                                        {childPerKit} per kit
-                                                      </span>
-                                                    )}
-                                                  </TableCell>
-                                                  <TableCell>
-                                                    {child.image_url ? (
-                                                      <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
-                                                        <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                                      </button>
-                                                    ) : <span className="text-slate-300">—</span>}
-                                                  </TableCell>
-                                                </TableRow>
-                                              );
-                                            })}
-                                          </React.Fragment>
-                                        ));
-                                      }
-
-                                      // No sub-category grouping (marble kit or single sub-category)
-                                      return items.map((child) => {
-                                        const childPerKit = kitQtyForBreakdown && kitQtyForBreakdown > 1
-                                          ? Math.round(child.quantity / kitQtyForBreakdown) : null;
-                                        return (
-                                          <TableRow key={child.id} className="hover:bg-slate-50/50">
-                                            <TableCell style={{ paddingLeft: indent }} className="text-sm text-slate-300">↳</TableCell>
-                                            <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
-                                            <TableCell className="text-sm text-slate-700">{child.sample_size}</TableCell>
-                                            <TableCell className="text-sm text-slate-700">{child.thickness}</TableCell>
-                                            <TableCell className="text-sm text-slate-700">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
-                                            <TableCell className="text-sm text-right">
-                                              <span className="text-slate-900 font-medium">{child.quantity}</span>
-                                              {childPerKit !== null && childPerKit !== child.quantity && (
-                                                <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-400 font-normal">
-                                                  {childPerKit} per kit
-                                                </span>
-                                              )}
-                                            </TableCell>
-                                            <TableCell>
-                                              {child.image_url ? (
-                                                <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded border border-slate-200 overflow-hidden hover:border-indigo-400">
-                                                  <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                                </button>
-                                              ) : <span className="text-slate-300">—</span>}
-                                            </TableCell>
-                                          </TableRow>
-                                        );
-                                      });
-                                    };
-
-                                    if (isGrouped) {
-                                      // Non-identical: render grouped by kit_index with sub-headers
-                                      const groups = new Map<number, typeof children>();
-                                      for (const child of children) {
-                                        const idx = child.kit_index ?? 0;
-                                        if (!groups.has(idx)) groups.set(idx, []);
-                                        groups.get(idx)!.push(child);
-                                      }
-                                      const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
-                                      return sortedKeys.map((kitIdx) => {
-                                        const groupChildren = groups.get(kitIdx)!;
-                                        return (
-                                          <React.Fragment key={`grp-${kitIdx}`}>
-                                            <TableRow className="bg-amber-50/30">
-                                              <TableCell className="text-sm text-amber-500 pl-6">↳</TableCell>
-                                              <TableCell colSpan={6}>
-                                                <span className="text-[11px] font-semibold text-amber-600">Kit {kitIdx + 1}</span>
-                                              </TableCell>
-                                            </TableRow>
-                                            {renderChildRows(groupChildren, 40)}
-                                          </React.Fragment>
-                                        );
-                                      });
-                                    }
-                                    // Identical mode: flat list with per-kit breakdown
-                                    return renderChildRows(children, 24, kit.quantity);
-                                  })()}
+                                  {group.items.map((item, i) => (
+                                    <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-50">
+                                      <TableCell className="text-sm font-medium text-slate-400">{groupStartIndex + i + 1}</TableCell>
+                                      <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
+                                      <TableCell className="text-sm text-slate-600">{item.sample_size}</TableCell>
+                                      <TableCell className="text-sm text-slate-600">{item.thickness}</TableCell>
+                                      <TableCell className="text-sm text-slate-600">{itemHasFinish(item) && item.finish ? item.finish : '—'}</TableCell>
+                                      <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
+                                      <TableCell>
+                                        {item.image_url ? (
+                                          <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors">
+                                            <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                          </button>
+                                        ) : <span className="text-slate-300">—</span>}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
                                 </React.Fragment>
                               );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      {/* MOBILE: Card View (hidden on desktop) */}
-                      <div className="md:hidden p-3 space-y-2">
-                        {isMagro ? (
-                          magroGroups.map((group, gi) => {
-                            const groupStartIndex = groupStartIndices[gi];
+                            })
+                          ) : (
+                            sortedItems.map((item, index) => (
+                              <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-50">
+                                <TableCell className="text-sm font-medium text-slate-400">{index + 1}</TableCell>
+                                <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
+                                <TableCell className="text-sm text-slate-600">{item.sample_size}</TableCell>
+                                <TableCell className="text-sm text-slate-600">{item.thickness}</TableCell>
+                                <TableCell className="text-sm text-slate-600">{item.finish || '—'}</TableCell>
+                                <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
+                                <TableCell>
+                                  {item.image_url ? (
+                                    <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors">
+                                      <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                    </button>
+                                  ) : <span className="text-slate-300">—</span>}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                          {/* Kit items (desktop) */}
+                          {kitItems.map((kit, ki) => {
+                            const children = getKitChildren(allItems, kit.id);
+                            const displayNum = regularCount + ki + 1;
                             return (
-                              <div key={group.label}>
-                                <div className="flex items-center gap-2 py-2 px-1">
-                                  <div className="h-px flex-1 bg-slate-200" />
-                                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{group.label}</span>
-                                  <div className="h-px flex-1 bg-slate-200" />
-                                </div>
-                                <div className="space-y-2">
-                                  {group.items.map((item, i) => (
-                                    <ProductCard key={item.id} item={item} index={groupStartIndex + i + 1} />
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          sortedItems.map((item, index) => (
-                            <ProductCard key={item.id} item={item} index={index + 1} />
-                          ))
-                        )}
-                        {/* Kit items (mobile) */}
-                        {kitItems.map((kit, ki) => (
-                          <ProductCard key={kit.id} item={kit} index={regularCount + ki + 1} />
-                        ))}
-                      </div>
-                    </>
-                  );
-                })() : (
-                  <div className="p-6 text-center text-slate-500 text-sm">
-                    No product items found for this request.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                              <React.Fragment key={kit.id}>
+                                <TableRow className="bg-amber-50/50 hover:bg-amber-50/70 border-b border-amber-100/50">
+                                  <TableCell className="text-sm font-medium text-slate-400">{displayNum}</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1 h-5 rounded-full bg-amber-400 shrink-0" />
+                                      <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                      <span className="text-sm text-amber-900 font-semibold">
+                                        {kit.product_type === 'marble' ? 'Marble' : 'Magro'} Kit
+                                      </span>
+                                      {kit.is_unpacked ? (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">Unpacked</span>
+                                      ) : (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-semibold">Pending</span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-sm text-slate-600">{kit.sample_size}</TableCell>
+                                  <TableCell className="text-sm text-slate-300">—</TableCell>
+                                  <TableCell className="text-sm text-slate-300">—</TableCell>
+                                  <TableCell className="text-sm text-slate-900 font-medium text-right">{kit.quantity}</TableCell>
+                                  <TableCell>
+                                    {isCoordinator && !kit.is_unpacked && (
+                                      <Button size="sm" variant="outline" onClick={() => setUnpackKitItem(kit)} className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-100">
+                                        Unpack
+                                      </Button>
+                                    )}
+                                    {isCoordinator && kit.is_unpacked && request.status === 'pending_approval' && (
+                                      <Button size="sm" variant="ghost" onClick={() => handleEditKit(kit)} className="h-7 text-xs text-slate-500 hover:text-amber-700 hover:bg-amber-50">
+                                        <Pencil className="h-3 w-3 mr-1" /> Edit
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                                {/* Kit children rows */}
+                                {kit.is_unpacked && (() => {
+                                  const isMagroKit = kit.product_type === 'magro';
+                                  const isGrouped = children.some((c) => c.kit_index != null);
 
-            {/* =========================================== */}
-            {/* SHIPPING & LOGISTICS */}
-            {/* =========================================== */}
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-emerald-500" />
-                    Shipping
-                  </CardTitle>
-                  {isCoordinator && !isSelfPickup && displayAddress && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowPrintModal(true)}
-                      className="h-8 px-2 text-xs text-slate-500 hover:text-indigo-600"
-                    >
-                      <Printer className="h-3.5 w-3.5 sm:mr-1" />
-                      <span className="hidden sm:inline">Print Address</span>
-                    </Button>
-                  )}
+                                  const renderChildRows = (items: RequestItemDB[], indent: number, kitQtyForBreakdown?: number) => {
+                                    const subGroups = isMagroKit ? groupBySubCategory(items) : null;
+                                    const hasSubGroups = subGroups && (subGroups.length > 1 || (subGroups.length === 1 && subGroups[0].sub_category));
+
+                                    if (hasSubGroups) {
+                                      return subGroups!.map((sg) => (
+                                        <React.Fragment key={`sub-${sg.sub_category}`}>
+                                          <TableRow className="bg-emerald-50/30 hover:bg-emerald-50/30 border-b-0">
+                                            <TableCell style={{ paddingLeft: indent }} className="text-sm text-emerald-400"></TableCell>
+                                            <TableCell colSpan={6}>
+                                              <span className="text-[10px] font-medium text-emerald-600 italic">{sg.label}</span>
+                                            </TableCell>
+                                          </TableRow>
+                                          {sg.items.map((child) => {
+                                            const childPerKit = kitQtyForBreakdown && kitQtyForBreakdown > 1
+                                              ? Math.round(child.quantity / kitQtyForBreakdown) : null;
+                                            return (
+                                              <TableRow key={child.id} className="hover:bg-slate-50/50 border-b border-slate-50">
+                                                <TableCell style={{ paddingLeft: indent + 16 }} className="text-sm text-slate-300"></TableCell>
+                                                <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
+                                                <TableCell className="text-sm text-slate-600">{child.sample_size}</TableCell>
+                                                <TableCell className="text-sm text-slate-600">{child.thickness}</TableCell>
+                                                <TableCell className="text-sm text-slate-600">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
+                                                <TableCell className="text-sm text-right">
+                                                  <span className="text-slate-900 font-medium">{child.quantity}</span>
+                                                  {childPerKit !== null && childPerKit !== child.quantity && (
+                                                    <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-400 font-normal">
+                                                      {childPerKit}/kit
+                                                    </span>
+                                                  )}
+                                                </TableCell>
+                                                <TableCell>
+                                                  {child.image_url ? (
+                                                    <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors">
+                                                      <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                                    </button>
+                                                  ) : <span className="text-slate-300">—</span>}
+                                                </TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </React.Fragment>
+                                      ));
+                                    }
+
+                                    return items.map((child) => {
+                                      const childPerKit = kitQtyForBreakdown && kitQtyForBreakdown > 1
+                                        ? Math.round(child.quantity / kitQtyForBreakdown) : null;
+                                      return (
+                                        <TableRow key={child.id} className="hover:bg-slate-50/50 border-b border-slate-50">
+                                          <TableCell style={{ paddingLeft: indent }} className="text-sm text-slate-300">↳</TableCell>
+                                          <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
+                                          <TableCell className="text-sm text-slate-600">{child.sample_size}</TableCell>
+                                          <TableCell className="text-sm text-slate-600">{child.thickness}</TableCell>
+                                          <TableCell className="text-sm text-slate-600">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
+                                          <TableCell className="text-sm text-right">
+                                            <span className="text-slate-900 font-medium">{child.quantity}</span>
+                                            {childPerKit !== null && childPerKit !== child.quantity && (
+                                              <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded bg-slate-50 text-[10px] text-slate-400 font-normal">
+                                                {childPerKit}/kit
+                                              </span>
+                                            )}
+                                          </TableCell>
+                                          <TableCell>
+                                            {child.image_url ? (
+                                              <button onClick={() => setPreviewImage(child.image_url)} className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors">
+                                                <img src={child.image_url} alt="Ref" className="h-full w-full object-cover" />
+                                              </button>
+                                            ) : <span className="text-slate-300">—</span>}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    });
+                                  };
+
+                                  if (isGrouped) {
+                                    const groups = new Map<number, typeof children>();
+                                    for (const child of children) {
+                                      const idx = child.kit_index ?? 0;
+                                      if (!groups.has(idx)) groups.set(idx, []);
+                                      groups.get(idx)!.push(child);
+                                    }
+                                    const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+                                    return sortedKeys.map((kitIdx) => {
+                                      const groupChildren = groups.get(kitIdx)!;
+                                      return (
+                                        <React.Fragment key={`grp-${kitIdx}`}>
+                                          <TableRow className="bg-amber-50/30 hover:bg-amber-50/30 border-b-0">
+                                            <TableCell className="text-sm text-amber-500 pl-6">↳</TableCell>
+                                            <TableCell colSpan={6}>
+                                              <span className="text-[11px] font-semibold text-amber-600">Kit {kitIdx + 1}</span>
+                                            </TableCell>
+                                          </TableRow>
+                                          {renderChildRows(groupChildren, 40)}
+                                        </React.Fragment>
+                                      );
+                                    });
+                                  }
+                                  return renderChildRows(children, 24, kit.quantity);
+                                })()}
+                              </React.Fragment>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* MOBILE CARDS */}
+                    <div className="md:hidden p-3 space-y-2">
+                      {isMagro ? (
+                        magroGroups.map((group, gi) => {
+                          const groupStartIndex = groupStartIndices[gi];
+                          return (
+                            <div key={group.label}>
+                              <div className="flex items-center gap-2 py-1.5 px-1">
+                                <div className="h-px flex-1 bg-slate-200" />
+                                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{group.label}</span>
+                                <div className="h-px flex-1 bg-slate-200" />
+                              </div>
+                              <div className="space-y-1.5">
+                                {group.items.map((item, i) => (
+                                  <ProductCard key={item.id} item={item} index={groupStartIndex + i + 1} />
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        sortedItems.map((item, index) => (
+                          <ProductCard key={item.id} item={item} index={index + 1} />
+                        ))
+                      )}
+                      {kitItems.map((kit, ki) => (
+                        <ProductCard key={kit.id} item={kit} index={regularCount + ki + 1} />
+                      ))}
+                    </div>
+                  </>
+                );
+              })() : (
+                <div className="p-6 text-center text-slate-400 text-sm">
+                  No product items found for this request.
                 </div>
-              </CardHeader>
-              <CardContent className="p-4 space-y-4">
+              )}
+            </div>
+
+            {/* ── Shipping & Logistics ── */}
+            <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-emerald-500" />
+                  <h3 className="text-sm font-semibold text-slate-900">Shipping</h3>
+                </div>
+                {isCoordinator && !isSelfPickup && displayAddress && (
+                  <button
+                    onClick={() => setShowPrintModal(true)}
+                    className="h-8 flex items-center gap-1 px-2 rounded-md text-[11px] text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Print</span>
+                  </button>
+                )}
+              </div>
+              <div className="p-4 space-y-3">
                 {/* Pickup Method */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                      Pickup Method
-                    </label>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Pickup Method</span>
                     {canEditShipping && !isEditingDeliveryMethod && (
                       <button
                         onClick={handleStartEditDeliveryMethod}
-                        className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
@@ -1342,7 +1269,7 @@ export default function RequestDetail() {
                   {isEditingDeliveryMethod ? (
                     <div className="space-y-3">
                       <Select value={editedDeliveryMethod} onValueChange={setEditedDeliveryMethod}>
-                        <SelectTrigger className="h-11 text-sm border-slate-200">
+                        <SelectTrigger className="h-10 text-sm border-slate-200">
                           <SelectValue placeholder="Select method" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1353,11 +1280,9 @@ export default function RequestDetail() {
                           ))}
                         </SelectContent>
                       </Select>
-
-                      {/* Inline address input: shown when switching to a delivery method and no address exists */}
                       {editedDeliveryMethod !== 'self_pickup' && !request.delivery_address && (
                         <div className="space-y-1.5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                          <label className="text-xs font-medium text-amber-700 uppercase tracking-wide flex items-center gap-1.5">
+                          <label className="text-[11px] font-medium text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
                             <MapPin className="h-3.5 w-3.5" />
                             Delivery Address (required)
                           </label>
@@ -1369,42 +1294,28 @@ export default function RequestDetail() {
                           />
                         </div>
                       )}
-
                       <Textarea
                         value={deliveryMethodRemark}
                         onChange={(e) => setDeliveryMethodRemark(e.target.value)}
-                        className="text-sm min-h-[70px] border-slate-200"
+                        className="text-sm min-h-[60px] border-slate-200"
                         placeholder="Reason for change (optional)"
                       />
                       <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleCancelEditDeliveryMethod}
-                          disabled={isSavingDeliveryMethod}
-                          className="h-10 px-4"
-                        >
+                        <Button variant="ghost" size="sm" onClick={handleCancelEditDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-9 px-3 text-sm">
                           Cancel
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveDeliveryMethod}
-                          disabled={isSavingDeliveryMethod}
-                          className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700"
-                        >
+                        <Button size="sm" onClick={handleSaveDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-sm">
                           {isSavingDeliveryMethod ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                         </Button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm text-slate-900 font-medium">
-                        {formatPickupMethod(request.pickup_responsibility)}
-                      </p>
+                      <p className="text-sm text-slate-900 font-medium">{formatPickupMethod(request.pickup_responsibility)}</p>
                       {request.is_delivery_method_edited && (
-                        <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-md">
+                        <div className="flex items-start gap-2 mt-1.5 p-2 bg-amber-50 border border-amber-200/60 rounded-md">
                           <Pencil className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div className="text-xs text-amber-700">
+                          <div className="text-[11px] text-amber-700">
                             <span className="font-medium">Modified by Coordinator</span>
                             {request.delivery_method_remark && (
                               <span className="block text-amber-600 mt-0.5">{request.delivery_method_remark}</span>
@@ -1418,17 +1329,15 @@ export default function RequestDetail() {
 
                 {/* Delivery Address */}
                 {!isSelfPickup && (
-                  <div className="space-y-2 pt-3 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                        Delivery Address
-                      </label>
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Delivery Address</span>
                       {canEditShipping && !isEditingAddress && (
                         <button
                           onClick={handleStartEditAddress}
-                          className="h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
@@ -1438,31 +1347,20 @@ export default function RequestDetail() {
                         <Textarea
                           value={editedAddress}
                           onChange={(e) => setEditedAddress(e.target.value)}
-                          className="text-sm min-h-[100px] border-slate-200"
+                          className="text-sm min-h-[80px] border-slate-200"
                           placeholder="Enter delivery address..."
                         />
                         <Textarea
                           value={addressEditRemark}
                           onChange={(e) => setAddressEditRemark(e.target.value)}
-                          className="text-sm min-h-[70px] border-slate-200"
+                          className="text-sm min-h-[60px] border-slate-200"
                           placeholder="Reason for address change (optional)"
                         />
                         <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleCancelEdit}
-                            disabled={isSavingAddress}
-                            className="h-10 px-4"
-                          >
+                          <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSavingAddress} className="h-9 px-3 text-sm">
                             Cancel
                           </Button>
-                          <Button
-                            size="sm"
-                            onClick={handleSaveAddress}
-                            disabled={isSavingAddress}
-                            className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700"
-                          >
+                          <Button size="sm" onClick={handleSaveAddress} disabled={isSavingAddress} className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-sm">
                             {isSavingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                           </Button>
                         </div>
@@ -1472,19 +1370,19 @@ export default function RequestDetail() {
                         {displayAddress ? (
                           <p className="text-sm text-slate-700 whitespace-pre-line">{displayAddress}</p>
                         ) : (
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-amber-50 border border-amber-200/60 rounded-md">
                             <div className="flex items-center gap-2 flex-1">
                               <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
                               <div>
                                 <p className="text-sm text-amber-700 font-medium">Address required</p>
-                                <p className="text-xs text-amber-600">Add delivery address for shipment.</p>
+                                <p className="text-[11px] text-amber-600">Add delivery address for shipment.</p>
                               </div>
                             </div>
                             {canEditShipping && (
                               <Button
                                 size="sm"
                                 onClick={handleStartEditAddress}
-                                className="h-9 text-xs bg-amber-600 hover:bg-amber-700 w-full sm:w-auto"
+                                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 w-full sm:w-auto"
                               >
                                 Add Address
                               </Button>
@@ -1492,9 +1390,9 @@ export default function RequestDetail() {
                           </div>
                         )}
                         {request.is_address_edited && displayAddress && (
-                          <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-md">
+                          <div className="flex items-start gap-2 mt-1.5 p-2 bg-amber-50 border border-amber-200/60 rounded-md">
                             <Pencil className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
-                            <div className="text-xs text-amber-700">
+                            <div className="text-[11px] text-amber-700">
                               <span className="font-medium">Modified by Coordinator</span>
                               {request.address_edit_remark && (
                                 <span className="block text-amber-600 mt-0.5">{request.address_edit_remark}</span>
@@ -1507,17 +1405,15 @@ export default function RequestDetail() {
                   </div>
                 )}
 
-                {/* Delivery Point of Contact — shown when pickup = field_boy */}
+                {/* Point of Contact */}
                 {request.pickup_responsibility === 'field_boy' && request.delivery_poc_name && (
-                  <div className="space-y-2 pt-3 border-t border-slate-100">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                      Point of Contact (Receiver)
-                    </label>
+                  <div className="pt-3 border-t border-slate-100">
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Point of Contact</span>
                     <p className="text-sm text-slate-900 font-medium">{request.delivery_poc_name}</p>
                     {request.delivery_poc_contacts && request.delivery_poc_contacts.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1 mt-1.5">
                         {request.delivery_poc_contacts.map((num, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-indigo-50 text-indigo-700">
                             {num}
                           </span>
                         ))}
@@ -1525,184 +1421,155 @@ export default function RequestDetail() {
                     )}
                   </div>
                 )}
-
-              </CardContent>
-            </Card>
-
-            {/* =========================================== */}
-            {/* PACKING DETAILS */}
-            {/* =========================================== */}
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                  <Package className="h-4 w-4 text-amber-500" />
-                  Packing
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Purpose</label>
-                    <p className="text-sm text-slate-900 capitalize">{request.purpose?.replace(/_/g, ' ')}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Type</label>
-                    <p className="text-sm text-slate-900 capitalize">{request.packing_details?.replace(/_/g, ' ')}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
-          {/* =========================================== */}
-          {/* RIGHT COLUMN - Sidebar */}
-          {/* =========================================== */}
-          <div className="space-y-4 sm:space-y-5">
-            {/* Assigned Maker */}
-            {request.maker && (
-              <Card className="bg-white border border-slate-200 shadow-sm">
-                <CardHeader className="py-3 px-4 border-b border-slate-100">
-                  <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                    <User className="h-4 w-4 text-violet-500" />
-                    Assigned Maker
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center">
-                      <span className="text-sm font-bold text-violet-600">
-                        {request.maker.full_name?.charAt(0).toUpperCase() || 'M'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{request.maker.full_name}</p>
-                      <p className="text-xs text-slate-500">Production Team</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+          {/* RIGHT COLUMN — Unified Details Panel */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden divide-y divide-slate-100">
 
-            {/* Requester Info */}
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                  <User className="h-4 w-4 text-blue-500" />
-                  Requester
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Name</label>
-                  <p className="text-sm text-slate-900 font-medium">{request.creator?.full_name || 'Unknown'}</p>
+              {/* Assigned Maker */}
+              {request.maker && (
+                <div className="p-4 flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-violet-600">
+                      {request.maker.full_name?.charAt(0).toUpperCase() || 'M'}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider leading-none">Assigned Maker</p>
+                    <p className="text-sm font-medium text-slate-900 truncate mt-0.5">{request.maker.full_name}</p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+              )}
+
+              {/* Requester */}
+              <div className="p-4">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
+                  <User className="h-3 w-3" />
+                  Requester
+                </p>
+                <p className="text-sm font-medium text-slate-900 mb-2">{request.creator?.full_name || 'Unknown'}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                   <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Dept</label>
+                    <p className="text-[11px] text-slate-400">Department</p>
                     <p className="text-sm text-slate-700 capitalize">{request.department}</p>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Mobile</label>
+                    <p className="text-[11px] text-slate-400">Mobile</p>
                     <p className="text-sm text-slate-700">{request.mobile_no}</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Client Info */}
-            <Card className="bg-white border border-slate-200 shadow-sm">
-              <CardHeader className="py-3 px-4 border-b border-slate-100">
-                <CardTitle className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                  <Building className="h-4 w-4 text-rose-500" />
+              {/* Client */}
+              <div className="p-4">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
+                  <Building className="h-3 w-3" />
                   Client
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                {/* Contact Name - Dynamic label based on client_type */}
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">
-                    {request.client_type === 'retail' && 'Client Name'}
-                    {request.client_type === 'architect' && 'Architect Name'}
-                    {request.client_type === 'project' && 'Contacted Person'}
-                    {(!request.client_type || !['retail', 'architect', 'project'].includes(request.client_type)) && 'Contact Name'}
-                  </label>
-                  <p className="text-sm text-slate-900 font-medium">{request.client_contact_name}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Type</label>
-                    <p className="text-sm text-slate-700 capitalize">{request.client_type}</p>
-                  </div>
-                  {/* Firm Name - Hidden for Retail (they use supporting_architect instead) */}
-                  {request.client_type !== 'retail' && request.firm_name && (
+                </p>
+                <div className="space-y-2">
+                  {/* Contact name */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    <div className="col-span-2 sm:col-span-1">
+                      <p className="text-[11px] text-slate-400">
+                        {request.client_type === 'retail' && 'Client Name'}
+                        {request.client_type === 'architect' && 'Architect Name'}
+                        {request.client_type === 'project' && 'Contacted Person'}
+                        {(!request.client_type || !['retail', 'architect', 'project'].includes(request.client_type)) && 'Contact Name'}
+                      </p>
+                      <p className="text-sm text-slate-900 font-medium truncate">{request.client_contact_name}</p>
+                    </div>
                     <div>
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">
-                        {request.client_type === 'architect' ? 'Firm' : 'Company'}
-                      </label>
-                      <p className="text-sm text-slate-700 truncate">{request.firm_name}</p>
+                      <p className="text-[11px] text-slate-400">Type</p>
+                      <p className="text-sm text-slate-700 capitalize">{request.client_type}</p>
+                    </div>
+                    {request.client_type !== 'retail' && request.firm_name && (
+                      <div>
+                        <p className="text-[11px] text-slate-400">
+                          {request.client_type === 'architect' ? 'Firm' : 'Company'}
+                        </p>
+                        <p className="text-sm text-slate-700 truncate">{request.firm_name}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Retail-specific fields */}
+                  {request.client_type === 'retail' && (request.supporting_architect_name || request.architect_firm_name) && (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-2 border-t border-slate-50">
+                      {request.supporting_architect_name && (
+                        <div>
+                          <p className="text-[11px] text-slate-400">Supporting Architect</p>
+                          <p className="text-sm text-slate-700 truncate">{request.supporting_architect_name}</p>
+                        </div>
+                      )}
+                      {request.architect_firm_name && (
+                        <div>
+                          <p className="text-[11px] text-slate-400">Architect Firm</p>
+                          <p className="text-sm text-slate-700 truncate">{request.architect_firm_name}</p>
+                        </div>
+                      )}
                     </div>
                   )}
+                  {/* Contact info (hidden from makers) */}
+                  {!isMaker && (request.client_phone || request.client_email) && (
+                    <div className="flex flex-col gap-1 pt-1.5">
+                      {request.client_phone && (
+                        <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                          <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{request.client_phone}</span>
+                        </div>
+                      )}
+                      {request.client_email && (
+                        <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                          <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{request.client_email}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[11px] text-slate-400">Location</p>
+                    <p className="text-sm text-slate-700">{request.site_location}</p>
+                  </div>
                 </div>
-                {/* Retail-specific: Supporting Architect fields */}
-                {request.client_type === 'retail' && (request.supporting_architect_name || request.architect_firm_name) && (
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                    {request.supporting_architect_name && (
-                      <div>
-                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Supporting Architect</label>
-                        <p className="text-sm text-slate-700">{request.supporting_architect_name}</p>
-                      </div>
-                    )}
-                    {request.architect_firm_name && (
-                      <div>
-                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Architect Firm</label>
-                        <p className="text-sm text-slate-700">{request.architect_firm_name}</p>
-                      </div>
-                    )}
+              </div>
+
+              {/* Purpose & Packing */}
+              <div className="p-4">
+                <div className="grid grid-cols-2 gap-x-4">
+                  <div>
+                    <p className="text-[11px] text-slate-400">Purpose</p>
+                    <p className="text-sm text-slate-900 capitalize font-medium">{request.purpose?.replace(/_/g, ' ')}</p>
                   </div>
-                )}
-                {/* Hide contact info from Makers for privacy */}
-                {!isMaker && request.client_phone && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{request.client_phone}</span>
+                  <div>
+                    <p className="text-[11px] text-slate-400">Packing</p>
+                    <p className="text-sm text-slate-900 capitalize font-medium">{request.packing_details?.replace(/_/g, ' ')}</p>
                   </div>
-                )}
-                {!isMaker && request.client_email && (
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{request.client_email}</span>
-                  </div>
-                )}
-                <div>
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide block mb-1">Location</label>
-                  <p className="text-sm text-slate-700">{request.site_location}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Production actions - Show only for makers assigned to this request */}
+        {/* Maker actions */}
         {isMaker && request.assigned_to === profile?.id && (
           <MakerActions request={request} userRole={profile?.role || ''} userId={profile?.id || ''} />
         )}
       </main>
 
-      {/* =========================================== */}
-      {/* STICKY COORDINATOR ACTION BAR */}
-      {/* =========================================== */}
+      {/* ======== STICKY COORDINATOR ACTION BAR ======== */}
       {isCoordinator && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-20 safe-area-pb">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-20 safe-area-pb">
           <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-3">
             <div className="flex items-center justify-between gap-3">
-              {/* Mobile: Simplified left side */}
-              <div className="hidden sm:flex items-center gap-3">
-                <div className="h-9 w-9 rounded-lg bg-indigo-100 flex items-center justify-center">
+              <div className="hidden sm:flex items-center gap-3 min-w-0">
+                <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
                   <User className="h-4 w-4 text-indigo-600" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Coordinator Actions</p>
-                  <p className="text-xs text-slate-500">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">Coordinator Actions</p>
+                  <p className="text-[11px] text-slate-400">
                     {request.status === 'pending_approval' && 'Review and approve'}
                     {request.status === 'approved' && 'Assign to maker'}
                     {request.status === 'assigned' && 'Start production'}
@@ -1713,8 +1580,6 @@ export default function RequestDetail() {
                   </p>
                 </div>
               </div>
-
-              {/* Mobile: Full width action area */}
               <div className="flex-1 sm:flex-initial">
                 <RequestActions request={request} userRole={profile?.role || ''} isCompact onDeadlineBlock={() => setIsEditRequiredByOpen(true)} />
               </div>
@@ -1723,19 +1588,18 @@ export default function RequestDetail() {
         </div>
       )}
 
-      {/* =========================================== */}
-      {/* PRINT ADDRESS MODAL */}
-      {/* =========================================== */}
+      {/* ======== MODALS ======== */}
+
+      {/* Print Address */}
       <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
         <DialogContent className="sm:max-w-md mx-4">
           <DialogHeader>
             <DialogTitle className="text-base font-medium text-slate-900">Print Address</DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-600">Font Size</Label>
+                <Label className="text-[11px] font-medium text-slate-500">Font Size</Label>
                 <Select value={labelFontSize} onValueChange={(v: typeof labelFontSize) => setLabelFontSize(v)}>
                   <SelectTrigger className="h-10 text-sm border-slate-200">
                     <SelectValue placeholder="Size" />
@@ -1749,7 +1613,7 @@ export default function RequestDetail() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-600">Style</Label>
+                <Label className="text-[11px] font-medium text-slate-500">Style</Label>
                 <button
                   onClick={() => setLabelUnderline(!labelUnderline)}
                   className={`w-full h-10 px-3 border rounded-md flex items-center justify-between text-sm ${
@@ -1761,9 +1625,8 @@ export default function RequestDetail() {
                 </button>
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-slate-600">Preview</Label>
+              <Label className="text-[11px] font-medium text-slate-500">Preview</Label>
               <div className="border border-dashed border-slate-200 rounded-lg p-4 bg-white min-h-[100px] flex items-center justify-center">
                 <div className={`text-center ${fontSizeMap[labelFontSize]} ${labelUnderline ? 'underline' : ''} text-slate-900 whitespace-pre-line`}>
                   {displayAddress || 'No address'}
@@ -1771,7 +1634,6 @@ export default function RequestDetail() {
               </div>
             </div>
           </div>
-
           <DialogFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowPrintModal(false)} className="h-10 flex-1 sm:flex-initial">
               Cancel
@@ -1784,9 +1646,7 @@ export default function RequestDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* =========================================== */}
-      {/* IMAGE PREVIEW MODAL */}
-      {/* =========================================== */}
+      {/* Image Preview */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
         <DialogContent className="sm:max-w-2xl p-0 overflow-hidden mx-2">
           <div className="relative">
@@ -1803,18 +1663,14 @@ export default function RequestDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* =========================================== */}
-      {/* EDIT REQUIRED BY MODAL */}
-      {/* =========================================== */}
+      {/* Edit Required By */}
       <EditRequiredByModal
         request={request}
         open={isEditRequiredByOpen}
         onOpenChange={setIsEditRequiredByOpen}
       />
 
-      {/* =========================================== */}
-      {/* UNPACK KIT DIALOG */}
-      {/* =========================================== */}
+      {/* Unpack Kit */}
       {unpackKitItem && (
         <UnpackKitDialog
           kitItem={unpackKitItem}
