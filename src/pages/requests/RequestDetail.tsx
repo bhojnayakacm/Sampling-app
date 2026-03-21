@@ -388,14 +388,57 @@ export default function RequestDetail() {
     item.product_type === 'marble' ||
     (item.product_type === 'magro' && (item.sub_category === 'tile' || item.sub_category === 'stone'));
 
-  const formatItemLine = (item: RequestItemDB, num: number) => {
-    if (item.is_kit) {
-      const type = item.product_type === 'marble' ? 'Marble' : 'Magro';
-      return `${num}. ${type} Kit (${item.sample_size}) - Qty: ${item.quantity}${item.is_unpacked ? ' [Unpacked]' : ''}`;
+  const formatChildLine = (item: RequestItemDB) => {
+    const specs = [item.thickness, itemHasFinish(item) && item.finish ? item.finish : null].filter(Boolean).join(', ');
+    return `   ↳ ${item.quality}${specs ? ` (${specs})` : ''} x ${item.quantity}`;
+  };
+
+  const formatItemBlock = (item: RequestItemDB, num: number, allItems: RequestItemDB[]) => {
+    // Regular (non-kit) item
+    if (!item.is_kit) {
+      const label = item.product_type === 'marble'
+        ? 'Marble'
+        : item.sub_category
+          ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
+          : 'Magro';
+      const specs = [item.sample_size, item.thickness, itemHasFinish(item) && item.finish ? item.finish : null].filter(Boolean).join(', ');
+      return `${num}. ${label} - ${item.quality} (${specs}) - Qty: ${item.quantity}`;
     }
-    const parts = [item.sample_size, item.thickness];
-    if (itemHasFinish(item) && item.finish) parts.push(item.finish);
-    return `${num}. ${item.quality} (${parts.filter(Boolean).join(', ')}) - Qty: ${item.quantity}`;
+
+    // Kit item
+    const type = item.product_type === 'marble' ? 'Marble' : 'Magro';
+    const lines: string[] = [`${num}. ${type} Kit (${item.sample_size}) - Qty: ${item.quantity}`];
+
+    if (!item.is_unpacked) return lines.join('\n');
+
+    const children = getKitChildren(allItems, item.id);
+    if (children.length === 0) return lines.join('\n');
+
+    const isGrouped = children.some(c => c.kit_index != null);
+
+    if (isGrouped) {
+      // Non-identical: group by kit_index
+      const groups = new Map<number, RequestItemDB[]>();
+      for (const child of children) {
+        const idx = child.kit_index ?? 0;
+        if (!groups.has(idx)) groups.set(idx, []);
+        groups.get(idx)!.push(child);
+      }
+      const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+      for (const kitIdx of sortedKeys) {
+        lines.push(`   [Kit ${kitIdx + 1}]`);
+        for (const child of groups.get(kitIdx)!) {
+          lines.push(formatChildLine(child));
+        }
+      }
+    } else {
+      // Identical: flat list
+      for (const child of children) {
+        lines.push(formatChildLine(child));
+      }
+    }
+
+    return lines.join('\n');
   };
 
   const getSortedItems = (items: RequestItemDB[]) => {
@@ -947,10 +990,11 @@ export default function RequestDetail() {
                 <button
                   onClick={async () => {
                     if (!hasItems) return;
-                    const topItems = request.items!.filter(i => !i.kit_id);
+                    const allItems = request.items!;
+                    const topItems = allItems.filter(i => !i.kit_id);
                     const sorted = getSortedItems(topItems);
-                    const lines = sorted.map((item, i) => formatItemLine(item, i + 1));
-                    await navigator.clipboard.writeText(lines.join('\n'));
+                    const blocks = sorted.map((item, i) => formatItemBlock(item, i + 1, allItems));
+                    await navigator.clipboard.writeText(blocks.join('\n\n'));
                     setQualitiesCopied(true);
                     setTimeout(() => setQualitiesCopied(false), 2000);
                   }}
