@@ -112,6 +112,8 @@ export default function RequestList() {
     }
     if (urlFilter === 'drafts') {
       setStatus('draft');
+    } else if (urlFilter === 'submitted') {
+      setStatus(['pending_approval', 'approved', 'assigned', 'in_production', 'ready', 'dispatched', 'received', 'rejected']);
     }
   }, [urlStatus, urlFilter]);
 
