@@ -1295,176 +1295,168 @@ export default function RequestDetail() {
                   </button>
                 )}
               </div>
-              <div className="p-4 space-y-3">
-                {/* Pickup Method */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Pickup Method</span>
-                    {canEditShipping && !isEditingDeliveryMethod && (
-                      <button
-                        onClick={handleStartEditDeliveryMethod}
-                        className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {isEditingDeliveryMethod ? (
-                    <div className="space-y-3">
-                      <Select value={editedDeliveryMethod} onValueChange={setEditedDeliveryMethod}>
-                        <SelectTrigger className="h-10 text-sm border-slate-200">
-                          <SelectValue placeholder="Select method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PICKUP_METHOD_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {editedDeliveryMethod !== 'self_pickup' && !request.delivery_address && (
-                        <div className="space-y-1.5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                          <label className="text-[11px] font-medium text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
-                            <MapPin className="h-3.5 w-3.5" />
-                            Delivery Address (required)
-                          </label>
-                          <Textarea
-                            value={deliveryMethodAddress}
-                            onChange={(e) => setDeliveryMethodAddress(e.target.value)}
-                            className="text-sm min-h-[80px] border-amber-300 bg-white focus:border-indigo-500"
-                            placeholder="Enter delivery address..."
-                          />
-                        </div>
-                      )}
-                      <Textarea
-                        value={deliveryMethodRemark}
-                        onChange={(e) => setDeliveryMethodRemark(e.target.value)}
-                        className="text-sm min-h-[60px] border-slate-200"
-                        placeholder="Reason for change (optional)"
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <Button variant="ghost" size="sm" onClick={handleCancelEditDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-9 px-3 text-sm">
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleSaveDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-sm">
-                          {isSavingDeliveryMethod ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm text-slate-900 font-medium">{formatPickupMethod(request.pickup_responsibility)}</p>
-                      {request.is_delivery_method_edited && (
-                        <div className="flex items-start gap-2 mt-1.5 p-2 bg-amber-50 border border-amber-200/60 rounded-md">
-                          <Pencil className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
-                          <div className="text-[11px] text-amber-700">
-                            <span className="font-medium">Modified by Coordinator</span>
-                            {request.delivery_method_remark && (
-                              <span className="block text-amber-600 mt-0.5">{request.delivery_method_remark}</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Delivery Address */}
-                {!isSelfPickup && (
-                  <div className="pt-3 border-t border-slate-100">
+              <div className="p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {/* Pickup Method */}
+                  <div className={isEditingDeliveryMethod ? 'sm:col-span-2' : ''}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Delivery Address</span>
-                      {canEditShipping && !isEditingAddress && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Pickup Method</span>
+                        {!isEditingDeliveryMethod && request.is_delivery_method_edited && (
+                          <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                        )}
+                      </div>
+                      {canEditShipping && !isEditingDeliveryMethod && (
                         <button
-                          onClick={handleStartEditAddress}
-                          className="h-7 w-7 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          onClick={handleStartEditDeliveryMethod}
+                          className="h-6 w-6 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Pencil className="h-3 w-3" />
                         </button>
                       )}
                     </div>
 
-                    {isEditingAddress ? (
-                      <div className="space-y-3">
+                    {isEditingDeliveryMethod ? (
+                      <div className="space-y-2.5">
+                        <Select value={editedDeliveryMethod} onValueChange={setEditedDeliveryMethod}>
+                          <SelectTrigger className="h-9 text-sm border-slate-200">
+                            <SelectValue placeholder="Select method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PICKUP_METHOD_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {editedDeliveryMethod !== 'self_pickup' && !request.delivery_address && (
+                          <div className="space-y-1.5 p-2.5 bg-amber-50/60 border border-amber-200 rounded-lg">
+                            <label className="text-[11px] font-medium text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <MapPin className="h-3 w-3" />
+                              Delivery Address (required)
+                            </label>
+                            <Textarea
+                              value={deliveryMethodAddress}
+                              onChange={(e) => setDeliveryMethodAddress(e.target.value)}
+                              className="text-sm min-h-[70px] border-amber-300 bg-white focus:border-indigo-500"
+                              placeholder="Enter delivery address..."
+                            />
+                          </div>
+                        )}
                         <Textarea
-                          value={editedAddress}
-                          onChange={(e) => setEditedAddress(e.target.value)}
-                          className="text-sm min-h-[80px] border-slate-200"
-                          placeholder="Enter delivery address..."
-                        />
-                        <Textarea
-                          value={addressEditRemark}
-                          onChange={(e) => setAddressEditRemark(e.target.value)}
-                          className="text-sm min-h-[60px] border-slate-200"
-                          placeholder="Reason for address change (optional)"
+                          value={deliveryMethodRemark}
+                          onChange={(e) => setDeliveryMethodRemark(e.target.value)}
+                          className="text-sm min-h-[50px] border-slate-200"
+                          placeholder="Reason for change (optional)"
                         />
                         <div className="flex gap-2 justify-end">
-                          <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSavingAddress} className="h-9 px-3 text-sm">
+                          <Button variant="ghost" size="sm" onClick={handleCancelEditDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-8 px-3 text-xs">
                             Cancel
                           </Button>
-                          <Button size="sm" onClick={handleSaveAddress} disabled={isSavingAddress} className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-sm">
-                            {isSavingAddress ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                          <Button size="sm" onClick={handleSaveDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
+                            {isSavingDeliveryMethod ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
                           </Button>
                         </div>
                       </div>
                     ) : (
                       <>
-                        {displayAddress ? (
-                          <p className="text-sm text-slate-700 whitespace-pre-line">{displayAddress}</p>
-                        ) : (
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 bg-amber-50 border border-amber-200/60 rounded-md">
-                            <div className="flex items-center gap-2 flex-1">
-                              <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                              <div>
-                                <p className="text-sm text-amber-700 font-medium">Address required</p>
-                                <p className="text-[11px] text-amber-600">Add delivery address for shipment.</p>
-                              </div>
-                            </div>
-                            {canEditShipping && (
-                              <Button
-                                size="sm"
-                                onClick={handleStartEditAddress}
-                                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 w-full sm:w-auto"
-                              >
-                                Add Address
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                        {request.is_address_edited && displayAddress && (
-                          <div className="flex items-start gap-2 mt-1.5 p-2 bg-amber-50 border border-amber-200/60 rounded-md">
-                            <Pencil className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
-                            <div className="text-[11px] text-amber-700">
-                              <span className="font-medium">Modified by Coordinator</span>
-                              {request.address_edit_remark && (
-                                <span className="block text-amber-600 mt-0.5">{request.address_edit_remark}</span>
-                              )}
-                            </div>
-                          </div>
+                        <p className="text-sm text-slate-900 font-medium">{formatPickupMethod(request.pickup_responsibility)}</p>
+                        {request.is_delivery_method_edited && request.delivery_method_remark && (
+                          <p className="text-xs text-slate-500 italic mt-0.5 border-l-2 border-slate-200 pl-2">{request.delivery_method_remark}</p>
                         )}
                       </>
                     )}
                   </div>
-                )}
 
-                {/* Point of Contact */}
-                {request.pickup_responsibility === 'field_boy' && request.delivery_poc_name && (
-                  <div className="pt-3 border-t border-slate-100">
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Point of Contact</span>
-                    <p className="text-sm text-slate-900 font-medium">{request.delivery_poc_name}</p>
-                    {request.delivery_poc_contacts && request.delivery_poc_contacts.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {request.delivery_poc_contacts.map((num, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-indigo-50 text-indigo-700">
-                            {num}
-                          </span>
-                        ))}
+                  {/* Delivery Address */}
+                  {!isSelfPickup && (
+                    <div className={isEditingAddress ? 'sm:col-span-2' : ''}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Delivery Address</span>
+                          {!isEditingAddress && request.is_address_edited && displayAddress && (
+                            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                          )}
+                        </div>
+                        {canEditShipping && !isEditingAddress && (
+                          <button
+                            onClick={handleStartEditAddress}
+                            className="h-6 w-6 flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
+
+                      {isEditingAddress ? (
+                        <div className="space-y-2.5">
+                          <Textarea
+                            value={editedAddress}
+                            onChange={(e) => setEditedAddress(e.target.value)}
+                            className="text-sm min-h-[70px] border-slate-200"
+                            placeholder="Enter delivery address..."
+                          />
+                          <Textarea
+                            value={addressEditRemark}
+                            onChange={(e) => setAddressEditRemark(e.target.value)}
+                            className="text-sm min-h-[50px] border-slate-200"
+                            placeholder="Reason for address change (optional)"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSavingAddress} className="h-8 px-3 text-xs">
+                              Cancel
+                            </Button>
+                            <Button size="sm" onClick={handleSaveAddress} disabled={isSavingAddress} className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
+                              {isSavingAddress ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {displayAddress ? (
+                            <p className="text-sm text-slate-700 whitespace-pre-line">{displayAddress}</p>
+                          ) : (
+                            <div className="flex items-center gap-2 p-2 bg-amber-50/60 border border-amber-200/50 rounded-md">
+                              <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                              <p className="text-xs text-amber-600">Address required for shipment</p>
+                              {canEditShipping && (
+                                <button
+                                  onClick={handleStartEditAddress}
+                                  className="ml-auto text-[11px] font-medium text-amber-700 hover:text-amber-800 underline underline-offset-2"
+                                >
+                                  Add
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {request.is_address_edited && displayAddress && request.address_edit_remark && (
+                            <p className="text-xs text-slate-500 italic mt-0.5 border-l-2 border-slate-200 pl-2">{request.address_edit_remark}</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Point of Contact */}
+                  {request.pickup_responsibility === 'field_boy' && request.delivery_poc_name && (
+                    <div className="sm:col-span-2 pt-3 border-t border-slate-100">
+                      <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Point of Contact</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm text-slate-900 font-medium">{request.delivery_poc_name}</p>
+                        {request.delivery_poc_contacts && request.delivery_poc_contacts.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {request.delivery_poc_contacts.map((num, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-indigo-50 text-indigo-700">
+                                {num}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
