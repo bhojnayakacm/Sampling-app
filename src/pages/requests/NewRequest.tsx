@@ -1485,11 +1485,27 @@ export default function NewRequest() {
                 {/* Point of Contact — shown when "Field Boy" is selected */}
                 {pickupResponsibility === 'field_boy' && (
                   <div className="md:col-span-2">
-                    <fieldset className="border-2 border-indigo-200 rounded-xl p-4 space-y-4 bg-indigo-50/30">
-                      <legend className="px-2 text-sm font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5" />
-                        Point of Contact
-                      </legend>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-slate-900">Point of Contact</h4>
+                        {profile?.full_name && profile?.phone && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setValue('delivery_poc_name', profile.full_name, { shouldDirty: true });
+                              const phone = profile.phone!;
+                              const current = watch('delivery_poc_contacts') || [];
+                              if (!current.includes(phone)) {
+                                setValue('delivery_poc_contacts', [...current, phone], { shouldDirty: true });
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:border-slate-300 transition-colors"
+                          >
+                            <User className="h-3 w-3" />
+                            Use my details
+                          </button>
+                        )}
+                      </div>
 
                       {/* POC Name */}
                       <div>
@@ -1500,7 +1516,7 @@ export default function NewRequest() {
                           id="delivery_poc_name"
                           {...register('delivery_poc_name')}
                           placeholder="Name of person receiving the delivery"
-                          className="mt-1.5 h-12 border-slate-200 bg-white focus:ring-indigo-500"
+                          className="mt-1.5 h-12 border-slate-200 bg-white"
                         />
                       </div>
 
@@ -1518,7 +1534,7 @@ export default function NewRequest() {
                             {(watch('delivery_poc_contacts') || []).map((num, i) => (
                               <span
                                 key={i}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg bg-indigo-100 text-indigo-800 border border-indigo-200"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg bg-slate-100 text-slate-800 border border-slate-200"
                               >
                                 {num}
                                 <button
@@ -1527,7 +1543,7 @@ export default function NewRequest() {
                                     const current = watch('delivery_poc_contacts') || [];
                                     setValue('delivery_poc_contacts', current.filter((_, idx) => idx !== i), { shouldDirty: true });
                                   }}
-                                  className="ml-0.5 p-0.5 rounded-full hover:bg-indigo-200 min-w-[24px] min-h-[24px] flex items-center justify-center"
+                                  className="ml-0.5 p-0.5 rounded-full hover:bg-slate-200 min-w-[24px] min-h-[24px] flex items-center justify-center"
                                 >
                                   <X className="h-3 w-3" />
                                 </button>
@@ -1556,7 +1572,7 @@ export default function NewRequest() {
                             placeholder="Enter 10-digit number"
                             inputMode="numeric"
                             maxLength={10}
-                            className="h-12 border-slate-200 bg-white focus:ring-indigo-500 flex-1"
+                            className="h-12 border-slate-200 bg-white flex-1"
                           />
                           <Button
                             type="button"
@@ -1569,14 +1585,14 @@ export default function NewRequest() {
                               }
                               setPocContactInput('');
                             }}
-                            className="h-12 px-4 border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold shrink-0"
+                            className="h-12 px-4 border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold shrink-0"
                           >
                             <Plus className="h-4 w-4 mr-1" />
                             Add
                           </Button>
                         </div>
                       </div>
-                    </fieldset>
+                    </div>
                   </div>
                 )}
               </div>
