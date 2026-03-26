@@ -76,6 +76,7 @@ export default function RequestDetail() {
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
+  const hideClientContact = ['maker', 'dispatcher'].includes(profile?.role || '');
 
   // Role-aware back navigation
   const backDestination = profile?.role === 'requester' ? '/requests' : '/';
@@ -1547,8 +1548,8 @@ export default function RequestDetail() {
                       )}
                     </div>
                   )}
-                  {/* Contact info (hidden from makers) */}
-                  {!isMaker && (request.client_phone || request.client_email) && (
+                  {/* Contact info (hidden from makers & dispatchers) */}
+                  {!hideClientContact && (request.client_phone || request.client_email) && (
                     <div className="flex flex-col gap-1 pt-1.5">
                       {request.client_phone && (
                         <div className="flex items-center gap-1.5 text-sm text-slate-600">
