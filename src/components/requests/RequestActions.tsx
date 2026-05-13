@@ -55,12 +55,14 @@ export default function RequestActions({ request, userRole, isCompact = false, o
 
   // Required By date editing state (for approval dialog)
   const [editedRequiredBy, setEditedRequiredBy] = useState('');
+  const [dateChangeReason, setDateChangeReason] = useState('');
   const originalRequiredBy = request.required_by;
 
   // Initialize editedRequiredBy when dialog opens (store as ISO string)
   useEffect(() => {
     if (approveDialogOpen && request.required_by) {
       setEditedRequiredBy(request.required_by);
+      setDateChangeReason('');
     }
   }, [approveDialogOpen, request.required_by]);
 
@@ -71,6 +73,9 @@ export default function RequestActions({ request, userRole, isCompact = false, o
     const originalRounded = Math.floor(new Date(originalRequiredBy).getTime() / 60000) * 60000;
     return editedRounded !== originalRounded;
   };
+
+  const isDateChanged = isRequiredByModified();
+  const isApprovalBlocked = isDateChanged && !dateChangeReason.trim();
 
   const handleAssign = async () => {
     if (!selectedMaker) {
@@ -98,14 +103,19 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   };
 
   const handleApprove = async () => {
+    if (isDateChanged && !dateChangeReason.trim()) {
+      toast.error('Please provide a reason for the date change');
+      return;
+    }
+
     try {
       // If required_by date was modified, update it with history log
-      if (isRequiredByModified()) {
+      if (isDateChanged) {
         const newDate = new Date(editedRequiredBy).toISOString();
         await updateRequiredBy.mutateAsync({
           requestId: request.id,
           newDate: newDate,
-          reason: 'Changed during approval',
+          reason: dateChangeReason.trim(),
           changedByName: profile?.full_name || 'Coordinator',
         });
       }
@@ -114,12 +124,11 @@ export default function RequestActions({ request, userRole, isCompact = false, o
       await updateStatus.mutateAsync({
         requestId: request.id,
         status: 'approved',
-        message: message.trim() || undefined,
       });
       toast.success('Request approved successfully!');
       setApproveDialogOpen(false);
-      setMessage('');
       setEditedRequiredBy('');
+      setDateChangeReason('');
     } catch (error: any) {
       toast.error(error.message || 'Failed to approve request');
     }
@@ -380,12 +389,12 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                   <Calendar className="h-4 w-4 text-slate-500" />
                   Required By Date
                 </Label>
-                <div className="space-y-2">
-                  <DateTimePicker
-                    value={editedRequiredBy}
-                    onChange={(v) => setEditedRequiredBy(v)}
-                  />
-                  {isRequiredByModified() && (
+                <DateTimePicker
+                  value={editedRequiredBy}
+                  onChange={(v) => setEditedRequiredBy(v)}
+                />
+                {isDateChanged && (
+                  <>
                     <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-md">
                       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                       <div className="text-xs text-amber-700">
@@ -398,26 +407,26 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                         </span>
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Message to Requester */}
-              <div className="space-y-2">
-                <Label htmlFor="approve-message" className="text-sm font-medium text-gray-700">
-                  Message to Requester <span className="text-gray-500 font-normal">(Optional)</span>
-                </Label>
-                <Textarea
-                  id="approve-message"
-                  placeholder="E.g., Estimated delivery: 1 week"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-                <p className="text-xs text-gray-500">
-                  This message will be visible to the requester in the request details.
-                </p>
+                    <div className="space-y-1.5 pt-1">
+                      <Label htmlFor="date-change-reason" className="text-sm font-medium text-gray-700">
+                        Reason for Date Change <span className="text-red-500">*</span>
+                      </Label>
+                      <Textarea
+                        id="date-change-reason"
+                        placeholder="E.g., Material shortage requires additional lead time"
+                        value={dateChangeReason}
+                        onChange={(e) => setDateChangeReason(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                        autoFocus
+                      />
+                      <p className="text-xs text-gray-500">
+                        Required. This reason will be recorded in the deadline history.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -426,8 +435,8 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                 variant="outline"
                 onClick={() => {
                   setApproveDialogOpen(false);
-                  setMessage('');
                   setEditedRequiredBy('');
+                  setDateChangeReason('');
                 }}
                 disabled={updateStatus.isPending || updateRequiredBy.isPending}
               >
@@ -435,7 +444,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
               </Button>
               <Button
                 onClick={handleApprove}
-                disabled={updateStatus.isPending || updateRequiredBy.isPending}
+                disabled={updateStatus.isPending || updateRequiredBy.isPending || isApprovalBlocked}
                 className="bg-green-600 hover:bg-green-700"
               >
                 {(updateStatus.isPending || updateRequiredBy.isPending) ? (
