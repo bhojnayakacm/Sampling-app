@@ -34,6 +34,7 @@ import UserManagement from '@/pages/admin/UserManagement';
 import RequesterReport from '@/pages/reports/RequesterReport';
 import NotFound from '@/pages/NotFound';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
+import RequestNotifications from '@/components/notifications/RequestNotifications';
 
 // Loading skeleton component
 const LoadingScreen = FullPageSkeleton;
@@ -190,6 +191,8 @@ function App() {
   return (
     <>
       <BrowserRouter>
+        {/* Global Realtime listener — raises in-app toasts for new requests */}
+        <RequestNotifications />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />

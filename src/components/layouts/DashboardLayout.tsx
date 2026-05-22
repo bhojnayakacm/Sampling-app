@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import EnablePushButton from '@/components/notifications/EnablePushButton';
 import {
   Package,
   BarChart3,
@@ -51,6 +52,11 @@ export default function DashboardLayout({
 }: DashboardLayoutProps) {
   const { profile, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Only coordinators are routed new-request push alerts.
+  const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(
+    profile?.role ?? ''
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -148,6 +154,7 @@ export default function DashboardLayout({
               </p>
             </div>
           </div>
+          {isCoordinator && <EnablePushButton />}
           <Button
             variant="outline"
             size="sm"
