@@ -35,6 +35,7 @@ import RequesterReport from '@/pages/reports/RequesterReport';
 import NotFound from '@/pages/NotFound';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import RequestNotifications from '@/components/notifications/RequestNotifications';
+import RequesterNotifications from '@/components/notifications/RequesterNotifications';
 
 // Loading skeleton component
 const LoadingScreen = FullPageSkeleton;
@@ -191,8 +192,12 @@ function App() {
   return (
     <>
       <BrowserRouter>
-        {/* Global Realtime listener — raises in-app toasts for new requests */}
+        {/* Global Realtime listeners — raise in-app toasts.
+            RequestNotifications: coordinator-facing (new request created).
+            RequesterNotifications: requester-facing (status changes on their own requests).
+            Each hook gates on role internally, so mounting both is safe. */}
         <RequestNotifications />
+        <RequesterNotifications />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
