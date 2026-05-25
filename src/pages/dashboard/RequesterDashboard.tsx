@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { RequesterStatsSkeleton } from '@/components/skeletons';
+import EnablePushButton from '@/components/notifications/EnablePushButton';
 
 // Compact stat card configuration
 interface StatConfig {
@@ -146,14 +147,17 @@ export default function RequesterDashboard() {
                 </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={signOut}
-              className="min-h-[44px] gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <EnablePushButton inline />
+              <Button
+                variant="outline"
+                onClick={signOut}
+                className="min-h-[44px] gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
