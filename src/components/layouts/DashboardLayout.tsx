@@ -68,10 +68,16 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Clean Light Sidebar - Full height with sticky footer */}
+      {/* Clean Light Sidebar - Full height with sticky footer.
+          pt-[…safe-area-inset-top] keeps the mobile slide-in sidebar's
+          h-16 logo header from drawing under the iOS status bar / notch
+          when the app is installed as a PWA. The aside is `fixed` on
+          mobile, so it escapes the global `header { padding-top: … }`
+          rule that handles every other top bar in the app. No effect
+          on desktop (env() resolves to 0). */}
       <aside
         className={cn(
-          "fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50 w-72 h-screen bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0",
+          "fixed lg:sticky lg:top-0 inset-y-0 left-0 z-50 w-72 h-screen bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0 pt-[max(0px,env(safe-area-inset-top))]",
           sidebarOpen ? "translate-x-0 shadow-xl" : "-translate-x-full"
         )}
       >

@@ -76,6 +76,16 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* iOS PWA safe-area: push every page header below the status bar /
+     notch / Dynamic Island so its content (sign-out, push toggle,
+     back arrow) is never tappable-blocked by the system overlay.
+     env() resolves to 0 on desktop and on non-PWA mobile browsers,
+     so the max() guard makes this a no-op everywhere except an
+     installed iOS PWA on a notched device. */
+  header {
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
+
   /* Premium Typography */
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
@@ -156,6 +166,14 @@
   /* ========== SAFE AREA SUPPORT (iOS PWA) ========== */
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Companion to .safe-area-pb. Use on non-<header> elements that
+     must clear the iOS status bar (the global rule in @layer base
+     already handles every <header>). Useful for the mobile sidebar
+     in DashboardLayout, which is an <aside>, not a <header>. */
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 
