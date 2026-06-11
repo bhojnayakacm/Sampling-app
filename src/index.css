@@ -74,6 +74,12 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* PWA polish: disable pinch-to-zoom and double-tap-zoom while
+       keeping normal single-finger pan in both axes. iOS Safari in
+       installed-PWA mode respects this even though it ignores
+       user-scalable=no in regular tab mode, so the home-screen app
+       no longer "feels like a webpage". */
+    touch-action: pan-x pan-y;
   }
 
   /* iOS PWA safe-area: push every page header below the status bar /
