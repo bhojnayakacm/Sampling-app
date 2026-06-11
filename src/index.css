@@ -87,9 +87,17 @@
      back arrow) is never tappable-blocked by the system overlay.
      env() resolves to 0 on desktop and on non-PWA mobile browsers,
      so the max() guard makes this a no-op everywhere except an
-     installed iOS PWA on a notched device. */
+     installed iOS PWA on a notched device.
+
+     The min-height grows the header to accommodate the safe-area
+     inset on top of a 4rem (h-16) content area, and `height: auto
+     !important` overrides any hard-coded fixed-height utility
+     (e.g. h-14 on the DashboardLayout mobile header) that would
+     otherwise clip the content once we add the padding. */
   header {
     padding-top: max(0px, env(safe-area-inset-top));
+    min-height: calc(4rem + max(0px, env(safe-area-inset-top)));
+    height: auto !important;
   }
 
   /* Premium Typography */
