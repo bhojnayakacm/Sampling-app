@@ -33,7 +33,9 @@ import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Spark
 import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
-import KitItemCard from '@/components/requests/KitItemCard';
+// Kit feature deprecated — KitItemCard import removed; render branch falls
+// through to ProductItemCard. Legacy kit drafts are filtered out on load.
+// import KitItemCard from '@/components/requests/KitItemCard';
 import { SaveTemplateDialog } from '@/components/requests/SaveTemplateDialog';
 import { LoadTemplateDrawer } from '@/components/requests/LoadTemplateDrawer';
 import { LocationAutocomplete } from '@/components/ui/location-autocomplete';
@@ -51,7 +53,8 @@ import {
   PRODUCT_FINISH_OPTIONS,
   PRODUCT_SIZE_OPTIONS,
   PRODUCT_THICKNESS_OPTIONS,
-  KIT_SIZE_OPTIONS,
+  // KIT_SIZE_OPTIONS no longer used — kit feature deprecated, draft loader
+  // filters out is_kit items before they reach the size-options resolver.
   getOptionsKey,
 } from '@/types';
 
@@ -205,26 +208,29 @@ function createEmptyProduct(): ProductItem {
   };
 }
 
-function createEmptyKit(): ProductItem {
-  return {
-    id: generateId(),
-    category: '',
-    sub_category: '',
-    selected_qualities: [],
-    quality: '',
-    sample_size: '',
-    sample_size_custom: '',
-    thickness: '',
-    thickness_custom: '',
-    finish: '',
-    finish_custom: '',
-    quantity: 1,
-    image_file: null,
-    image_preview: null,
-    image_url: null,
-    is_kit: true,
-  };
-}
+// Kit feature deprecated — createEmptyKit() retained as dead code for
+// reference but no UI path calls it anymore. Safe to delete once the
+// deprecation is locked in.
+// function createEmptyKit(): ProductItem {
+//   return {
+//     id: generateId(),
+//     category: '',
+//     sub_category: '',
+//     selected_qualities: [],
+//     quality: '',
+//     sample_size: '',
+//     sample_size_custom: '',
+//     thickness: '',
+//     thickness_custom: '',
+//     finish: '',
+//     finish_custom: '',
+//     quantity: 1,
+//     image_file: null,
+//     image_preview: null,
+//     image_url: null,
+//     is_kit: true,
+//   };
+// }
 
 async function uploadSampleImage(file: File): Promise<string> {
   const fileExt = file.name.split('.').pop();
@@ -552,7 +558,13 @@ export default function NewRequest() {
 
       // Load items from request_items table (new structure)
       if (existingDraft.items && existingDraft.items.length > 0) {
-        const loadedProducts: ProductItem[] = existingDraft.items.map((item) => {
+        // Kit feature deprecated — strip any legacy kit placeholder rows
+        // before they hit the form. Kit children (kit_id IS NOT NULL) are
+        // already excluded by the API for draft loading, so this only
+        // filters out is_kit=true parent rows that would otherwise render
+        // as broken ProductItemCards (no quality/thickness/finish).
+        const loadableItems = existingDraft.items.filter((item) => !item.is_kit);
+        const loadedProducts: ProductItem[] = loadableItems.map((item) => {
           // Map DB product_type ('marble'|'magro') + sub_category back to UI state
           const category = item.product_type as RequestCategory;
           const sub_category = (item.sub_category || '') as any;
@@ -560,9 +572,11 @@ export default function NewRequest() {
           const optionsKey = getOptionsKey(category, sub_category);
           const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
 
-          // Hybrid Read: detect custom values by checking against predefined options
-          // Kit items use their own size options; regular items use product-type options
-          const sizeOptions      = item.is_kit ? [...KIT_SIZE_OPTIONS] : (optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey] : []);
+          // Hybrid Read: detect custom values by checking against predefined options.
+          // Kit branch removed — kit feature deprecated; is_kit items are filtered
+          // out before this map runs (see the .filter() below), so we only hit the
+          // regular product-type options path here.
+          const sizeOptions      = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey] : [];
           const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
           const finishOptionsList = optionsKey ? (PRODUCT_FINISH_OPTIONS[optionsKey] ?? []) : [];
 
@@ -672,9 +686,8 @@ export default function NewRequest() {
     setProducts([...products, createEmptyProduct()]);
   };
 
-  const addKit = () => {
-    setProducts([...products, createEmptyKit()]);
-  };
+  // Kit feature deprecated — addKit handler removed along with the UI buttons
+  // that called it. createEmptyKit() above is commented out for the same reason.
 
   const removeProduct = (index: number) => {
     setProducts(products.filter((_, i) => i !== index));
@@ -686,14 +699,19 @@ export default function NewRequest() {
 
   // Load products from a saved template
   const loadFromTemplate = (items: ProductItem[], mode: 'append' | 'replace') => {
+    // Kit feature deprecated — strip is_kit items that may exist in older
+    // saved templates so they never land in the form (no KitItemCard to
+    // render them anymore; they would otherwise appear as broken
+    // ProductItemCards with empty quality/thickness/finish).
+    const safeItems = items.filter((p) => !p.is_kit);
     if (mode === 'replace') {
       // Replace current products with template items
-      setProducts(items);
+      setProducts(safeItems);
     } else {
       // Append template items to current products
       // Filter out empty products before appending
       const existingValid = products.filter((p) => p.category);
-      setProducts([...existingValid, ...items]);
+      setProducts([...existingValid, ...safeItems]);
     }
   };
 
@@ -705,7 +723,7 @@ export default function NewRequest() {
     const errors: string[] = [];
 
     if (products.length === 0) {
-      errors.push('Add at least one item or kit');
+      errors.push('Add at least one item');
       return errors;
     }
 
@@ -1860,13 +1878,16 @@ export default function NewRequest() {
                 />
               </div>
 
-              {/* Empty state — prominent add buttons when no items exist */}
+              {/* Empty state — prominent add button when no items exist.
+                  Kit feature deprecated — the "Add Standard Kit" button that
+                  used to sit in the second grid column was removed and the
+                  grid was collapsed to a single column. */}
               {products.length === 0 ? (
                 <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 sm:p-8">
                   <p className="text-center text-sm text-slate-500 mb-5">
                     What would you like to request?
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <button
                       type="button"
                       onClick={addProduct}
@@ -1880,49 +1901,29 @@ export default function NewRequest() {
                         Pick exact quality, size, thickness & finish
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={addKit}
-                      className="flex flex-col items-center gap-2 rounded-xl border-2 border-amber-200 bg-amber-50/50 p-5 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-colors"
-                    >
-                      <div className="h-11 w-11 rounded-full bg-amber-100 flex items-center justify-center">
-                        <Package className="h-5 w-5" />
-                      </div>
-                      <span className="text-sm font-semibold">Add Standard Kit</span>
-                      <span className="text-xs text-amber-500 leading-snug text-center">
-                        Pick type & size — Coordinator selects qualities
-                      </span>
-                    </button>
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* Product & Kit Cards */}
+                  {/* Product Cards. Kit feature deprecated — branch on
+                      product.is_kit removed; every item renders as a
+                      ProductItemCard. Legacy kit rows are filtered out at
+                      draft-load time so they never reach this map. */}
                   <div className="space-y-4">
                     {products.map((product, index) => (
-                      product.is_kit ? (
-                        <KitItemCard
-                          key={product.id}
-                          item={product}
-                          index={index}
-                          canDelete
-                          onUpdate={updateProduct}
-                          onRemove={removeProduct}
-                        />
-                      ) : (
-                        <ProductItemCard
-                          key={product.id}
-                          item={product}
-                          index={index}
-                          canDelete
-                          onUpdate={updateProduct}
-                          onRemove={removeProduct}
-                        />
-                      )
+                      <ProductItemCard
+                        key={product.id}
+                        item={product}
+                        index={index}
+                        canDelete
+                        onUpdate={updateProduct}
+                        onRemove={removeProduct}
+                      />
                     ))}
                   </div>
 
-                  {/* Add more buttons */}
+                  {/* Add more buttons. Kit feature deprecated — secondary
+                      "Add Kit" button removed; "Add Item" now spans full width. */}
                   <div className="flex gap-3 mt-4">
                     <Button
                       type="button"
@@ -1932,15 +1933,6 @@ export default function NewRequest() {
                     >
                       <Plus className="h-4 w-4" />
                       Add Item
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={addKit}
-                      className="flex-1 border-dashed border-2 border-amber-300 min-h-[48px] py-3 gap-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-400 font-semibold transition-all"
-                    >
-                      <Package className="h-4 w-4" />
-                      Add Kit
                     </Button>
                   </div>
                 </>

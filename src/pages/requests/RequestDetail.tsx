@@ -36,7 +36,10 @@ import MakerActions from '@/components/requests/MakerActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 import EditRequiredByModal from '@/components/requests/EditRequiredByModal';
 import RequiredByHistory from '@/components/requests/RequiredByHistory';
-import UnpackKitDialog from '@/components/requests/UnpackKitDialog';
+// Kit feature deprecated — UnpackKitDialog no longer rendered. Import
+// kept in source but commented out so the dialog component is tree-shaken
+// out of the bundle.
+// import UnpackKitDialog from '@/components/requests/UnpackKitDialog';
 import {
   MapPin,
   MessageSquare,
@@ -115,7 +118,10 @@ export default function RequestDetail() {
   // Copy qualities state
   const [qualitiesCopied, setQualitiesCopied] = useState(false);
 
-  // Kit unpack dialog state
+  // Kit feature deprecated — useState kept so the dead kit branches inside
+  // ProductCard and the desktop kit table still type-check, but kitItems
+  // is hard-empty below so the setter is never actually called and the
+  // UnpackKitDialog mount has been commented out at the bottom of the file.
   const [unpackKitItem, setUnpackKitItem] = useState<RequestItemDB | null>(null);
 
   useEffect(() => {
@@ -984,7 +990,9 @@ export default function RequestDetail() {
                   <h3 className="text-sm font-semibold text-slate-900">Items</h3>
                   {hasItems && (
                     <span className="text-[11px] text-slate-400 font-medium">
-                      ({request.items!.filter(i => !i.kit_id).length})
+                      {/* Kit feature deprecated — also exclude is_kit parent rows
+                          from the displayed count so legacy kit data is hidden. */}
+                      ({request.items!.filter(i => !i.kit_id && !i.is_kit).length})
                     </span>
                   )}
                 </div>
@@ -992,7 +1000,9 @@ export default function RequestDetail() {
                   onClick={async () => {
                     if (!hasItems) return;
                     const allItems = request.items!;
-                    const topItems = allItems.filter(i => !i.kit_id);
+                    // Kit feature deprecated — exclude is_kit parents from the
+                    // copy-list output so legacy kits don't appear in pasted text.
+                    const topItems = allItems.filter(i => !i.kit_id && !i.is_kit);
                     const sorted = getSortedItems(topItems);
                     const blocks = sorted.map((item, i) => formatItemBlock(item, i + 1, allItems));
                     await navigator.clipboard.writeText(blocks.join('\n\n'));
@@ -1013,7 +1023,11 @@ export default function RequestDetail() {
               {hasItems ? (() => {
                 const allItems = request.items!;
                 const regularItems = allItems.filter(i => !i.is_kit && !i.kit_id);
-                const kitItems = allItems.filter(i => i.is_kit).sort((a, b) => a.item_index - b.item_index);
+                // Kit feature deprecated — kitItems is hard-empty so the kit
+                // table rows / mobile kit cards below never render. The kit
+                // rendering blocks are kept as dead branches for now; safe to
+                // delete once the deprecation has stuck.
+                const kitItems: RequestItemDB[] = [];
                 const regularCount = regularItems.length;
 
                 const isMagro = request.category === 'magro';
@@ -1707,20 +1721,12 @@ export default function RequestDetail() {
         onOpenChange={setIsEditRequiredByOpen}
       />
 
-      {/* Unpack Kit */}
-      {unpackKitItem && (
-        <UnpackKitDialog
-          kitItem={unpackKitItem}
-          open={!!unpackKitItem}
-          onOpenChange={(open) => { if (!open) setUnpackKitItem(null); }}
-          onUnpacked={() => setUnpackKitItem(null)}
-          existingChildren={
-            unpackKitItem.is_unpacked
-              ? (request?.items || []).filter((i) => i.kit_id === unpackKitItem.id)
-              : undefined
-          }
-        />
-      )}
+      {/* Kit feature deprecated — UnpackKitDialog import was commented out,
+          so this block is reduced to a noop that swallows the unpackKitItem
+          state reference (keeps noUnusedLocals happy) without ever
+          rendering anything. kitItems is hard-empty above, so nothing in
+          the page ever calls setUnpackKitItem to flip this on anyway. */}
+      {unpackKitItem ? null : null}
     </div>
   );
 }

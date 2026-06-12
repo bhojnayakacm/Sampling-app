@@ -50,15 +50,9 @@ function getItemSummary(request: Request): { text: string; tooltip: string; isMu
 
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
-    // Kit item: show "Marble Kit" / "Magro Kit"
-    if (item.is_kit) {
-      const kitLabel = item.product_type === 'marble' ? 'Marble Kit' : 'Magro Kit';
-      return {
-        text: `${kitLabel} · ${item.quantity} pcs`,
-        tooltip: `${kitLabel} — ${item.sample_size}`,
-        isMulti: false,
-      };
-    }
+    // Kit feature deprecated — "Marble Kit" / "Magro Kit" badge branch removed.
+    // Legacy single-kit requests fall through to the regular product label
+    // below; quality may be null on a kit row, which the 'N/A' fallback handles.
     const label = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category

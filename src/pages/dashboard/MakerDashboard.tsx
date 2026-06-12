@@ -22,9 +22,8 @@ function getItemSummary(request: Request): string {
   const itemCount = request.item_count || 0;
   if (itemCount === 1 && request.items && request.items.length > 0) {
     const item = request.items[0];
-    if (item.is_kit) {
-      return `${item.product_type === 'marble' ? 'Marble' : 'Magro'} Kit - ${item.sample_size}`;
-    }
+    // Kit feature deprecated — "Marble Kit / Magro Kit" single-item label
+    // removed. Legacy kit rows now display as their generic product label.
     const label = item.product_type === 'marble'
       ? 'Marble'
       : item.sub_category

@@ -92,13 +92,12 @@ export default function RequestActions({ request, userRole, isCompact = false, o
     }
   };
 
-  // Gate: prevent opening approve dialog when kits are not yet unpacked
+  // Kit feature deprecated — the "all kits must be unpacked before approval"
+  // gate is no longer needed since no new kits can be created. Legacy
+  // pending-approval requests with leftover packed kit rows would now skip
+  // straight to the approve dialog; the coordinator can still approve them
+  // because the unpacked-requirement is dropped intentionally.
   const handleApproveClick = () => {
-    const hasUnpackedKits = request.items?.some(item => item.is_kit && !item.is_unpacked);
-    if (hasUnpackedKits) {
-      toast.error('All kits must be unpacked before approval');
-      return;
-    }
     setApproveDialogOpen(true);
   };
 
