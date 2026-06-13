@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +18,13 @@ import {
   XCircle,
   PackageCheck,
   Truck,
+  X,
 } from 'lucide-react';
+
+// Persisted dismissal key for the kit-deprecation notice. The banner shows
+// once per browser; clicking the close button writes '1' here and the
+// banner stays hidden on every subsequent dashboard load.
+const KIT_DEPRECATION_NOTICE_KEY = 'kitDeprecationNoticeDismissed';
 import { formatDate } from '@/lib/utils';
 import { RequesterStatsSkeleton } from '@/components/skeletons';
 import EnablePushButton from '@/components/notifications/EnablePushButton';
@@ -46,6 +53,23 @@ export default function RequesterDashboard() {
     userId: profile?.id,
     userRole: profile?.role,
   });
+
+  // Kit-deprecation notice — render by default; useEffect hides it on mount
+  // if the user has already dismissed it once on this browser. The brief
+  // first-paint flash (banner appears then disappears for previously-
+  // dismissed users) is acceptable because the page below it isn't shifted
+  // by the toggle — the banner sits in the normal flow above the action
+  // buttons.
+  const [showKitNotice, setShowKitNotice] = useState(true);
+  useEffect(() => {
+    if (localStorage.getItem(KIT_DEPRECATION_NOTICE_KEY) === '1') {
+      setShowKitNotice(false);
+    }
+  }, []);
+  const dismissKitNotice = () => {
+    localStorage.setItem(KIT_DEPRECATION_NOTICE_KEY, '1');
+    setShowKitNotice(false);
+  };
 
   // Define all 6 stat cards with their configurations
   const statCards: StatConfig[] = [
@@ -163,6 +187,30 @@ export default function RequesterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+        {/* Kit-deprecation notice — sits above the action buttons, dismissible
+            once per browser via localStorage. Sky/blue palette so it reads as
+            informational, distinct from the amber "incomplete drafts" alert
+            that appears further down the same page. */}
+        {showKitNotice && (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 shadow-sm"
+          >
+            <AlertCircle className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
+            <p className="flex-1 text-sm text-sky-900 leading-relaxed">
+              <span className="font-semibold">Note:</span> Management has discontinued standard kit requests from the app. If you specifically need a kit, please contact your coordinator directly.
+            </p>
+            <button
+              type="button"
+              onClick={dismissKitNotice}
+              aria-label="Dismiss notice"
+              className="shrink-0 rounded-md p-1 text-sky-600 hover:bg-sky-100 hover:text-sky-800 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
