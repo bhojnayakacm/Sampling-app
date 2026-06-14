@@ -22,12 +22,25 @@ import { Package, Plus, Trash2, Loader2, Pencil, Copy, RotateCcw } from 'lucide-
 import { toast } from 'sonner';
 import type { RequestItemDB, SubCategory, OptionsKey } from '@/types';
 import {
-  PRODUCT_THICKNESS_OPTIONS,
   PRODUCT_FINISH_OPTIONS,
   MAGRO_SUB_CATEGORIES,
   SUB_CATEGORY_LABELS,
   getOptionsKey,
 } from '@/types';
+
+// Kit feature is deprecated and this dialog is no longer mounted (the import
+// in RequestDetail.tsx is commented out). When PRODUCT_THICKNESS_OPTIONS was
+// removed from `@/types` in the 2026-06 refactor, this file lost its only
+// thickness source. We keep a local fallback so the file continues to
+// typecheck without resurrecting the deleted export — anything that still
+// references it is dead at runtime.
+const PRODUCT_THICKNESS_OPTIONS: Record<OptionsKey, string[]> = {
+  marble:   ['20mm', '18mm', '16mm', 'Other'],
+  tile:     ['5mm', '6mm', '9mm', '12mm', '15mm', '16mm', '20mm', 'Other'],
+  stone:    ['20mm', 'Other'],
+  terrazzo: ['20mm', 'Other'],
+  quartz:   ['16mm', 'Other'],
+};
 import {
   PRODUCT_QUALITIES_BY_KEY,
   POPULAR_QUALITIES,
@@ -309,7 +322,7 @@ function EntryCard({
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
-                {thicknessOptions.map((t) => (
+                {thicknessOptions.map((t: string) => (
                   <SelectItem key={t} value={t}>
                     {t}
                   </SelectItem>

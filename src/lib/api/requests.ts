@@ -1231,6 +1231,60 @@ export function useUpdateRequiredBy() {
   });
 }
 
+// ============================================================
+// COORDINATOR — ITEM SIZE EDITS
+// ============================================================
+
+// Mutation: edit the sample_size of a single request_item.
+// Wraps the SECURITY DEFINER RPC `coordinator_edit_item_size`
+// installed by migration 1013. The RPC enforces:
+//   - caller role ∈ (coordinator, marble_coordinator, magro_coordinator, admin)
+//   - p_reason length ≥ 1 (after trim)
+//   - is_size_edited flips to TRUE, original_size is captured (sticky)
+export function useEditItemSize() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      newSize,
+      reason,
+      requestId,
+    }: {
+      itemId: string;
+      newSize: string;
+      reason: string;
+      /** Optional but recommended — used purely to scope cache invalidation. */
+      requestId?: string;
+    }) => {
+      if (!reason || !reason.trim()) {
+        throw new Error('A reason is required when editing an item size.');
+      }
+      if (!newSize || !newSize.trim()) {
+        throw new Error('New size must not be empty.');
+      }
+
+      const { data, error } = await supabase.rpc('coordinator_edit_item_size', {
+        p_item_id:  itemId,
+        p_new_size: newSize.trim(),
+        p_reason:   reason.trim(),
+      });
+
+      if (error) throw error;
+      return { data, requestId };
+    },
+    onSuccess: ({ requestId }) => {
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      if (requestId) {
+        queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
+        queryClient.invalidateQueries({ queryKey: ['request-items', requestId] });
+      }
+    },
+  });
+}
+
 // Hook for dismissing schedule change warning
 // ============================================================
 // KIT UNPACKING

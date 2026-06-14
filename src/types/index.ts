@@ -89,7 +89,7 @@ export const SUB_CATEGORY_LABELS: Record<SubCategory, string> = {
 
 /**
  * Maps a (category, sub_category) pair to the OptionsKey used for
- * size, thickness, finish, and quality option arrays.
+ * size, finish, and quality option arrays.
  *
  * - marble → 'marble'
  * - magro + tile → 'tile'
@@ -128,8 +128,6 @@ export interface ProductItem {
   // Primary attribute fields — store custom text directly when "Other" is selected
   sample_size: string;
   sample_size_custom?: string; // UI-only: custom text when sample_size select = "Other"
-  thickness: string;
-  thickness_custom?: string;   // UI-only: custom text when thickness select = "Other"
   finish: string;
   finish_custom?: string;      // UI-only: custom text when finish select = "Other"
   quantity: number;
@@ -150,12 +148,17 @@ export interface RequestItemDB {
   sub_category: SubCategory | null; // 'tile' | 'stone' | 'quartz' | 'terrazzo' | null
   quality: string | null;    // NULL for kit placeholder rows
   sample_size: string;
-  thickness: string | null;  // NULL for kit placeholder rows
+  thickness: string | null;  // Deprecated — column now nullable; legacy reads only
   finish: string | null;
   quantity: number;
   image_url: string | null;
   created_at: string;
   updated_at: string;
+
+  // Coordinator-driven size edit audit fields (migration 1013)
+  is_size_edited: boolean | null;
+  size_edit_reason: string | null;
+  original_size: string | null;
 
   // Kit support
   is_kit: boolean;
@@ -172,7 +175,7 @@ export interface CreateRequestItemInput {
   sub_category?: SubCategory | null; // null for marble, required for magro
   quality?: string | null;          // NULL for kit placeholder rows
   sample_size: string;
-  thickness?: string | null;        // NULL for kit placeholder rows
+  thickness?: string | null;        // Deprecated — kept optional so kit RPCs still typecheck
   finish?: string | null;
   quantity: number;
   image_url?: string | null;
@@ -308,12 +311,13 @@ export interface DashboardStats {
 // ============================================================
 
 // Size options by OptionsKey
+// Standardized — Marble has its own short list; all Magro subcategories share the same set.
 export const PRODUCT_SIZE_OPTIONS: Record<OptionsKey, string[]> = {
-  marble: ['12x12', '6x4', '6x6', '12x9', 'A4', '2x2', '24x24', 'Other'],
-  tile: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
-  stone: ['4x4', 'Other'],
-  terrazzo: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
-  quartz: ['4x4', '4x8', '12x12', '10x10', '4x6', 'Other'],
+  marble:   ['4x4', '6x4', '6x6', 'Other'],
+  tile:     ['4x4', '8x4', 'Other'],
+  stone:    ['4x4', '8x4', 'Other'],
+  terrazzo: ['4x4', '8x4', 'Other'],
+  quartz:   ['4x4', '8x4', 'Other'],
 };
 
 // Finish options by OptionsKey (null = no finish field shown)
@@ -331,14 +335,10 @@ export const MAGRO_KIT_SIZE_OPTIONS = ['4x4', '4x8', 'Other'] as const;
 // Combined superset — used for hybrid-read "Other" detection when loading drafts
 export const KIT_SIZE_OPTIONS = [...new Set([...MARBLE_KIT_SIZE_OPTIONS, ...MAGRO_KIT_SIZE_OPTIONS])] as string[];
 
-// Thickness options by OptionsKey
-export const PRODUCT_THICKNESS_OPTIONS: Record<OptionsKey, string[]> = {
-  marble: ['20mm', '18mm', '16mm', 'Other'],
-  tile: ['5mm', '6mm', '9mm', '12mm', '15mm', '16mm', '20mm', 'Other'],
-  stone: ['20mm', 'Other'],
-  terrazzo: ['20mm', 'Other'],
-  quartz: ['16mm', 'Other'],
-};
+// Thickness feature removed in 2026-06 refactor.
+// PRODUCT_THICKNESS_OPTIONS deleted along with the per-item thickness column
+// from the UI; the request_items.thickness column was made nullable rather
+// than dropped so legacy data + kit RPC bodies continue to typecheck.
 
 // ============================================================
 // REQUEST TRACKING & HISTORY

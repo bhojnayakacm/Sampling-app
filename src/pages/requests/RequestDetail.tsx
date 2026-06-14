@@ -28,7 +28,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRequestWithItems, useDismissScheduleWarning } from '@/lib/api/requests';
+import { toast } from 'sonner';
+import { useRequestWithItems, useDismissScheduleWarning, useEditItemSize } from '@/lib/api/requests';
 import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
@@ -36,6 +37,7 @@ import MakerActions from '@/components/requests/MakerActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 import EditRequiredByModal from '@/components/requests/EditRequiredByModal';
 import RequiredByHistory from '@/components/requests/RequiredByHistory';
+import EditedInfoTooltip from '@/components/requests/EditedInfoTooltip';
 // Kit feature deprecated — UnpackKitDialog no longer rendered. Import
 // kept in source but commented out so the dialog component is tree-shaken
 // out of the bundle.
@@ -64,8 +66,8 @@ import {
   Copy,
   RotateCcw,
 } from 'lucide-react';
-import type { RequestItemDB, SubCategory } from '@/types';
-import { SUB_CATEGORY_LABELS } from '@/types';
+import type { RequestItemDB, SubCategory, OptionsKey, RequestCategory } from '@/types';
+import { SUB_CATEGORY_LABELS, PRODUCT_SIZE_OPTIONS, getOptionsKey } from '@/types';
 import { RequestDetailSkeleton } from '@/components/skeletons';
 
 export default function RequestDetail() {
@@ -76,6 +78,7 @@ export default function RequestDetail() {
 
   const { data: request, isLoading, error } = useRequestWithItems(id);
   const dismissWarning = useDismissScheduleWarning();
+  const editItemSize = useEditItemSize();
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
@@ -124,6 +127,61 @@ export default function RequestDetail() {
   // UnpackKitDialog mount has been commented out at the bottom of the file.
   const [unpackKitItem, setUnpackKitItem] = useState<RequestItemDB | null>(null);
 
+  // Coordinator size-edit state: which item row is currently in edit-mode,
+  // plus the in-flight draft values for size + mandatory reason.
+  const [editingSizeItemId, setEditingSizeItemId] = useState<string | null>(null);
+  const [editingSizeValue,  setEditingSizeValue]  = useState('');
+  const [editingSizeCustom, setEditingSizeCustom] = useState(''); // when "Other"
+  const [editingSizeReason, setEditingSizeReason] = useState('');
+
+  const handleStartEditItemSize = (item: RequestItemDB) => {
+    const cat = item.product_type as RequestCategory;
+    const sub = (item.sub_category || '') as SubCategory | '';
+    const optionsKey: OptionsKey | null = getOptionsKey(cat, sub);
+    const opts = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey] : [];
+    const isCustom = !!item.sample_size && !opts.includes(item.sample_size);
+
+    setEditingSizeItemId(item.id);
+    setEditingSizeValue(isCustom ? 'Other' : item.sample_size);
+    setEditingSizeCustom(isCustom ? item.sample_size : '');
+    setEditingSizeReason('');
+  };
+
+  const handleCancelEditItemSize = () => {
+    setEditingSizeItemId(null);
+    setEditingSizeValue('');
+    setEditingSizeCustom('');
+    setEditingSizeReason('');
+  };
+
+  const handleSaveItemSize = async (item: RequestItemDB) => {
+    const resolvedSize = (editingSizeValue === 'Other'
+      ? editingSizeCustom
+      : editingSizeValue).trim();
+
+    if (!resolvedSize) {
+      toast.error('Please choose a size or enter a custom value.');
+      return;
+    }
+    if (!editingSizeReason.trim()) {
+      toast.error('A reason is required when editing the size.');
+      return;
+    }
+
+    try {
+      await editItemSize.mutateAsync({
+        itemId: item.id,
+        newSize: resolvedSize,
+        reason: editingSizeReason,
+        requestId: request?.id,
+      });
+      toast.success('Item size updated.');
+      handleCancelEditItemSize();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update item size.');
+    }
+  };
+
   useEffect(() => {
     if (request) {
       setEditedAddress(request.delivery_address || '');
@@ -149,18 +207,21 @@ export default function RequestDetail() {
   const handleSaveAddress = async () => {
     if (!id || !request) return;
 
+    // 2026-06 refactor: reason is now MANDATORY for any address change.
+    if (!addressEditRemark.trim()) {
+      toast.error('Please provide a reason for the address change.');
+      return;
+    }
+
     setIsSavingAddress(true);
 
     try {
       const updatePayload: Record<string, unknown> = {
         delivery_address: editedAddress.trim() || null,
         is_address_edited: true,
+        address_edit_remark: addressEditRemark.trim(),
         updated_at: new Date().toISOString(),
       };
-
-      if (addressEditRemark.trim()) {
-        updatePayload.address_edit_remark = addressEditRemark.trim();
-      }
 
       const { error: updateError } = await supabase
         .from('requests')
@@ -169,7 +230,7 @@ export default function RequestDetail() {
 
       if (updateError) {
         console.error('Failed to save address:', updateError);
-        alert('Failed to save address. Please try again.');
+        toast.error('Failed to save address. Please try again.');
         return;
       }
 
@@ -182,7 +243,7 @@ export default function RequestDetail() {
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     } catch (err) {
       console.error('Error saving address:', err);
-      alert('An error occurred while saving. Please try again.');
+      toast.error('An error occurred while saving. Please try again.');
     } finally {
       setIsSavingAddress(false);
     }
@@ -211,12 +272,19 @@ export default function RequestDetail() {
     const hasMethodChange = editedDeliveryMethod !== originalMethod;
 
     if (needsAddress && !deliveryMethodAddress.trim()) {
-      alert('Please enter a delivery address before saving.');
+      toast.error('Please enter a delivery address before saving.');
       return;
     }
 
+    // 2026-06 refactor: reason is now MANDATORY for any pickup-method change.
+    // If the method did not change and no address was added, treat as a noop close.
     if (!hasMethodChange && !deliveryMethodAddress.trim()) {
       setIsEditingDeliveryMethod(false);
+      return;
+    }
+
+    if (!deliveryMethodRemark.trim()) {
+      toast.error('Please provide a reason for the pickup-method change.');
       return;
     }
 
@@ -226,18 +294,15 @@ export default function RequestDetail() {
       const updatePayload: Record<string, unknown> = {
         pickup_responsibility: editedDeliveryMethod,
         is_delivery_method_edited: true,
+        delivery_method_remark: deliveryMethodRemark.trim(),
         updated_at: new Date().toISOString(),
       };
 
       if (needsAddress && deliveryMethodAddress.trim()) {
         updatePayload.delivery_address = deliveryMethodAddress.trim();
         updatePayload.is_address_edited = true;
-      }
-
-      if (deliveryMethodRemark.trim()) {
-        updatePayload.delivery_method_remark = deliveryMethodRemark.trim();
-      } else {
-        updatePayload.delivery_method_remark = null;
+        // Use the same reason for the bundled address change.
+        updatePayload.address_edit_remark = deliveryMethodRemark.trim();
       }
 
       const { error: updateError } = await supabase
@@ -247,7 +312,7 @@ export default function RequestDetail() {
 
       if (updateError) {
         console.error('Failed to save delivery method:', updateError);
-        alert(`Failed to save delivery method: ${updateError.message || 'Unknown error'}`);
+        toast.error(`Failed to save delivery method: ${updateError.message || 'Unknown error'}`);
         return;
       }
 
@@ -261,7 +326,7 @@ export default function RequestDetail() {
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
     } catch (err) {
       console.error('Error saving delivery method:', err);
-      alert('An error occurred while saving. Please try again.');
+      toast.error('An error occurred while saving. Please try again.');
     } finally {
       setIsSavingDeliveryMethod(false);
     }
@@ -396,7 +461,8 @@ export default function RequestDetail() {
     (item.product_type === 'magro' && (item.sub_category === 'tile' || item.sub_category === 'stone'));
 
   const formatChildLine = (item: RequestItemDB) => {
-    const specs = [item.thickness, itemHasFinish(item) && item.finish ? item.finish : null].filter(Boolean).join(', ');
+    // Thickness removed in 2026-06 refactor — copy text now lists only finish.
+    const specs = [itemHasFinish(item) && item.finish ? item.finish : null].filter(Boolean).join(', ');
     return `   ↳ ${item.quality}${specs ? ` (${specs})` : ''} x ${item.quantity}`;
   };
 
@@ -408,7 +474,8 @@ export default function RequestDetail() {
         : item.sub_category
           ? `Magro ${item.sub_category.charAt(0).toUpperCase() + item.sub_category.slice(1)}`
           : 'Magro';
-      const specs = [item.sample_size, item.thickness, itemHasFinish(item) && item.finish ? item.finish : null].filter(Boolean).join(', ');
+      // Thickness removed in 2026-06 refactor.
+      const specs = [item.sample_size, itemHasFinish(item) && item.finish ? item.finish : null].filter(Boolean).join(', ');
       return `${num}. ${label} - ${item.quality} (${specs}) - Qty: ${item.quantity}`;
     }
 
@@ -641,10 +708,21 @@ export default function RequestDetail() {
             </span>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-900 truncate">{item.quality}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {[item.sample_size, item.thickness, showFinish && item.finish ? item.finish : null]
-                  .filter(Boolean)
-                  .join(' · ')}
+              <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 flex-wrap">
+                {/* Thickness removed in 2026-06 refactor — mobile spec line shows size + finish. */}
+                <span>{[item.sample_size, showFinish && item.finish ? item.finish : null].filter(Boolean).join(' · ')}</span>
+                {item.is_size_edited && (
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-amber-50 text-amber-600 px-1 py-0.5 rounded border border-amber-100">
+                    Size edited
+                    {item.size_edit_reason && (
+                      <EditedInfoTooltip
+                        label="Reason for size change"
+                        reason={item.size_edit_reason}
+                        ariaLabel="View reason for size change"
+                      />
+                    )}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -657,6 +735,17 @@ export default function RequestDetail() {
                 <span className="text-[10px] text-slate-400">{perKit}/kit</span>
               )}
             </div>
+            {isCoordinator && (
+              <button
+                type="button"
+                onClick={() => handleStartEditItemSize(item)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
+                aria-label="Edit item size"
+                title="Edit size"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
             {item.image_url && (
               <button
                 onClick={() => setPreviewImage(item.image_url)}
@@ -1040,7 +1129,11 @@ export default function RequestDetail() {
 
                 return (
                   <>
-                    {/* DESKTOP TABLE */}
+                    {/* DESKTOP TABLE
+                        Thickness column was removed in the 2026-06 refactor — the
+                        table now has 6 visible columns (#, Quality, Size, Finish, Qty,
+                        Img). Group header rows that previously used colSpan={7}
+                        were updated to colSpan={6}. */}
                     <div className="hidden md:block overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -1048,7 +1141,6 @@ export default function RequestDetail() {
                             <TableHead className="w-10 text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">#</TableHead>
                             <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Quality</TableHead>
                             <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Size</TableHead>
-                            <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Thickness</TableHead>
                             <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Finish</TableHead>
                             <TableHead className="text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5 text-right">Qty</TableHead>
                             <TableHead className="w-10 text-[11px] font-medium text-slate-400 uppercase tracking-wider py-2.5">Img</TableHead>
@@ -1061,7 +1153,7 @@ export default function RequestDetail() {
                               return (
                                 <React.Fragment key={group.label}>
                                   <TableRow className="hover:bg-transparent border-b-0">
-                                    <TableCell colSpan={7} className="py-1.5 px-4">
+                                    <TableCell colSpan={6} className="py-1.5 px-4">
                                       <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{group.label}</span>
                                     </TableCell>
                                   </TableRow>
@@ -1069,8 +1161,34 @@ export default function RequestDetail() {
                                     <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-50">
                                       <TableCell className="text-sm font-medium text-slate-400">{groupStartIndex + i + 1}</TableCell>
                                       <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
-                                      <TableCell className="text-sm text-slate-600">{item.sample_size}</TableCell>
-                                      <TableCell className="text-sm text-slate-600">{item.thickness}</TableCell>
+                                      <TableCell className="text-sm text-slate-600">
+                                        <span className="inline-flex items-center gap-1 flex-wrap">
+                                          <span>{item.sample_size}</span>
+                                          {item.is_size_edited && (
+                                            <>
+                                              <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                                              {item.size_edit_reason && (
+                                                <EditedInfoTooltip
+                                                  label="Reason for size change"
+                                                  reason={item.size_edit_reason}
+                                                  ariaLabel="View reason for size change"
+                                                />
+                                              )}
+                                            </>
+                                          )}
+                                          {isCoordinator && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleStartEditItemSize(item)}
+                                              className="ml-0.5 p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                              aria-label="Edit item size"
+                                              title="Edit size"
+                                            >
+                                              <Pencil className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </span>
+                                      </TableCell>
                                       <TableCell className="text-sm text-slate-600">{itemHasFinish(item) && item.finish ? item.finish : '—'}</TableCell>
                                       <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
                                       <TableCell>
@@ -1090,8 +1208,34 @@ export default function RequestDetail() {
                               <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-50">
                                 <TableCell className="text-sm font-medium text-slate-400">{index + 1}</TableCell>
                                 <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
-                                <TableCell className="text-sm text-slate-600">{item.sample_size}</TableCell>
-                                <TableCell className="text-sm text-slate-600">{item.thickness}</TableCell>
+                                <TableCell className="text-sm text-slate-600">
+                                  <span className="inline-flex items-center gap-1 flex-wrap">
+                                    <span>{item.sample_size}</span>
+                                    {item.is_size_edited && (
+                                      <>
+                                        <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                                        {item.size_edit_reason && (
+                                          <EditedInfoTooltip
+                                            label="Reason for size change"
+                                            reason={item.size_edit_reason}
+                                            ariaLabel="View reason for size change"
+                                          />
+                                        )}
+                                      </>
+                                    )}
+                                    {isCoordinator && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditItemSize(item)}
+                                        className="ml-0.5 p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                        aria-label="Edit item size"
+                                        title="Edit size"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </span>
+                                </TableCell>
                                 <TableCell className="text-sm text-slate-600">{item.finish || '—'}</TableCell>
                                 <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
                                 <TableCell>
@@ -1127,7 +1271,8 @@ export default function RequestDetail() {
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-sm text-slate-600">{kit.sample_size}</TableCell>
-                                  <TableCell className="text-sm text-slate-300">—</TableCell>
+                                  {/* Thickness placeholder cell removed in 2026-06 refactor.
+                                      Remaining cells: Finish placeholder, Qty, Actions. */}
                                   <TableCell className="text-sm text-slate-300">—</TableCell>
                                   <TableCell className="text-sm text-slate-900 font-medium text-right">{kit.quantity}</TableCell>
                                   <TableCell>
@@ -1157,7 +1302,7 @@ export default function RequestDetail() {
                                         <React.Fragment key={`sub-${sg.sub_category}`}>
                                           <TableRow className="bg-emerald-50/30 hover:bg-emerald-50/30 border-b-0">
                                             <TableCell style={{ paddingLeft: indent }} className="text-sm text-emerald-400"></TableCell>
-                                            <TableCell colSpan={6}>
+                                            <TableCell colSpan={5}>
                                               <span className="text-[10px] font-medium text-emerald-600 italic">{sg.label}</span>
                                             </TableCell>
                                           </TableRow>
@@ -1169,7 +1314,6 @@ export default function RequestDetail() {
                                                 <TableCell style={{ paddingLeft: indent + 16 }} className="text-sm text-slate-300"></TableCell>
                                                 <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
                                                 <TableCell className="text-sm text-slate-600">{child.sample_size}</TableCell>
-                                                <TableCell className="text-sm text-slate-600">{child.thickness}</TableCell>
                                                 <TableCell className="text-sm text-slate-600">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
                                                 <TableCell className="text-sm text-right">
                                                   <span className="text-slate-900 font-medium">{child.quantity}</span>
@@ -1201,7 +1345,6 @@ export default function RequestDetail() {
                                           <TableCell style={{ paddingLeft: indent }} className="text-sm text-slate-300">↳</TableCell>
                                           <TableCell className="text-sm text-slate-900 font-medium">{child.quality}</TableCell>
                                           <TableCell className="text-sm text-slate-600">{child.sample_size}</TableCell>
-                                          <TableCell className="text-sm text-slate-600">{child.thickness}</TableCell>
                                           <TableCell className="text-sm text-slate-600">{itemHasFinish(child) && child.finish ? child.finish : '—'}</TableCell>
                                           <TableCell className="text-sm text-right">
                                             <span className="text-slate-900 font-medium">{child.quantity}</span>
@@ -1237,7 +1380,7 @@ export default function RequestDetail() {
                                         <React.Fragment key={`grp-${kitIdx}`}>
                                           <TableRow className="bg-amber-50/30 hover:bg-amber-50/30 border-b-0">
                                             <TableCell className="text-sm text-amber-500 pl-6">↳</TableCell>
-                                            <TableCell colSpan={6}>
+                                            <TableCell colSpan={5}>
                                               <span className="text-[11px] font-semibold text-amber-600">Kit {kitIdx + 1}</span>
                                             </TableCell>
                                           </TableRow>
@@ -1315,10 +1458,19 @@ export default function RequestDetail() {
                   {/* Pickup Method */}
                   <div className={isEditingDeliveryMethod ? 'sm:col-span-2' : ''}>
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Pickup Method</span>
                         {!isEditingDeliveryMethod && request.is_delivery_method_edited && (
-                          <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                          <>
+                            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                            {request.delivery_method_remark && (
+                              <EditedInfoTooltip
+                                label="Reason for pickup-method change"
+                                reason={request.delivery_method_remark}
+                                ariaLabel="View pickup-method change reason"
+                              />
+                            )}
+                          </>
                         )}
                       </div>
                       {canEditShipping && !isEditingDeliveryMethod && (
@@ -1359,28 +1511,29 @@ export default function RequestDetail() {
                             />
                           </div>
                         )}
-                        <Textarea
-                          value={deliveryMethodRemark}
-                          onChange={(e) => setDeliveryMethodRemark(e.target.value)}
-                          className="text-sm min-h-[50px] border-slate-200"
-                          placeholder="Reason for change (optional)"
-                        />
+                        <div>
+                          <Label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                            Reason for change <span className="text-red-500">*</span>
+                          </Label>
+                          <Textarea
+                            value={deliveryMethodRemark}
+                            onChange={(e) => setDeliveryMethodRemark(e.target.value)}
+                            className="text-sm min-h-[50px] border-slate-200 mt-1"
+                            placeholder="E.g., Requester requested doorstep delivery."
+                            required
+                          />
+                        </div>
                         <div className="flex gap-2 justify-end">
                           <Button variant="ghost" size="sm" onClick={handleCancelEditDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-8 px-3 text-xs">
                             Cancel
                           </Button>
-                          <Button size="sm" onClick={handleSaveDeliveryMethod} disabled={isSavingDeliveryMethod} className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
+                          <Button size="sm" onClick={handleSaveDeliveryMethod} disabled={isSavingDeliveryMethod || !deliveryMethodRemark.trim()} className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
                             {isSavingDeliveryMethod ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
                           </Button>
                         </div>
                       </div>
                     ) : (
-                      <>
-                        <p className="text-sm text-slate-900 font-medium">{formatPickupMethod(request.pickup_responsibility)}</p>
-                        {request.is_delivery_method_edited && request.delivery_method_remark && (
-                          <p className="text-xs text-slate-500 italic mt-0.5 border-l-2 border-slate-200 pl-2">{request.delivery_method_remark}</p>
-                        )}
-                      </>
+                      <p className="text-sm text-slate-900 font-medium">{formatPickupMethod(request.pickup_responsibility)}</p>
                     )}
                   </div>
 
@@ -1388,10 +1541,19 @@ export default function RequestDetail() {
                   {!isSelfPickup && (
                     <div className={isEditingAddress ? 'sm:col-span-2' : ''}>
                       <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Delivery Address</span>
                           {!isEditingAddress && request.is_address_edited && displayAddress && (
-                            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                            <>
+                              <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">Edited</span>
+                              {request.address_edit_remark && (
+                                <EditedInfoTooltip
+                                  label="Reason for address change"
+                                  reason={request.address_edit_remark}
+                                  ariaLabel="View address change reason"
+                                />
+                              )}
+                            </>
                           )}
                         </div>
                         {canEditShipping && !isEditingAddress && (
@@ -1412,17 +1574,23 @@ export default function RequestDetail() {
                             className="text-sm min-h-[70px] border-slate-200"
                             placeholder="Enter delivery address..."
                           />
-                          <Textarea
-                            value={addressEditRemark}
-                            onChange={(e) => setAddressEditRemark(e.target.value)}
-                            className="text-sm min-h-[50px] border-slate-200"
-                            placeholder="Reason for address change (optional)"
-                          />
+                          <div>
+                            <Label className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                              Reason for address change <span className="text-red-500">*</span>
+                            </Label>
+                            <Textarea
+                              value={addressEditRemark}
+                              onChange={(e) => setAddressEditRemark(e.target.value)}
+                              className="text-sm min-h-[50px] border-slate-200 mt-1"
+                              placeholder="E.g., Client moved to a new site address."
+                              required
+                            />
+                          </div>
                           <div className="flex gap-2 justify-end">
                             <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSavingAddress} className="h-8 px-3 text-xs">
                               Cancel
                             </Button>
-                            <Button size="sm" onClick={handleSaveAddress} disabled={isSavingAddress} className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
+                            <Button size="sm" onClick={handleSaveAddress} disabled={isSavingAddress || !addressEditRemark.trim()} className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
                               {isSavingAddress ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
                             </Button>
                           </div>
@@ -1445,9 +1613,9 @@ export default function RequestDetail() {
                               )}
                             </div>
                           )}
-                          {request.is_address_edited && displayAddress && request.address_edit_remark && (
-                            <p className="text-xs text-slate-500 italic mt-0.5 border-l-2 border-slate-200 pl-2">{request.address_edit_remark}</p>
-                          )}
+                          {/* Inline italic reason text was replaced by the
+                              EditedInfoTooltip above the address (next to the
+                              "Edited" badge) in the 2026-06 refactor. */}
                         </>
                       )}
                     </div>
@@ -1727,6 +1895,145 @@ export default function RequestDetail() {
           rendering anything. kitItems is hard-empty above, so nothing in
           the page ever calls setUnpackKitItem to flip this on anyway. */}
       {unpackKitItem ? null : null}
+
+      {/* ======== EDIT ITEM SIZE (Coordinator) ========
+          Triggered by the Pencil icon next to any item's Size cell.
+          Reason is MANDATORY — backend RPC `coordinator_edit_item_size`
+          re-validates server-side, so this dialog is the first guard
+          rather than the only guard. */}
+      <Dialog
+        open={!!editingSizeItemId}
+        onOpenChange={(o) => { if (!o) handleCancelEditItemSize(); }}
+      >
+        <DialogContent className="sm:max-w-md mx-4">
+          {(() => {
+            const editingItem = request?.items?.find((i) => i.id === editingSizeItemId) || null;
+            if (!editingItem) return null;
+
+            const cat = editingItem.product_type as RequestCategory;
+            const sub = (editingItem.sub_category || '') as SubCategory | '';
+            const optionsKey: OptionsKey | null = getOptionsKey(cat, sub);
+            const opts = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey] : [];
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <Pencil className="h-4 w-4 text-indigo-600" />
+                    Edit Item Size
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 py-3">
+                  {/* Item context */}
+                  <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-3">
+                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">Item</p>
+                    <p className="text-sm font-semibold text-slate-900 mt-0.5 break-words">
+                      {editingItem.quality || '—'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Current size: <span className="font-medium text-slate-700">{editingItem.sample_size}</span>
+                    </p>
+                  </div>
+
+                  {/* Size select */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">
+                      New size <span className="text-red-500">*</span>
+                    </Label>
+                    {opts.length > 0 ? (
+                      <Select value={editingSizeValue} onValueChange={setEditingSizeValue}>
+                        <SelectTrigger className="h-10 border-slate-200">
+                          <SelectValue placeholder="Choose a new size" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {opts.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Textarea
+                        value={editingSizeValue}
+                        onChange={(e) => setEditingSizeValue(e.target.value)}
+                        className="text-sm min-h-[40px] border-slate-200"
+                        placeholder="Enter new size"
+                      />
+                    )}
+                  </div>
+
+                  {/* Custom size — only when "Other" is picked */}
+                  {editingSizeValue === 'Other' && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium text-slate-700">
+                        Specify custom size <span className="text-red-500">*</span>
+                      </Label>
+                      <Textarea
+                        value={editingSizeCustom}
+                        onChange={(e) => setEditingSizeCustom(e.target.value)}
+                        className="text-sm min-h-[40px] border-slate-200"
+                        placeholder="E.g., 5x10"
+                      />
+                    </div>
+                  )}
+
+                  {/* Mandatory reason */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">
+                      Reason for size change <span className="text-red-500">*</span>
+                    </Label>
+                    <Textarea
+                      value={editingSizeReason}
+                      onChange={(e) => setEditingSizeReason(e.target.value)}
+                      className="text-sm min-h-[70px] border-slate-200 resize-none"
+                      placeholder="E.g., Out of stock at requested size; substituting nearest available."
+                      required
+                      autoFocus
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      This reason will be visible to the requester next to the new size.
+                    </p>
+                  </div>
+                </div>
+
+                <DialogFooter className="gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelEditItemSize}
+                    disabled={editItemSize.isPending}
+                    className="h-10 flex-1 sm:flex-initial"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleSaveItemSize(editingItem)}
+                    disabled={
+                      editItemSize.isPending ||
+                      !editingSizeReason.trim() ||
+                      !((editingSizeValue === 'Other' ? editingSizeCustom : editingSizeValue) || '').trim()
+                    }
+                    className="h-10 flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    {editItemSize.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-1.5" />
+                        Save changes
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

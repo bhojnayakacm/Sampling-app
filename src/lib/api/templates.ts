@@ -49,6 +49,8 @@ export async function createTemplate(
   input: CreateTemplateInput
 ): Promise<ProductTemplate> {
   // Clean the items before saving (remove file objects, previews, etc.)
+  // Thickness fields removed in 2026-06 refactor — legacy templates that
+  // still carry them are silently ignored when loaded.
   const cleanedItems = input.items.map((item) => ({
     category: item.category,
     sub_category: item.sub_category || '',
@@ -56,8 +58,6 @@ export async function createTemplate(
     quality: item.quality || '',
     sample_size: item.sample_size,
     sample_size_custom: item.sample_size_custom || '',
-    thickness: item.thickness,
-    thickness_custom: item.thickness_custom || '',
     finish: item.finish || '',
     finish_custom: item.finish_custom || '',
     quantity: item.quantity,
@@ -101,7 +101,7 @@ export async function updateTemplate(
   }
 
   if (input.items) {
-    // Clean the items before saving
+    // Clean the items before saving (thickness removed in 2026-06 refactor)
     updateData.items = input.items.map((item) => ({
       category: item.category,
       sub_category: item.sub_category || '',
@@ -109,8 +109,6 @@ export async function updateTemplate(
       quality: item.quality || '',
       sample_size: item.sample_size,
       sample_size_custom: item.sample_size_custom || '',
-      thickness: item.thickness,
-      thickness_custom: item.thickness_custom || '',
       finish: item.finish || '',
       finish_custom: item.finish_custom || '',
       quantity: item.quantity,

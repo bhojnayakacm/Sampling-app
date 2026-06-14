@@ -52,7 +52,7 @@ import type {
 import {
   PRODUCT_FINISH_OPTIONS,
   PRODUCT_SIZE_OPTIONS,
-  PRODUCT_THICKNESS_OPTIONS,
+  // Thickness feature removed in 2026-06 refactor — no thickness import.
   // KIT_SIZE_OPTIONS no longer used — kit feature deprecated, draft loader
   // filters out is_kit items before they reach the size-options resolver.
   getOptionsKey,
@@ -197,8 +197,6 @@ function createEmptyProduct(): ProductItem {
     quality: '', // Legacy field
     sample_size: '',
     sample_size_custom: '',
-    thickness: '',
-    thickness_custom: '',
     finish: '',
     finish_custom: '',
     quantity: 1,
@@ -320,10 +318,6 @@ function productToItemInput(
     ? (product.sample_size_custom || '')
     : product.sample_size;
 
-  const resolvedThickness = product.thickness === 'Other'
-    ? (product.thickness_custom || '')
-    : product.thickness;
-
   const resolvedFinish = hasFinish
     ? (product.finish === 'Other'
       ? (product.finish_custom || '')
@@ -336,7 +330,7 @@ function productToItemInput(
     sub_category: product.category === 'magro' ? (product.sub_category as any) || null : null,
     quality: qualityValue,
     sample_size: resolvedSize,
-    thickness: resolvedThickness,
+    thickness: null, // Field removed from UI; column is now nullable in DB.
     finish: resolvedFinish,
     quantity: product.quantity,
     image_url: imageUrl,
@@ -363,7 +357,7 @@ function consolidateItems(items: ItemPayload[]): ItemPayload[] {
       (item as any).sub_category ?? '',
       item.quality,
       item.sample_size,
-      item.thickness,
+      // thickness intentionally omitted — field removed in 2026-06 refactor
       item.finish ?? '',
     ].join('||');
 
@@ -575,15 +569,14 @@ export default function NewRequest() {
           // Hybrid Read: detect custom values by checking against predefined options.
           // Kit branch removed — kit feature deprecated; is_kit items are filtered
           // out before this map runs (see the .filter() below), so we only hit the
-          // regular product-type options path here.
+          // regular product-type options path here. Thickness branch removed in
+          // the 2026-06 refactor — legacy thickness values are discarded.
           const sizeOptions      = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey] : [];
-          const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
           const finishOptionsList = optionsKey ? (PRODUCT_FINISH_OPTIONS[optionsKey] ?? []) : [];
 
           // If the saved value is NOT in the predefined list, it's a custom "Other" entry
-          const isCustomSize      = item.sample_size && !sizeOptions.includes(item.sample_size);
-          const isCustomThickness = item.thickness && !thicknessOptions.includes(item.thickness);
-          const isCustomFinish    = hasFinish && item.finish && !finishOptionsList.includes(item.finish);
+          const isCustomSize   = item.sample_size && !sizeOptions.includes(item.sample_size);
+          const isCustomFinish = hasFinish && item.finish && !finishOptionsList.includes(item.finish);
 
           return {
             id: generateId(),
@@ -592,12 +585,10 @@ export default function NewRequest() {
             selected_qualities: item.quality ? [item.quality] : [],
             quality: item.quality || '',
             // Hybrid Read: set select to "Other" and populate custom input for non-standard values
-            sample_size:        isCustomSize      ? 'Other' : item.sample_size,
-            sample_size_custom: isCustomSize      ? item.sample_size : '',
-            thickness:          isCustomThickness ? 'Other' : (item.thickness || ''),
-            thickness_custom:   isCustomThickness ? item.thickness! : '',
-            finish:             isCustomFinish    ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
-            finish_custom:      isCustomFinish    ? item.finish! : '',
+            sample_size:        isCustomSize   ? 'Other' : item.sample_size,
+            sample_size_custom: isCustomSize   ? item.sample_size : '',
+            finish:             isCustomFinish ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
+            finish_custom:      isCustomFinish ? item.finish! : '',
             quantity:           item.quantity,
             image_url:          item.image_url,
             image_preview:      item.image_url,
@@ -767,12 +758,7 @@ export default function NewRequest() {
       if (product.sample_size === 'Other' && !product.sample_size_custom) {
         errors.push(`${prefix}Please specify the custom size`);
       }
-      if (!product.thickness) {
-        errors.push(`${prefix}Thickness is required`);
-      }
-      if (product.thickness === 'Other' && !product.thickness_custom) {
-        errors.push(`${prefix}Please specify the custom thickness`);
-      }
+      // Thickness validation removed — field eliminated in 2026-06 refactor.
 
       // Finish validation (only for types that have finish)
       const optionsKey = getOptionsKey(product.category, product.sub_category);
@@ -1293,8 +1279,6 @@ export default function NewRequest() {
         hasValidQuality &&
         product.sample_size &&
         (product.sample_size !== 'Other' || product.sample_size_custom) &&
-        product.thickness &&
-        (product.thickness !== 'Other' || product.thickness_custom) &&
         (!hasFinish || product.finish) &&
         (product.finish !== 'Other' || product.finish_custom) &&
         product.quantity > 0
@@ -1898,7 +1882,7 @@ export default function NewRequest() {
                       </div>
                       <span className="text-sm font-semibold">Add Custom Item</span>
                       <span className="text-xs text-indigo-500 leading-snug text-center">
-                        Pick exact quality, size, thickness & finish
+                        Pick exact quality, size & finish
                       </span>
                     </button>
                   </div>

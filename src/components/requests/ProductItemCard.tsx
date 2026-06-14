@@ -11,7 +11,6 @@ import type { ProductItem, RequestCategory, SubCategory } from '@/types';
 import {
   PRODUCT_SIZE_OPTIONS,
   PRODUCT_FINISH_OPTIONS,
-  PRODUCT_THICKNESS_OPTIONS,
   CATEGORY_LABELS,
   MAGRO_SUB_CATEGORIES,
   SUB_CATEGORY_LABELS,
@@ -48,7 +47,6 @@ export default function ProductItemCard({
   // Get product-specific options (null if category not yet selected)
   const sizeOptions      = optionsKey ? PRODUCT_SIZE_OPTIONS[optionsKey]      : [];
   const finishOptions    = optionsKey ? PRODUCT_FINISH_OPTIONS[optionsKey]    : null;
-  const thicknessOptions = optionsKey ? PRODUCT_THICKNESS_OPTIONS[optionsKey] : [];
 
   // Check if finish should be shown (null = no finish for this type)
   const showFinish = optionsKey !== null && finishOptions !== null;
@@ -105,8 +103,6 @@ export default function ProductItemCard({
       quality: '',
       sample_size: '',
       sample_size_custom: '',
-      thickness: '',
-      thickness_custom: '',
       finish: '',
       finish_custom: '',
     });
@@ -117,13 +113,11 @@ export default function ProductItemCard({
     const newOptionsKey = newSubCategory as OptionsKey;
     const hasFinish = PRODUCT_FINISH_OPTIONS[newOptionsKey] !== null;
 
-    const newSizeOptions      = PRODUCT_SIZE_OPTIONS[newOptionsKey]      || [];
-    const newThicknessOptions = PRODUCT_THICKNESS_OPTIONS[newOptionsKey] || [];
-    const newFinishOptions    = PRODUCT_FINISH_OPTIONS[newOptionsKey]    || [];
+    const newSizeOptions   = PRODUCT_SIZE_OPTIONS[newOptionsKey]   || [];
+    const newFinishOptions = PRODUCT_FINISH_OPTIONS[newOptionsKey] || [];
 
-    const autoSize      = getAutoSelectValue(newSizeOptions);
-    const autoThickness = getAutoSelectValue(newThicknessOptions);
-    const autoFinish    = hasFinish ? getAutoSelectValue(newFinishOptions) : null;
+    const autoSize   = getAutoSelectValue(newSizeOptions);
+    const autoFinish = hasFinish ? getAutoSelectValue(newFinishOptions) : null;
 
     onUpdate(index, {
       sub_category: newSubCategory,
@@ -131,8 +125,6 @@ export default function ProductItemCard({
       quality: '',
       sample_size: autoSize || '',
       sample_size_custom: '',
-      thickness: autoThickness || '',
-      thickness_custom: '',
       finish: autoFinish || (hasFinish ? newFinishOptions[0] ?? '' : ''),
       finish_custom: '',
     });
@@ -321,7 +313,7 @@ export default function ProductItemCard({
               )}
               {isBatch && (
                 <p className="text-xs text-indigo-600 mt-1.5">
-                  Same specs (Size, Finish, Thickness, Qty) will apply to all {item.selected_qualities.length} selected qualities.
+                  Same specs (Size, Finish, Qty) will apply to all {item.selected_qualities.length} selected qualities.
                 </p>
               )}
             </div>
@@ -363,42 +355,8 @@ export default function ProductItemCard({
               </div>
             )}
 
-            {/* ── Thickness ─────────────────────────────────────────────── */}
-            <div>
-              <Label>Thickness *</Label>
-              {optionsKey ? (
-                <Select
-                  value={item.thickness}
-                  onValueChange={(value) => onUpdate(index, {
-                    thickness: value,
-                    thickness_custom: value === 'Other' ? '' : undefined,
-                  })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select thickness" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {thicknessOptions.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input placeholder="Select category first" disabled />
-              )}
-            </div>
-
-            {/* Specify Thickness — shown when "Other" selected */}
-            {item.thickness === 'Other' && (
-              <div>
-                <Label>Specify Thickness *</Label>
-                <Input
-                  value={item.thickness_custom || ''}
-                  onChange={(e) => onUpdate(index, { thickness_custom: e.target.value })}
-                  placeholder="Enter custom thickness"
-                />
-              </div>
-            )}
+            {/* Thickness field removed in 2026-06 refactor — column still
+                exists in the DB (nullable) for legacy rows. */}
 
             {/* ── Finish — only for types that have finish ──────────────── */}
             {showFinish && (

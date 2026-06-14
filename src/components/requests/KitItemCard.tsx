@@ -33,7 +33,7 @@ export default function KitItemCard({
       quality: '',
       sample_size: '',
       sample_size_custom: '',
-      thickness: '',
+      // Thickness field removed in 2026-06 refactor.
       finish: '',
     });
   };

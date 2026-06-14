@@ -35,6 +35,9 @@ function generateId(): string {
 }
 
 function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
+  // Thickness fields removed in 2026-06 refactor — `...item` may carry stale
+  // `thickness` / `thickness_custom` keys from legacy templates; that is
+  // fine, they're ignored by ProductItemCard and never re-saved.
   return items.map((item) => ({
     ...item,
     id: generateId(),
@@ -43,7 +46,6 @@ function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
     selected_qualities: item.selected_qualities || [],
     quality: item.quality || '',
     sample_size_custom: item.sample_size_custom || '',
-    thickness_custom: item.thickness_custom || '',
     finish_custom: item.finish_custom || '',
     is_kit: item.is_kit || false,
     image_file: null,
