@@ -12,7 +12,7 @@ const VALID_REQUEST_COLUMNS = new Set([
   'department', 'mobile_no', 'pickup_responsibility',
   'delivery_method_remark', 'is_delivery_method_edited',
   'delivery_address', 'is_address_edited', 'address_edit_remark',
-  'required_by', 'required_by_history',
+  'required_by', 'required_by_history', 'required_by_edit_reason',
   'client_type',
   'client_contact_name', 'client_phone', 'client_email',
   'firm_name', 'site_location',
@@ -1204,12 +1204,16 @@ export function useUpdateRequiredBy() {
       const existingHistory: RequiredByHistoryEntry[] = currentRequest.required_by_history || [];
       const newHistory = [...existingHistory, historyEntry];
 
-      // Update the request with new date and history
+      // Update the request with new date and history. We also write the
+      // reason into the denormalised `required_by_edit_reason` column
+      // (migration 1014) so the EditedInfoTooltip can render the latest
+      // reason without deserialising the full history JSON.
       const { data, error } = await supabase
         .from('requests')
         .update({
           required_by: newDate,
           required_by_history: newHistory,
+          required_by_edit_reason: reason.trim(),
           has_schedule_warning: true,
           updated_at: new Date().toISOString(),
         })

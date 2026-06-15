@@ -36,6 +36,8 @@ import NotFound from '@/pages/NotFound';
 import RoleProtectedRoute from '@/components/RoleProtectedRoute';
 import RequestNotifications from '@/components/notifications/RequestNotifications';
 import RequesterNotifications from '@/components/notifications/RequesterNotifications';
+import MakerNotifications from '@/components/notifications/MakerNotifications';
+import DispatcherNotifications from '@/components/notifications/DispatcherNotifications';
 
 // Loading skeleton component
 const LoadingScreen = FullPageSkeleton;
@@ -193,11 +195,16 @@ function App() {
     <>
       <BrowserRouter>
         {/* Global Realtime listeners — raise in-app toasts.
-            RequestNotifications: coordinator-facing (new request created).
-            RequesterNotifications: requester-facing (status changes on their own requests).
-            Each hook gates on role internally, so mounting both is safe. */}
+            RequestNotifications:     coordinator-facing (new request created)
+            RequesterNotifications:   requester-facing (status changes on their requests)
+            MakerNotifications:       maker-facing (new assignment)
+            DispatcherNotifications:  dispatcher-facing (ready-for-dispatch with field_boy pickup)
+            Each hook gates on role internally, so mounting all four is safe —
+            only the listener for the signed-in role actually opens a channel. */}
         <RequestNotifications />
         <RequesterNotifications />
+        <MakerNotifications />
+        <DispatcherNotifications />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />

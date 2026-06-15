@@ -40,6 +40,7 @@ import {
 import { formatDateTime, formatDate } from '@/lib/utils';
 import type { Request } from '@/types';
 import { DispatcherStatsSkeleton, DispatcherCardsSkeleton } from '@/components/skeletons';
+import EnablePushButton from '@/components/notifications/EnablePushButton';
 
 // Tab type for navigation
 type TabKey = 'ready' | 'today' | 'total';
@@ -277,6 +278,10 @@ export default function DispatcherDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Opt-in PWA push alerts for ready-for-dispatch notifications.
+                  Inline mode keeps the header compact on phones (icon-only)
+                  while staying tappable. */}
+              <EnablePushButton inline />
               <Button
                 variant="ghost"
                 size="icon"

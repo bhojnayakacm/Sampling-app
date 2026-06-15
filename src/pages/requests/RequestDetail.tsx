@@ -1052,13 +1052,24 @@ export default function RequestDetail() {
                 }`} />
                 <div className="min-w-0">
                   <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block leading-none mb-0.5">Required By</span>
-                  <span className={`text-sm font-bold leading-tight ${
+                  <span className={`inline-flex items-center gap-1 text-sm font-bold leading-tight ${
                     deadlineStatus.status === 'overdue' ? 'text-red-700' :
                     deadlineStatus.status === 'urgent' ? 'text-amber-700' :
                     deadlineStatus.status === 'completed' ? 'text-green-700' :
                     'text-slate-900'
                   }`}>
                     {formatDateTime(request.required_by)}
+                    {/* Surface the latest deadline-edit reason via the same
+                        EditedInfoTooltip pattern used for size / address /
+                        delivery-method edits. The raw reason text is hidden
+                        behind the icon so this block stays compact. */}
+                    {request.required_by_edit_reason && (
+                      <EditedInfoTooltip
+                        label="Reason for deadline change"
+                        reason={request.required_by_edit_reason}
+                        ariaLabel="View deadline change reason"
+                      />
+                    )}
                   </span>
                 </div>
                 {deadlineStatus.label && (

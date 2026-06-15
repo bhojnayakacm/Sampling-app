@@ -271,6 +271,11 @@ export interface Request {
   // Deadline history (audit trail for required_by changes)
   required_by_history: RequiredByHistoryEntry[] | null;
 
+  // Latest reason for a required_by edit — denormalised cache for the
+  // inline EditedInfoTooltip in RequestDetail. Full audit trail still
+  // lives in required_by_history. Populated by migration 1014.
+  required_by_edit_reason: string | null;
+
   // Delivery Point of Contact (required when pickup_responsibility = 'field_boy')
   delivery_poc_name: string | null;
   delivery_poc_contacts: string[] | null;

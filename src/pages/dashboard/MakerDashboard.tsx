@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Request } from '@/types';
 import { MakerStatsSkeleton, MakerJobCardsSkeleton } from '@/components/skeletons';
+import EnablePushButton from '@/components/notifications/EnablePushButton';
 
 // Get item summary for job cards
 function getItemSummary(request: Request): string {
@@ -75,14 +76,20 @@ export default function MakerDashboard() {
                 <p className="text-sm text-slate-500">{profile?.full_name}</p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={signOut}
-              className="min-h-[44px] gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Opt-in PWA push alerts for new-assignment notifications.
+                  Hides itself on unsupported browsers; in inline mode it
+                  collapses the label on small screens. */}
+              <EnablePushButton inline />
+              <Button
+                variant="outline"
+                onClick={signOut}
+                className="min-h-[44px] gap-2 border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>

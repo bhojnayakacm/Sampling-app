@@ -48,11 +48,20 @@ const TITLE_BY_STATUS: Record<string, string> = {
   dispatched:    'Dispatched',
 }
 
+// Titles for non-status events. The trigger in migration 1014 passes
+// event_type='required_by_change' when a coordinator alters the
+// deadline. Status-change calls (migration 1011) leave event_type
+// unset and continue to derive their title from TITLE_BY_STATUS.
+const TITLE_BY_EVENT: Record<string, string> = {
+  required_by_change: 'Deadline Updated',
+}
+
 interface RequesterPushBody {
   requester_id?:   string
   request_id?:     string
   request_number?: string
   new_status?:     string
+  event_type?:     string
   message?:        string
 }
 
@@ -100,7 +109,7 @@ serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const { requester_id, request_id, request_number, new_status, message } = body
+  const { requester_id, request_id, request_number, new_status, event_type, message } = body
   if (!requester_id || !request_id || !request_number || !message) {
     return json(
       { error: 'Missing requester_id, request_id, request_number, or message' },
@@ -131,12 +140,21 @@ serve(async (req) => {
   }
 
   // ── Build the notification payload ─────────────────────────
-  // Title is short (status label); body carries the full message.
-  // Strip the redundant "<Label>: " prefix from the body if present
-  // so the system notification doesn't read e.g. "Approved" twice.
-  const title = (new_status && TITLE_BY_STATUS[new_status])
-    ? TITLE_BY_STATUS[new_status]
-    : 'Request Update'
+  // Title is short (status label or event label); body carries the
+  // full message. Strip the redundant "<Label>: " prefix from the
+  // body if present so the system notification doesn't read e.g.
+  // "Approved" twice.
+  //
+  // Title resolution order:
+  //   1. event_type → TITLE_BY_EVENT (required_by_change, future events)
+  //   2. new_status → TITLE_BY_STATUS (the pipeline transitions)
+  //   3. fallback → 'Request Update'
+  let title = 'Request Update'
+  if (event_type && TITLE_BY_EVENT[event_type]) {
+    title = TITLE_BY_EVENT[event_type]
+  } else if (new_status && TITLE_BY_STATUS[new_status]) {
+    title = TITLE_BY_STATUS[new_status]
+  }
 
   let bodyText = message
   const colonIdx = message.indexOf(': ')
