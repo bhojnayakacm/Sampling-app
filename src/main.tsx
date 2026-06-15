@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import App from './App';
 import './index.css';
+// Side-effect import: registers the service worker and wires the
+// "Update Available" prompt that surfaces via sonner whenever a new
+// build is waiting to activate. See src/lib/pwa-register.ts.
+import '@/lib/pwa-register';
 
 const queryClient = new QueryClient({
   defaultOptions: {

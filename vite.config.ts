@@ -8,7 +8,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Switched from 'autoUpdate' to 'prompt' so a new version doesn't
+      // silently activate in the background. With 'autoUpdate', users
+      // stayed on the stale bundle until they happened to fully close
+      // every tab — leading to the "I had to refresh 4 times" reports.
+      // With 'prompt', the new SW installs into `waiting`, we surface
+      // an "Update Available" toast from src/lib/pwa-register.ts, and
+      // the user gets the new code as soon as they click Update.
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'SampleHub',
@@ -44,6 +51,13 @@ export default defineConfig({
         // Pull our Web Push handlers (push / notificationclick) into the
         // generated service worker. push-sw.js lives in /public.
         importScripts: ['push-sw.js'],
+        // Default Workbox behaviour: install -> waiting; we trigger
+        // skipWaiting + clientsClaim only on user confirmation via the
+        // SKIP_WAITING postMessage from updateSW(true). Explicit false
+        // so a future config tweak doesn't accidentally re-enable
+        // silent auto-activation.
+        skipWaiting: false,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
