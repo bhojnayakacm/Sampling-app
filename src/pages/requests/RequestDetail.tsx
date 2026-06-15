@@ -84,6 +84,22 @@ export default function RequestDetail() {
   const isMaker = profile?.role === 'maker';
   const hideClientContact = ['maker', 'dispatcher'].includes(profile?.role || '');
 
+  // Size edits are only permitted while the sample is still in early-stage
+  // workflow. Once the sample reaches "ready" (production complete) or
+  // moves further along (dispatched / received / rejected), the recorded
+  // specs become immutable — at that point the maker has already produced
+  // to spec, and changing the size retroactively would falsify history.
+  const SIZE_EDITABLE_STATUSES: ReadonlyArray<string> = [
+    'draft',
+    'pending_approval',
+    'approved',
+    'assigned',
+    'in_production',
+  ];
+  const canEditItemSize = isCoordinator
+    && !!request
+    && SIZE_EDITABLE_STATUSES.includes(request.status);
+
   // Role-aware back navigation
   const backDestination = profile?.role === 'requester' ? '/requests' : '/';
   const backButtonText = profile?.role === 'requester' ? 'Back' : 'Dashboard';
@@ -735,7 +751,7 @@ export default function RequestDetail() {
                 <span className="text-[10px] text-slate-400">{perKit}/kit</span>
               )}
             </div>
-            {isCoordinator && (
+            {canEditItemSize && (
               <button
                 type="button"
                 onClick={() => handleStartEditItemSize(item)}
@@ -1176,7 +1192,7 @@ export default function RequestDetail() {
                                               )}
                                             </>
                                           )}
-                                          {isCoordinator && (
+                                          {canEditItemSize && (
                                             <button
                                               type="button"
                                               onClick={() => handleStartEditItemSize(item)}
@@ -1223,7 +1239,7 @@ export default function RequestDetail() {
                                         )}
                                       </>
                                     )}
-                                    {isCoordinator && (
+                                    {canEditItemSize && (
                                       <button
                                         type="button"
                                         onClick={() => handleStartEditItemSize(item)}
@@ -1905,7 +1921,15 @@ export default function RequestDetail() {
         open={!!editingSizeItemId}
         onOpenChange={(o) => { if (!o) handleCancelEditItemSize(); }}
       >
-        <DialogContent className="sm:max-w-md mx-4">
+        {/* Centering fix (2026-06-15):
+            The base DialogContent uses `fixed left-[50%] translate-x-[-50%] w-full`.
+            Adding `mx-4` on top of that shifts the box right on mobile because
+            CSS margin still affects the box edge after the translate, breaking
+            symmetry. Instead we clamp the width to `100vw - 2rem` so the dialog
+            sits exactly 1rem in from both viewport edges, and cap it with
+            `max-w-md` so it doesn't grow huge on desktop. `mx-auto` is added
+            for belt-and-suspenders. */}
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:w-full sm:max-w-md mx-auto">
           {(() => {
             const editingItem = request?.items?.find((i) => i.id === editingSizeItemId) || null;
             if (!editingItem) return null;
@@ -1997,24 +2021,28 @@ export default function RequestDetail() {
                 </div>
 
                 <DialogFooter className="gap-2">
+                  {/* Touch-target fix (2026-06-15):
+                      Bumped from `h-10` to `min-h-[48px] py-3` so the buttons
+                      meet the Material Design 48 dp tap-target guideline (also
+                      comfortably above the iOS 44pt minimum). `text-base` and
+                      `font-semibold` add visual weight to match the chunky
+                      affordance. */}
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={handleCancelEditItemSize}
                     disabled={editItemSize.isPending}
-                    className="h-10 flex-1 sm:flex-initial"
+                    className="min-h-[48px] py-3 px-5 text-base font-semibold flex-1 sm:flex-initial"
                   >
                     Cancel
                   </Button>
                   <Button
-                    size="sm"
                     onClick={() => handleSaveItemSize(editingItem)}
                     disabled={
                       editItemSize.isPending ||
                       !editingSizeReason.trim() ||
                       !((editingSizeValue === 'Other' ? editingSizeCustom : editingSizeValue) || '').trim()
                     }
-                    className="h-10 flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-700"
+                    className="min-h-[48px] py-3 px-5 text-base font-semibold flex-1 sm:flex-initial bg-indigo-600 hover:bg-indigo-700"
                   >
                     {editItemSize.isPending ? (
                       <>
