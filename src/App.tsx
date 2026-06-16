@@ -38,6 +38,7 @@ import RequestNotifications from '@/components/notifications/RequestNotification
 import RequesterNotifications from '@/components/notifications/RequesterNotifications';
 import MakerNotifications from '@/components/notifications/MakerNotifications';
 import DispatcherNotifications from '@/components/notifications/DispatcherNotifications';
+import PwaUpdatePrompt from '@/components/notifications/PwaUpdatePrompt';
 
 // Loading skeleton component
 const LoadingScreen = FullPageSkeleton;
@@ -290,6 +291,13 @@ function App() {
       </BrowserRouter>
 
       <Toaster position="top-right" richColors />
+
+      {/* Compulsory PWA-update overlay. Sits at the app root, outside
+          the router, so it can render in any auth/loading state and
+          can't be hidden by a route transition. Self-gates on the
+          pwaUpdateStore — renders nothing until a waiting SW is
+          detected. See src/components/notifications/PwaUpdatePrompt.tsx. */}
+      <PwaUpdatePrompt />
     </>
   );
 }
