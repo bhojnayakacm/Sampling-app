@@ -22,10 +22,9 @@ import { useMakers } from '@/lib/api/users';
 import { useAssignRequest, useUpdateRequestStatus, useUpdateRequiredBy } from '@/lib/api/requests';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Request } from '@/types';
-import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play, PackageCheck } from 'lucide-react';
-import { useMarkAsReceived } from '@/lib/api/requests';
-import ReceiveConfirmDialog from './ReceiveConfirmDialog';
+import type { Request, DispatchMode } from '@/types';
+import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play } from 'lucide-react';
+import DispatchDialog from './DispatchDialog';
 import { formatDateTime } from '@/lib/utils';
 
 interface RequestActionsProps {
@@ -41,17 +40,14 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   const assignRequest = useAssignRequest();
   const updateStatus = useUpdateRequestStatus();
   const updateRequiredBy = useUpdateRequiredBy();
-  const markAsReceived = useMarkAsReceived();
 
   // Dialog states
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [dispatchDialogOpen, setDispatchDialogOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedMaker, setSelectedMaker] = useState('');
   const [message, setMessage] = useState('');
-  const [dispatchNotes, setDispatchNotes] = useState('');
 
   // Required By date editing state (for approval dialog)
   const [editedRequiredBy, setEditedRequiredBy] = useState('');
@@ -148,24 +144,33 @@ export default function RequestActions({ request, userRole, isCompact = false, o
     }
   };
 
-  const handleDispatchClick = () => {
-    if (!checkDeadlineCompliance()) return;
-    setDispatchDialogOpen(true);
-  };
-
-  const handleDispatch = async () => {
-    try {
-      await updateStatus.mutateAsync({
-        requestId: request.id,
-        status: 'dispatched',
-        dispatchNotes: dispatchNotes.trim() || undefined,
-      });
-      toast.success('Request marked as dispatched!');
-      setDispatchDialogOpen(false);
-      setDispatchNotes('');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to dispatch request');
+  // Determine which DispatchDialog mode applies to this request's
+  // pickup_responsibility AS THE COORDINATOR sees it. `null` means
+  // the coordinator does NOT dispatch this request — either it's
+  // self-pickup (no dispatch at all) or it's field_boy (dispatcher's
+  // job, not the coordinator's). Per the 2026-06 role-based dispatch
+  // spec, only courier + company_vehicle are coordinator-owned; the
+  // legacy 3rd_party / other modes default to the courier schema so
+  // there is still a usable dispatch path for them.
+  const coordinatorDispatchMode: DispatchMode | null = (() => {
+    switch (request.pickup_responsibility) {
+      case 'courier':
+      case '3rd_party':
+      case 'other':
+        return 'courier';
+      case 'company_vehicle':
+        return 'company_vehicle';
+      case 'field_boy':
+      case 'self_pickup':
+      default:
+        return null;
     }
+  })();
+
+  const handleDispatchClick = () => {
+    if (!coordinatorDispatchMode) return;
+    if (!checkDeadlineCompliance()) return;
+    setDispatchOpen(true);
   };
 
   // Deadline compliance: check if overdue before any forward status change
@@ -219,29 +224,12 @@ export default function RequestActions({ request, userRole, isCompact = false, o
     return null;
   }
 
-  // Check if self pickup - coordinator doesn't need to dispatch
-  const isSelfPickup = request.pickup_responsibility === 'self_pickup';
-
-  // Can coordinator mark as received? (dispatched, or ready + self_pickup)
-  const canCoordinatorReceive =
-    request.status === 'dispatched' || (request.status === 'ready' && isSelfPickup);
-
-  // Handle "Mark as Received" — self-pickup auto-completes, others open modal
-  const handleMarkReceivedClick = async () => {
-    if (isSelfPickup) {
-      try {
-        await markAsReceived.mutateAsync({
-          requestId: request.id,
-          receivedBy: request.creator?.full_name || 'Requester (Self Pickup)',
-        });
-        toast.success('Sample marked as received!');
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to mark as received');
-      }
-    } else {
-      setReceiveDialogOpen(true);
-    }
-  };
+  // 2026-06 refactor: the Mark Received button is now requester-only and
+  // lives in <ReceiverActions />. The coordinator never marks a request as
+  // received — not even for self-pickup, where the requester is physically
+  // collecting the sample and is the right person to confirm. That removed
+  // the old `canCoordinatorReceive` / `handleMarkReceivedClick` plumbing
+  // along with the inline ReceiveConfirmDialog mount below.
 
   // Compact mode for sticky action bar
   if (isCompact) {
@@ -319,8 +307,11 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             </Button>
           )}
 
-          {/* Hide Dispatch button for Self Pickup - requester will mark as received directly */}
-          {request.status === 'ready' && !isSelfPickup && (
+          {/* Dispatch button — coordinator-owned modes only.
+              self_pickup → no dispatch ever.
+              field_boy   → dispatcher's job, not the coordinator's.
+              courier / company_vehicle / 3rd_party / other → coordinator. */}
+          {request.status === 'ready' && coordinatorDispatchMode && (
             <Button
               onClick={handleDispatchClick}
               size="sm"
@@ -328,25 +319,6 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             >
               <Truck className="h-4 w-4" />
               Dispatch
-            </Button>
-          )}
-
-          {/* Mark as Received: for dispatched OR ready + self_pickup */}
-          {canCoordinatorReceive && (
-            <Button
-              onClick={handleMarkReceivedClick}
-              size="sm"
-              disabled={markAsReceived.isPending}
-              className="h-10 bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
-            >
-              {markAsReceived.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <PackageCheck className="h-4 w-4" />
-                  Mark Received
-                </>
-              )}
             </Button>
           )}
 
@@ -629,75 +601,17 @@ export default function RequestActions({ request, userRole, isCompact = false, o
           </DialogContent>
         </Dialog>
 
-        {/* Receive Confirmation Dialog (for non-self-pickup) */}
-        <ReceiveConfirmDialog
-          request={request}
-          open={receiveDialogOpen}
-          onOpenChange={setReceiveDialogOpen}
-        />
-
-        {/* Dispatch Dialog */}
-        <Dialog open={dispatchDialogOpen} onOpenChange={setDispatchDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-blue-700">
-                <Truck className="h-5 w-5" />
-                Confirm Dispatch
-              </DialogTitle>
-              <DialogDescription>
-                Mark request <strong>{request.request_number}</strong> for{' '}
-                <strong>{request.client_contact_name}</strong> as dispatched.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4">
-              <label htmlFor="dispatch-notes" className="text-sm font-medium text-gray-700 mb-2 block">
-                Dispatch Notes / Tracking Details <span className="text-gray-500 font-normal">(Optional)</span>
-              </label>
-              <Textarea
-                id="dispatch-notes"
-                placeholder="E.g., Sent via BlueDart, Tracking #: BD123456789"
-                value={dispatchNotes}
-                onChange={(e) => setDispatchNotes(e.target.value)}
-                rows={3}
-                className="resize-none"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Add courier name, tracking number, or any delivery notes. This will be visible to the requester.
-              </p>
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setDispatchDialogOpen(false);
-                  setDispatchNotes('');
-                }}
-                disabled={updateStatus.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDispatch}
-                disabled={updateStatus.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {updateStatus.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Dispatching...
-                  </>
-                ) : (
-                  <>
-                    <Truck className="mr-2 h-4 w-4" />
-                    Confirm Dispatch
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* New role-aware Dispatch modal — handles photo upload + dynamic
+            fields per pickup mode. Coordinator-scoped here; the dispatcher
+            invokes its own DispatchDialog from DispatcherDashboard. */}
+        {coordinatorDispatchMode && (
+          <DispatchDialog
+            request={request}
+            mode={coordinatorDispatchMode}
+            open={dispatchOpen}
+            onOpenChange={setDispatchOpen}
+          />
+        )}
       </>
     );
   }
@@ -791,8 +705,8 @@ export default function RequestActions({ request, userRole, isCompact = false, o
           </Button>
         )}
 
-        {/* Hide Dispatch button for Self Pickup */}
-        {request.status === 'ready' && !isSelfPickup && (
+        {/* Dispatch — coordinator-owned modes only (see compact branch above). */}
+        {request.status === 'ready' && coordinatorDispatchMode && (
           <Button
             onClick={handleDispatchClick}
             size="sm"
@@ -800,19 +714,6 @@ export default function RequestActions({ request, userRole, isCompact = false, o
           >
             <Truck className="h-4 w-4" />
             Mark as Dispatched
-          </Button>
-        )}
-
-        {/* Mark as Received */}
-        {canCoordinatorReceive && (
-          <Button
-            onClick={handleMarkReceivedClick}
-            size="sm"
-            disabled={markAsReceived.isPending}
-            className="bg-teal-600 hover:bg-teal-700 gap-2"
-          >
-            {markAsReceived.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
-            Mark as Received
           </Button>
         )}
       </div>
@@ -823,9 +724,10 @@ export default function RequestActions({ request, userRole, isCompact = false, o
         {request.status === 'approved' && 'Assign this request to a maker to begin production.'}
         {request.status === 'assigned' && 'Start production on behalf of the maker.'}
         {request.status === 'in_production' && 'Mark as ready on behalf of the maker.'}
-        {request.status === 'ready' && isSelfPickup && 'Sample is ready. Mark as received when picked up.'}
-        {request.status === 'ready' && !isSelfPickup && 'Sample is ready. Mark as dispatched when sent.'}
-        {request.status === 'dispatched' && 'Sample dispatched. Mark as received on delivery.'}
+        {request.status === 'ready' && request.pickup_responsibility === 'self_pickup' && 'Sample is ready. The requester will confirm pickup.'}
+        {request.status === 'ready' && request.pickup_responsibility === 'field_boy' && 'Sample is ready. The dispatcher will pick it up.'}
+        {request.status === 'ready' && coordinatorDispatchMode && 'Sample is ready. Mark as dispatched when sent.'}
+        {request.status === 'dispatched' && 'Sample dispatched. The requester will confirm receipt.'}
       </p>
 
       {renderDialogs()}

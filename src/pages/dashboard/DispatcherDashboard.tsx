@@ -3,23 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useDispatcherStats,
   useFieldBoyReadyRequests,
   useDispatcherHistory,
-  useUpdateRequestStatus,
 } from '@/lib/api/requests';
 import TrackingDialog from '@/components/requests/TrackingDialog';
+import DispatchDialog from '@/components/requests/DispatchDialog';
 import { toast } from 'sonner';
 import {
   Package,
@@ -28,7 +19,6 @@ import {
   MapPin,
   Phone,
   User,
-  Loader2,
   LogOut,
   Calendar,
   RefreshCw,
@@ -73,11 +63,11 @@ export default function DispatcherDashboard() {
   const { data: readyRequests, isLoading: readyLoading, refetch: refetchReady } = useFieldBoyReadyRequests();
   const { data: todayHistory, isLoading: todayLoading, refetch: refetchToday } = useDispatcherHistory(profile?.id, 'today');
   const { data: allHistory, isLoading: allLoading, refetch: refetchAll } = useDispatcherHistory(profile?.id, 'all');
-  const updateStatus = useUpdateRequestStatus();
 
-  // Dispatch confirmation dialog
+  // Dispatch confirmation dialog — opens the unified DispatchDialog
+  // (mode = field_boy) so the dispatcher can upload pickup photos and
+  // pick a field boy from the hardcoded roster.
   const [dispatchTarget, setDispatchTarget] = useState<Request | null>(null);
-  const [dispatchNotes, setDispatchNotes] = useState('');
 
   // Refreshing state
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -102,29 +92,6 @@ export default function DispatcherDashboard() {
   const handleDispatchClick = (request: Request, e: React.MouseEvent) => {
     e.stopPropagation();
     setDispatchTarget(request);
-    setDispatchNotes('');
-  };
-
-  const handleConfirmDispatch = async () => {
-    if (!dispatchTarget) return;
-
-    try {
-      await updateStatus.mutateAsync({
-        requestId: dispatchTarget.id,
-        status: 'dispatched',
-        dispatchNotes: dispatchNotes.trim() || undefined,
-      });
-      toast.success(
-        <div>
-          <p className="font-bold">Dispatched!</p>
-          <p className="text-sm">{dispatchTarget.request_number} marked as dispatched.</p>
-        </div>
-      );
-      setDispatchTarget(null);
-      setDispatchNotes('');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to dispatch');
-    }
   };
 
   const handleCardClick = (requestId: string) => {
@@ -538,12 +505,14 @@ export default function DispatcherDashboard() {
                       )}
                     </div>
 
-                    {/* Action Button — Only for Ready tab */}
+                    {/* Action Button — Only for Ready tab.
+                        The opening flow goes through DispatchDialog now, so
+                        any disabled-while-pending state is owned by the
+                        dialog itself; the trigger button just opens it. */}
                     {!isHistoryTab && (
                       <div className="px-4 pb-4">
                         <Button
                           onClick={(e) => handleDispatchClick(request, e)}
-                          disabled={updateStatus.isPending}
                           className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold gap-2 rounded-lg"
                         >
                           <Truck className="h-4 w-4" />
@@ -573,79 +542,25 @@ export default function DispatcherDashboard() {
       </main>
 
       {/* ============================================ */}
-      {/* DISPATCH CONFIRMATION DIALOG */}
+      {/* DISPATCH CONFIRMATION DIALOG (field_boy schema) */}
       {/* ============================================ */}
-      <Dialog open={!!dispatchTarget} onOpenChange={(open) => { if (!open) setDispatchTarget(null); }}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-teal-700">
-              <Truck className="h-5 w-5" />
-              Confirm Dispatch
-            </DialogTitle>
-            <DialogDescription>
-              Mark <strong>{dispatchTarget?.request_number}</strong> as dispatched?
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Destination summary */}
-          {dispatchTarget && (
-            <div className="py-2">
-              <div className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <MapPin className="h-4 w-4 text-teal-600 mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800">
-                    {dispatchTarget.delivery_address || 'No address'}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {dispatchTarget.creator?.full_name} · {dispatchTarget.client_contact_name}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <label className="text-xs font-medium text-slate-600 block mb-1.5">
-                  Dispatch Notes (optional)
-                </label>
-                <Textarea
-                  value={dispatchNotes}
-                  onChange={(e) => setDispatchNotes(e.target.value)}
-                  placeholder="e.g., Handed to reception, Tracking ID..."
-                  rows={2}
-                  className="text-sm border-slate-200 resize-none"
-                />
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setDispatchTarget(null)}
-              disabled={updateStatus.isPending}
-              className="flex-1 sm:flex-initial"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmDispatch}
-              disabled={updateStatus.isPending}
-              className="flex-1 sm:flex-initial bg-teal-600 hover:bg-teal-700"
-            >
-              {updateStatus.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Dispatching...
-                </>
-              ) : (
-                <>
-                  <Truck className="mr-2 h-4 w-4" />
-                  Confirm Dispatch
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* The legacy inline dialog (notes only) was replaced in 2026-06
+          with the unified DispatchDialog, which uploads pickup photos +
+          captures the field-boy assignment as structured metadata. */}
+      {dispatchTarget && (
+        <DispatchDialog
+          request={dispatchTarget}
+          mode="field_boy"
+          open={!!dispatchTarget}
+          onOpenChange={(o) => { if (!o) setDispatchTarget(null); }}
+          onDispatched={() => {
+            void refetchStats();
+            void refetchReady();
+            void refetchToday();
+            void refetchAll();
+          }}
+        />
+      )}
     </div>
   );
 }

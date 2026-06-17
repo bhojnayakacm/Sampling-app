@@ -34,6 +34,7 @@ import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
+import ReceiverActions from '@/components/requests/ReceiverActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 import EditRequiredByModal from '@/components/requests/EditRequiredByModal';
 import RequiredByHistory from '@/components/requests/RequiredByHistory';
@@ -82,6 +83,7 @@ export default function RequestDetail() {
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
+  const isRequester = profile?.role === 'requester' && profile?.id === request?.created_by;
   const hideClientContact = ['maker', 'dispatcher'].includes(profile?.role || '');
 
   // Size edits are only permitted while the sample is still in early-stage
@@ -980,13 +982,62 @@ export default function RequestDetail() {
           </div>
         )}
 
-        {request.dispatch_notes && (request.status === 'dispatched' || request.status === 'received') && (
+        {(request.dispatch_notes || request.dispatch_metadata) && (request.status === 'dispatched' || request.status === 'received') && (
           <Alert className="mb-3 border border-emerald-200 bg-emerald-50 rounded-xl">
             <div className="flex items-start gap-2">
               <Truck className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <AlertTitle className="text-sm font-medium text-slate-900">Dispatch Info</AlertTitle>
-                <AlertDescription className="text-sm text-slate-600 mt-0.5">{request.dispatch_notes}</AlertDescription>
+                {request.dispatch_notes && (
+                  <AlertDescription className="text-sm text-slate-600 mt-0.5">{request.dispatch_notes}</AlertDescription>
+                )}
+                {/* Surface the structured dispatch metadata when available
+                    (migration 1016). Driver / courier / field-boy facts get a
+                    short fact line, followed by the package-photo thumbnails.
+                    The thumbnails are gone once the request hits `received`
+                    because the cleanup edge function wipes the bucket; we
+                    keep this block rendering for `received` so the textual
+                    audit (courier name, driver phone) stays visible. */}
+                {request.dispatch_metadata && (
+                  <div className="mt-2 space-y-2">
+                    {request.dispatch_metadata.type === 'courier' && (
+                      <p className="text-[11px] text-emerald-700">
+                        <span className="font-semibold">Courier:</span>{' '}
+                        {request.dispatch_metadata.courier_service === 'Other'
+                          ? request.dispatch_metadata.courier_other_name
+                          : request.dispatch_metadata.courier_service}
+                      </p>
+                    )}
+                    {request.dispatch_metadata.type === 'company_vehicle' && (
+                      <p className="text-[11px] text-emerald-700">
+                        <span className="font-semibold">Driver:</span>{' '}
+                        {request.dispatch_metadata.driver_name}
+                        {request.dispatch_metadata.driver_phone && ` · ${request.dispatch_metadata.driver_phone}`}
+                      </p>
+                    )}
+                    {request.dispatch_metadata.type === 'field_boy' && (
+                      <p className="text-[11px] text-emerald-700">
+                        <span className="font-semibold">Field boy:</span>{' '}
+                        {request.dispatch_metadata.field_boy}
+                      </p>
+                    )}
+                    {request.dispatch_metadata.images && request.dispatch_metadata.images.length > 0 && (
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 pt-1">
+                        {request.dispatch_metadata.images.map((url) => (
+                          <button
+                            key={url}
+                            type="button"
+                            onClick={() => setPreviewImage(url)}
+                            className="aspect-square rounded-md overflow-hidden border border-emerald-200 hover:border-emerald-400 transition-colors"
+                            aria-label="View dispatch photo"
+                          >
+                            <img src={url} alt="Dispatch photo" className="h-full w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </Alert>
@@ -1804,6 +1855,13 @@ export default function RequestDetail() {
         )}
       </main>
 
+      {/* ======== STICKY REQUESTER ACTION BAR ========
+          ReceiverActions self-gates on status — it renders nothing
+          unless the request is ready+self_pickup or dispatched. So
+          mounting it unconditionally for requesters is cheap and
+          keeps the visibility logic localised to the component. */}
+      {isRequester && <ReceiverActions request={request} />}
+
       {/* ======== STICKY COORDINATOR ACTION BAR ======== */}
       {isCoordinator && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-20 safe-area-pb">
@@ -1820,8 +1878,10 @@ export default function RequestDetail() {
                     {request.status === 'approved' && 'Assign to maker'}
                     {request.status === 'assigned' && 'Start production'}
                     {request.status === 'in_production' && 'Mark as ready'}
-                    {request.status === 'ready' && (isSelfPickup ? 'Mark as received' : 'Dispatch sample')}
-                    {request.status === 'dispatched' && 'Confirm receipt'}
+                    {request.status === 'ready' && request.pickup_responsibility === 'self_pickup' && 'Awaiting pickup by requester'}
+                    {request.status === 'ready' && request.pickup_responsibility === 'field_boy' && 'Awaiting dispatcher pickup'}
+                    {request.status === 'ready' && !['self_pickup', 'field_boy'].includes(request.pickup_responsibility) && 'Dispatch sample'}
+                    {request.status === 'dispatched' && 'Awaiting requester confirmation'}
                     {!['pending_approval', 'approved', 'ready', 'assigned', 'in_production', 'dispatched'].includes(request.status) && `Status: ${request.status.replace(/_/g, ' ')}`}
                   </p>
                 </div>

@@ -97,10 +97,12 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
   // Check if self pickup - skip dispatched step
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
-  // Both requester and coordinator can mark as received
+  // 2026-06 refactor: ONLY the requester may mark a request as received.
+  // The coordinator's Mark Received button was removed from both this
+  // timeline dialog AND from RequestActions; the primary surface is now
+  // the sticky <ReceiverActions /> bar on RequestDetail for requesters.
   const isRequester = profile?.id === request.created_by;
-  const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
-  const canMarkReceived = (isRequester || isCoordinator) && (
+  const canMarkReceived = isRequester && (
     request.status === 'dispatched' ||
     (request.status === 'ready' && isSelfPickup)
   );

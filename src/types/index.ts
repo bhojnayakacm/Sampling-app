@@ -257,8 +257,19 @@ export interface Request {
   // Coordinator message (for approval/rejection notes)
   coordinator_message: string | null;
 
-  // Dispatch notes (for courier/tracking info)
+  // Dispatch notes (for courier/tracking info — legacy denormalised label).
+  // The structured payload now lives on dispatch_metadata; dispatch_notes is
+  // still written for any UI that surfaces a one-line dispatch summary.
   dispatch_notes: string | null;
+
+  // Structured dispatch payload — added in migration 1016. Holds the mode
+  // (courier / company_vehicle / field_boy), the uploaded image URLs, and
+  // mode-specific fields (courier service, driver name, field-boy name,
+  // etc.). NULL until the request enters the dispatched state. Note that
+  // requests.dispatch_metadata->images is wiped by the cleanup edge
+  // function once the request transitions to `received`, but the rest of
+  // the payload is preserved as audit history.
+  dispatch_metadata: DispatchMetadata | null;
 
   // Timestamps
   created_at: string;
@@ -374,6 +385,41 @@ export interface RequestTimeline {
     changed_by: string | null;
     changer_name: string | null;
   }>;
+}
+
+// ============================================================
+// DISPATCH METADATA (migration 1016)
+// ============================================================
+
+// Delivery mode used by the dispatch dialog. Derived from
+// pickup_responsibility at the time of dispatch — we lock in the mode
+// inside the metadata so a later edit of pickup_responsibility can't
+// rewrite history.
+export type DispatchMode = 'courier' | 'company_vehicle' | 'field_boy';
+
+// Structured shape of requests.dispatch_metadata. The DB column is
+// JSONB without a schema constraint, so this interface is the
+// authoritative contract for both writes (DispatchDialog) and reads
+// (RequestDetail, ReceiverActions).
+export interface DispatchMetadata {
+  // What kind of dispatch this was.
+  type: DispatchMode;
+  // Public URLs into the dispatch-images bucket. Emptied by the
+  // cleanup edge function once the request is received.
+  images: string[];
+  // Optional free-text dispatch note from the user.
+  note?: string;
+  // Audit: who clicked Confirm Dispatch.
+  dispatched_by_id?: string | null;
+  dispatched_by_name?: string | null;
+  // Courier mode
+  courier_service?: string;     // One of the hardcoded options OR 'Other'
+  courier_other_name?: string;  // Filled only when courier_service === 'Other'
+  // Company-vehicle mode
+  driver_name?: string;
+  driver_phone?: string;
+  // Field-boy mode
+  field_boy?: string;           // Pre-formatted "Name - Phone" string
 }
 
 // ============================================================
