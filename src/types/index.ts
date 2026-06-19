@@ -401,12 +401,20 @@ export type DispatchMode = 'courier' | 'company_vehicle' | 'field_boy';
 // JSONB without a schema constraint, so this interface is the
 // authoritative contract for both writes (DispatchDialog) and reads
 // (RequestDetail, ReceiverActions).
+//
+// `type` and `images` are optional because the JSONB blob can also
+// hold pre-dispatch state — e.g. a `reschedule_reason` written by the
+// coordinator when they change `required_by` BEFORE the request has
+// ever been dispatched. At true dispatch time the DispatchDialog
+// always populates both fields.
 export interface DispatchMetadata {
-  // What kind of dispatch this was.
-  type: DispatchMode;
+  // What kind of dispatch this was. Set by DispatchDialog at the moment
+  // of dispatch; absent on pre-dispatch reschedule writes.
+  type?: DispatchMode;
   // Public URLs into the dispatch-images bucket. Emptied by the
-  // cleanup edge function once the request is received.
-  images: string[];
+  // cleanup edge function once the request is received. Absent on
+  // pre-dispatch writes.
+  images?: string[];
   // Optional free-text dispatch note from the user.
   note?: string;
   // Audit: who clicked Confirm Dispatch.
@@ -420,7 +428,31 @@ export interface DispatchMetadata {
   driver_phone?: string;
   // Field-boy mode
   field_boy?: string;           // Pre-formatted "Name - Phone" string
+
+  // Latest reschedule annotation written when the coordinator pushes
+  // the required_by deadline via EditRequiredByModal. Holds either one
+  // of the predefined dropdown labels OR — when 'Other' is selected —
+  // the free-text reason the coordinator typed. The full audit trail
+  // (every reason, every change, with timestamps) still lives in
+  // requests.required_by_history; this field is the structured cache
+  // of just the most recent reschedule reason.
+  reschedule_reason?: string;
 }
+
+// Predefined reschedule-reason options. Shown in the dropdown whenever
+// a coordinator pushes the required_by deadline — both inside
+// EditRequiredByModal (post-approval edits) and inside the Approve
+// dialog in RequestActions (approval-time date changes). Kept as a
+// const tuple so the dropdown value type is literally one of these
+// strings. 'Other' is the sentinel that opens a free-text textarea.
+export const RESCHEDULE_REASONS = [
+  'Insufficient manpower / Staff on leave',
+  'No personnel currently available for courier',
+  'Product temporarily unavailable, arranging shortly',
+  'Other',
+] as const;
+
+export type RescheduleReason = (typeof RESCHEDULE_REASONS)[number];
 
 // ============================================================
 // REQUIRED BY (DEADLINE) HISTORY

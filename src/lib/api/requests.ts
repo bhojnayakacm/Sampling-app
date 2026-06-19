@@ -1177,16 +1177,29 @@ export function useUpdateRequiredBy() {
       newDate,
       reason,
       changedByName,
+      rescheduleReason,
     }: {
       requestId: string;
       newDate: string;
       reason: string;
       changedByName: string;
+      /**
+       * Optional structured reschedule label written into
+       * `dispatch_metadata.reschedule_reason`. Holds either one of the
+       * predefined dropdown options OR — when the coordinator picks
+       * 'Other' — the free-text reason. Pass `undefined` from legacy
+       * call sites (e.g. the approve-with-date-change flow) to skip
+       * the dispatch_metadata write entirely.
+       */
+      rescheduleReason?: string;
     }) => {
-      // First, fetch the current request to get existing history and old date
+      // First, fetch the current request to get existing history, old date,
+      // and (when we're about to write a structured reschedule_reason) the
+      // current dispatch_metadata so we can merge into it instead of
+      // overwriting any post-dispatch data.
       const { data: currentRequest, error: fetchError } = await supabase
         .from('requests')
-        .select('required_by, required_by_history')
+        .select('required_by, required_by_history, dispatch_metadata')
         .eq('id', requestId)
         .single();
 
@@ -1205,19 +1218,34 @@ export function useUpdateRequiredBy() {
       const existingHistory: RequiredByHistoryEntry[] = currentRequest.required_by_history || [];
       const newHistory = [...existingHistory, historyEntry];
 
-      // Update the request with new date and history. We also write the
-      // reason into the denormalised `required_by_edit_reason` column
-      // (migration 1014) so the EditedInfoTooltip can render the latest
-      // reason without deserialising the full history JSON.
+      // Build the base update payload. We always write the denormalised
+      // `required_by_edit_reason` column (migration 1014) so the
+      // EditedInfoTooltip can render the latest reason without
+      // deserialising the full history JSON.
+      const updates: Record<string, unknown> = {
+        required_by: newDate,
+        required_by_history: newHistory,
+        required_by_edit_reason: reason.trim(),
+        has_schedule_warning: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      // If the caller passed a structured reschedule reason, merge it into
+      // dispatch_metadata. The merge preserves every existing dispatch
+      // field (courier name, driver number, image URLs etc.) so we don't
+      // clobber post-dispatch data when a coordinator pushes the deadline
+      // after dispatch has already happened.
+      if (typeof rescheduleReason === 'string' && rescheduleReason.trim()) {
+        const currentMetadata = (currentRequest.dispatch_metadata ?? {}) as Record<string, unknown>;
+        updates.dispatch_metadata = {
+          ...currentMetadata,
+          reschedule_reason: rescheduleReason.trim(),
+        };
+      }
+
       const { data, error } = await supabase
         .from('requests')
-        .update({
-          required_by: newDate,
-          required_by_history: newHistory,
-          required_by_edit_reason: reason.trim(),
-          has_schedule_warning: true,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', requestId)
         .select()
         .single();

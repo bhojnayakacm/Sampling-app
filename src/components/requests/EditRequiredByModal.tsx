@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,10 +11,18 @@ import {
 import DateTimePicker from '@/components/ui/date-time-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useUpdateRequiredBy } from '@/lib/api/requests';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Request, RequestStatus } from '@/types';
+import type { Request, RequestStatus, RescheduleReason } from '@/types';
+import { RESCHEDULE_REASONS } from '@/types';
 import { Calendar, Loader2, AlertCircle } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
 
@@ -45,7 +53,10 @@ export default function EditRequiredByModal({
   const updateRequiredBy = useUpdateRequiredBy();
 
   const [newDate, setNewDate] = useState('');
-  const [reason, setReason] = useState('');
+  // Structured reschedule reason — empty until the coordinator picks one.
+  const [reasonSelection, setReasonSelection] = useState<RescheduleReason | ''>('');
+  // Free-text bucket, only used when reasonSelection === 'Other'.
+  const [reasonOther, setReasonOther] = useState('');
 
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
   const editableStatuses = getEditableStatuses(isSelfPickup);
@@ -55,7 +66,8 @@ export default function EditRequiredByModal({
   useEffect(() => {
     if (open && request.required_by) {
       setNewDate(request.required_by);
-      setReason('');
+      setReasonSelection('');
+      setReasonOther('');
     }
   }, [open, request.required_by]);
 
@@ -66,15 +78,30 @@ export default function EditRequiredByModal({
     return newDateISO !== request.required_by;
   };
 
-  const handleSave = async () => {
-    // Validate
-    if (!reason.trim()) {
-      toast.error('Please provide a reason for the change');
-      return;
-    }
+  // Resolve the final reason string. For predefined options it's just
+  // the option label; for 'Other' it's whatever the coordinator typed.
+  // useMemo so the disabled-state check on Save updates reactively.
+  const resolvedReason = useMemo(() => {
+    if (!reasonSelection) return '';
+    if (reasonSelection === 'Other') return reasonOther.trim();
+    return reasonSelection;
+  }, [reasonSelection, reasonOther]);
 
+  // Single source of truth for whether Save is allowed.
+  const isReasonValid = resolvedReason.length > 0;
+  const canSubmit = isDateChanged() && isReasonValid;
+
+  const handleSave = async () => {
     if (!isDateChanged()) {
       toast.error('Please select a different date');
+      return;
+    }
+    if (!reasonSelection) {
+      toast.error('Please select a reason for the change');
+      return;
+    }
+    if (reasonSelection === 'Other' && !reasonOther.trim()) {
+      toast.error('Please specify the reason');
       return;
     }
 
@@ -83,8 +110,15 @@ export default function EditRequiredByModal({
       await updateRequiredBy.mutateAsync({
         requestId: request.id,
         newDate: newDateISO,
-        reason: reason.trim(),
+        // Resolved string still gets written to required_by_edit_reason
+        // and the history audit — the EditedInfoTooltip and the
+        // RequiredByHistory list don't need to change.
+        reason: resolvedReason,
         changedByName: profile?.full_name || 'Coordinator',
+        // Same resolved string also goes into the structured JSONB cache
+        // (dispatch_metadata.reschedule_reason). The hook handles the
+        // safe merge with any existing dispatch fields.
+        rescheduleReason: resolvedReason,
       });
       toast.success('Deadline updated successfully');
       onOpenChange(false);
@@ -95,7 +129,8 @@ export default function EditRequiredByModal({
 
   const handleClose = () => {
     setNewDate('');
-    setReason('');
+    setReasonSelection('');
+    setReasonOther('');
     onOpenChange(false);
   };
 
@@ -177,35 +212,72 @@ export default function EditRequiredByModal({
               />
             </div>
 
-            {/* Reason (Mandatory) */}
-            <div className="space-y-2">
-              <Label htmlFor="reason" className="text-sm font-medium text-slate-700">
-                Reason for Change <span className="text-red-500">*</span>
-              </Label>
-              <Textarea
-                id="reason"
-                placeholder="E.g., Client requested extension, Production delay, Material shortage..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={3}
-                className="resize-none border-slate-200"
-              />
-              <p className="text-xs text-slate-500">
-                This reason will be recorded in the deadline history for accountability.
-              </p>
-            </div>
-
-            {/* Change Preview */}
+            {/* The change preview + reason picker only surface ONCE the
+                 coordinator has actually picked a different date/time.
+                 Keeping them hidden while the picker still shows the
+                 original value prevents premature validation noise and
+                 keeps the dialog calm on first open. */}
             {isDateChanged() && (
-              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <div className="text-xs text-amber-700">
-                  <span className="font-medium">Change Preview:</span>
-                  <span className="block mt-1">
-                    {formatDateTime(request.required_by)} → {formatDateTime(new Date(newDate).toISOString())}
-                  </span>
+              <>
+                {/* Change Preview */}
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-xs text-amber-700">
+                    <span className="font-medium">Change Preview:</span>
+                    <span className="block mt-1">
+                      {formatDateTime(request.required_by)} → {formatDateTime(new Date(newDate).toISOString())}
+                    </span>
+                  </div>
                 </div>
-              </div>
+
+                {/* Reason (Mandatory) — Select dropdown with conditional
+                     free-text fallback. The resolved value (label OR
+                     custom text) is what gets persisted; the Other-branch
+                     text is only kept in component state until submit. */}
+                <div className="space-y-2">
+                  <Label htmlFor="reschedule-reason" className="text-sm font-medium text-slate-700">
+                    Reason for Change <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={reasonSelection}
+                    onValueChange={(v) => setReasonSelection(v as RescheduleReason)}
+                  >
+                    <SelectTrigger
+                      id="reschedule-reason"
+                      className="h-10 border-slate-200"
+                      aria-required="true"
+                    >
+                      <SelectValue placeholder="Choose a reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RESCHEDULE_REASONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {reasonSelection === 'Other' && (
+                    <div className="space-y-1.5 pt-1">
+                      <Label htmlFor="reschedule-reason-other" className="text-xs font-medium text-slate-600">
+                        Please specify <span className="text-red-500">*</span>
+                      </Label>
+                      <Textarea
+                        id="reschedule-reason-other"
+                        placeholder="E.g., Client requested extension, customs hold-up..."
+                        value={reasonOther}
+                        onChange={(e) => setReasonOther(e.target.value)}
+                        rows={3}
+                        className="resize-none border-slate-200"
+                        autoFocus
+                      />
+                    </div>
+                  )}
+
+                  <p className="text-xs text-slate-500">
+                    This reason will be recorded in the deadline history for accountability.
+                  </p>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -221,7 +293,7 @@ export default function EditRequiredByModal({
           {canEdit && (
             <Button
               onClick={handleSave}
-              disabled={updateRequiredBy.isPending || !reason.trim() || !isDateChanged()}
+              disabled={updateRequiredBy.isPending || !canSubmit}
               className="bg-indigo-600 hover:bg-indigo-700"
             >
               {updateRequiredBy.isPending ? (

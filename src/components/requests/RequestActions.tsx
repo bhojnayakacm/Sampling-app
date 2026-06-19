@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,7 +22,8 @@ import { useMakers } from '@/lib/api/users';
 import { useAssignRequest, useUpdateRequestStatus, useUpdateRequiredBy } from '@/lib/api/requests';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Request, DispatchMode } from '@/types';
+import type { Request, DispatchMode, RescheduleReason } from '@/types';
+import { RESCHEDULE_REASONS } from '@/types';
 import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play } from 'lucide-react';
 import DispatchDialog from './DispatchDialog';
 import { formatDateTime } from '@/lib/utils';
@@ -49,16 +50,22 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   const [selectedMaker, setSelectedMaker] = useState('');
   const [message, setMessage] = useState('');
 
-  // Required By date editing state (for approval dialog)
+  // Required By date editing state (for approval dialog). Mirrors the
+  // EditRequiredByModal pattern: a Select dropdown of predefined
+  // reschedule reasons, with a free-text textarea that only renders
+  // when the coordinator picks 'Other'. The dropdown itself only
+  // surfaces once the date has actually been modified (Issue #2).
   const [editedRequiredBy, setEditedRequiredBy] = useState('');
-  const [dateChangeReason, setDateChangeReason] = useState('');
+  const [approveReasonSelection, setApproveReasonSelection] = useState<RescheduleReason | ''>('');
+  const [approveReasonOther, setApproveReasonOther] = useState('');
   const originalRequiredBy = request.required_by;
 
   // Initialize editedRequiredBy when dialog opens (store as ISO string)
   useEffect(() => {
     if (approveDialogOpen && request.required_by) {
       setEditedRequiredBy(request.required_by);
-      setDateChangeReason('');
+      setApproveReasonSelection('');
+      setApproveReasonOther('');
     }
   }, [approveDialogOpen, request.required_by]);
 
@@ -71,7 +78,19 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   };
 
   const isDateChanged = isRequiredByModified();
-  const isApprovalBlocked = isDateChanged && !dateChangeReason.trim();
+
+  // Resolve the reschedule reason exactly the way EditRequiredByModal
+  // does: predefined-option label OR the free-text Other-branch input.
+  const resolvedApproveReason = useMemo(() => {
+    if (!approveReasonSelection) return '';
+    if (approveReasonSelection === 'Other') return approveReasonOther.trim();
+    return approveReasonSelection;
+  }, [approveReasonSelection, approveReasonOther]);
+
+  // Approval is blocked while the date is changed but no valid reason
+  // has been provided. The disabled state on Save and the imperative
+  // validation in handleApprove both read from this.
+  const isApprovalBlocked = isDateChanged && !resolvedApproveReason;
 
   const handleAssign = async () => {
     if (!selectedMaker) {
@@ -98,20 +117,30 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   };
 
   const handleApprove = async () => {
-    if (isDateChanged && !dateChangeReason.trim()) {
-      toast.error('Please provide a reason for the date change');
-      return;
+    if (isDateChanged) {
+      if (!approveReasonSelection) {
+        toast.error('Please select a reason for the date change');
+        return;
+      }
+      if (approveReasonSelection === 'Other' && !approveReasonOther.trim()) {
+        toast.error('Please specify the reason');
+        return;
+      }
     }
 
     try {
       // If required_by date was modified, update it with history log
+      // AND structured dispatch_metadata.reschedule_reason — matching
+      // EditRequiredByModal's persistence path so the audit story is
+      // identical regardless of which surface kicked off the change.
       if (isDateChanged) {
         const newDate = new Date(editedRequiredBy).toISOString();
         await updateRequiredBy.mutateAsync({
           requestId: request.id,
           newDate: newDate,
-          reason: dateChangeReason.trim(),
+          reason: resolvedApproveReason,
           changedByName: profile?.full_name || 'Coordinator',
+          rescheduleReason: resolvedApproveReason,
         });
       }
 
@@ -123,7 +152,8 @@ export default function RequestActions({ request, userRole, isCompact = false, o
       toast.success('Request approved successfully!');
       setApproveDialogOpen(false);
       setEditedRequiredBy('');
-      setDateChangeReason('');
+      setApproveReasonSelection('');
+      setApproveReasonOther('');
     } catch (error: any) {
       toast.error(error.message || 'Failed to approve request');
     }
@@ -379,19 +409,50 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                       </div>
                     </div>
 
+                    {/* Reason picker — mirrors EditRequiredByModal so
+                         the audit story is identical regardless of
+                         which surface kicked off the change. Only
+                         renders once the date is actually different
+                         (this whole block is inside `isDateChanged`). */}
                     <div className="space-y-1.5 pt-1">
-                      <Label htmlFor="date-change-reason" className="text-sm font-medium text-gray-700">
+                      <Label htmlFor="approve-reschedule-reason" className="text-sm font-medium text-gray-700">
                         Reason for Date Change <span className="text-red-500">*</span>
                       </Label>
-                      <Textarea
-                        id="date-change-reason"
-                        placeholder="E.g., Material shortage requires additional lead time"
-                        value={dateChangeReason}
-                        onChange={(e) => setDateChangeReason(e.target.value)}
-                        rows={3}
-                        className="resize-none"
-                        autoFocus
-                      />
+                      <Select
+                        value={approveReasonSelection}
+                        onValueChange={(v) => setApproveReasonSelection(v as RescheduleReason)}
+                      >
+                        <SelectTrigger
+                          id="approve-reschedule-reason"
+                          className="h-10 border-slate-200"
+                          aria-required="true"
+                        >
+                          <SelectValue placeholder="Choose a reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RESCHEDULE_REASONS.map((option) => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {approveReasonSelection === 'Other' && (
+                        <div className="space-y-1.5 pt-1">
+                          <Label htmlFor="approve-reschedule-reason-other" className="text-xs font-medium text-slate-600">
+                            Please specify <span className="text-red-500">*</span>
+                          </Label>
+                          <Textarea
+                            id="approve-reschedule-reason-other"
+                            placeholder="E.g., Material shortage requires additional lead time"
+                            value={approveReasonOther}
+                            onChange={(e) => setApproveReasonOther(e.target.value)}
+                            rows={3}
+                            className="resize-none"
+                            autoFocus
+                          />
+                        </div>
+                      )}
+
                       <p className="text-xs text-gray-500">
                         Required. This reason will be recorded in the deadline history.
                       </p>
@@ -407,7 +468,8 @@ export default function RequestActions({ request, userRole, isCompact = false, o
                 onClick={() => {
                   setApproveDialogOpen(false);
                   setEditedRequiredBy('');
-                  setDateChangeReason('');
+                  setApproveReasonSelection('');
+                  setApproveReasonOther('');
                 }}
                 disabled={updateStatus.isPending || updateRequiredBy.isPending}
               >
