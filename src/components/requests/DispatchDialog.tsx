@@ -257,8 +257,18 @@ export default function DispatchDialog({
   }, [mode]);
 
   // ── Validation ─────────────────────────────────────────────
+  // Photos are mandatory for courier + company_vehicle (coordinator
+  // surfaces — the package gets handed to a third party and the
+  // photos are the only proof of condition at hand-off). For the
+  // field_boy mode the dispatcher is often already on the move with
+  // a sample in hand, so we don't want a missing photo to block the
+  // status flip. Treat photos as optional in that mode.
+  const photosRequired = mode !== 'field_boy';
+
   const validationError = useMemo<string | null>(() => {
-    if (staged.length === 0) return 'Upload at least one photo of the package.';
+    if (photosRequired && staged.length === 0) {
+      return 'Upload at least one photo of the package.';
+    }
     switch (mode) {
       case 'courier':
         if (!courierService) return 'Choose the courier service.';
@@ -274,7 +284,7 @@ export default function DispatchDialog({
         if (!fieldBoy) return 'Choose a field boy.';
         return null;
     }
-  }, [staged.length, mode, courierService, courierOther, driverName, driverPhone, fieldBoy]);
+  }, [photosRequired, staged.length, mode, courierService, courierOther, driverName, driverPhone, fieldBoy]);
 
   // ── Upload helper ──────────────────────────────────────────
   /**
@@ -333,8 +343,11 @@ export default function DispatchDialog({
     setIsSubmitting(true);
 
     try {
-      // 1. Upload images.
-      const imageUrls = await uploadAll();
+      // 1. Upload images. Field-boy dispatch allows zero photos, so we
+      //    skip the storage round-trip entirely in that case rather than
+      //    relying on `Promise.all([])` returning [] — clearer intent
+      //    and saves a brief mutation lock on the bucket.
+      const imageUrls = staged.length === 0 ? [] : await uploadAll();
 
       // 2. Build the metadata payload — only set the fields relevant
       //    to the active mode so we don't carry stale data forward.
@@ -447,7 +460,12 @@ export default function DispatchDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-slate-700">
-                Package Photos <span className="text-red-500">*</span>
+                Package Photos{' '}
+                {photosRequired ? (
+                  <span className="text-red-500">*</span>
+                ) : (
+                  <span className="text-slate-400 font-normal">(Optional)</span>
+                )}
               </Label>
               <span className="text-[11px] text-slate-400">
                 {staged.length}/{MAX_IMAGES}
