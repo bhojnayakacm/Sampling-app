@@ -1318,6 +1318,58 @@ export function useEditItemSize() {
   });
 }
 
+// ============================================================
+// COORDINATOR — ITEM QUALITY EDITS
+// ============================================================
+
+// Mutation: silently edit the `quality` of a single request_item.
+// Wraps the SECURITY DEFINER RPC `coordinator_edit_item_quality`
+// installed by migration 1017. The RPC enforces:
+//   - caller role ∈ (coordinator, marble_coordinator, magro_coordinator, admin)
+//   - parent request must be in `pending_approval` (frozen otherwise)
+//   - original_quality is captured on first edit, then sticky
+//   - no reason required (this is a typo fix, by design)
+// The requester is notified by the AFTER UPDATE trigger
+// `trg_notify_quality_change` installed by the same migration —
+// no client-side notification call is needed here.
+export function useUpdateItemQuality() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      newQuality,
+      requestId,
+    }: {
+      itemId: string;
+      newQuality: string;
+      /** Optional but recommended — used purely to scope cache invalidation. */
+      requestId?: string;
+    }) => {
+      if (!newQuality || !newQuality.trim()) {
+        throw new Error('New quality must not be empty.');
+      }
+
+      const { data, error } = await supabase.rpc('coordinator_edit_item_quality', {
+        p_item_id:     itemId,
+        p_new_quality: newQuality.trim(),
+      });
+
+      if (error) throw error;
+      return { data, requestId };
+    },
+    onSuccess: ({ requestId }) => {
+      queryClient.invalidateQueries({ queryKey: ['request-with-items'] });
+      queryClient.invalidateQueries({ queryKey: ['request-items'] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      if (requestId) {
+        queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
+        queryClient.invalidateQueries({ queryKey: ['request-items', requestId] });
+      }
+    },
+  });
+}
+
 // Hook for dismissing schedule change warning
 // ============================================================
 // KIT UNPACKING

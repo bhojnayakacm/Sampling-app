@@ -52,8 +52,11 @@ const TITLE_BY_STATUS: Record<string, string> = {
 // event_type='required_by_change' when a coordinator alters the
 // deadline. Status-change calls (migration 1011) leave event_type
 // unset and continue to derive their title from TITLE_BY_STATUS.
+// Migration 1017 adds event_type='quality_change' for silent
+// coordinator typo fixes on request_items.quality.
 const TITLE_BY_EVENT: Record<string, string> = {
   required_by_change: 'Deadline Updated',
+  quality_change:     'Quality Updated',
 }
 
 interface RequesterPushBody {

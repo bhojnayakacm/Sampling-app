@@ -160,6 +160,12 @@ export interface RequestItemDB {
   size_edit_reason: string | null;
   original_size: string | null;
 
+  // Coordinator-driven quality edit audit (migration 1017). NULL until
+  // the first coordinator edit, then sticky — never overwritten on
+  // subsequent edits. The UI uses NULL/non-NULL as the "(Edited)" flag,
+  // so we never need a separate boolean column.
+  original_quality: string | null;
+
   // Kit support
   is_kit: boolean;
   is_unpacked: boolean;

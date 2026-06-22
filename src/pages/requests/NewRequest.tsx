@@ -30,6 +30,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText, Phone, User, X, AlertTriangle } from 'lucide-react';
+import { PRODUCT_QUALITIES_BY_KEY, type ProductTypeKey } from '@/lib/productData';
+import { titleCaseQuality } from '@/lib/utils';
 import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
@@ -311,6 +313,22 @@ function productToItemInput(
     qualityValue = product.selected_qualities[0];
   } else {
     qualityValue = product.quality;
+  }
+
+  // Custom-quality normalisation (added 2026-06): if the resolved
+  // quality is NOT one of the curated catalog entries, run it through
+  // titleCaseQuality so requester-typed strings like "abc", "ABC", and
+  // "Abc" all converge to "Abc". Catalog entries are intentionally
+  // skipped because their casing is authoritative — e.g. the marble
+  // catalog stores 'ARBESCATO VIOLA' and 'Forest  gold' in literal form
+  // to match the SKU register, and reformatting them would diverge from
+  // the spreadsheet source of truth.
+  if (qualityValue) {
+    const catalog = optionsKey ? PRODUCT_QUALITIES_BY_KEY[optionsKey as ProductTypeKey] : null;
+    const isCatalogEntry = !!catalog && catalog.includes(qualityValue);
+    if (!isCatalogEntry) {
+      qualityValue = titleCaseQuality(qualityValue);
+    }
   }
 
   // Hybrid Write: resolve "Other" selections to their custom text

@@ -29,9 +29,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useRequestWithItems, useDismissScheduleWarning, useEditItemSize } from '@/lib/api/requests';
+import { useRequestWithItems, useDismissScheduleWarning, useEditItemSize, useUpdateItemQuality } from '@/lib/api/requests';
 import { supabase } from '@/lib/supabase';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, titleCaseQuality } from '@/lib/utils';
 import RequestActions from '@/components/requests/RequestActions';
 import MakerActions from '@/components/requests/MakerActions';
 import ReceiverActions from '@/components/requests/ReceiverActions';
@@ -80,6 +80,7 @@ export default function RequestDetail() {
   const { data: request, isLoading, error } = useRequestWithItems(id);
   const dismissWarning = useDismissScheduleWarning();
   const editItemSize = useEditItemSize();
+  const editItemQuality = useUpdateItemQuality();
 
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
@@ -101,6 +102,16 @@ export default function RequestDetail() {
   const canEditItemSize = isCoordinator
     && !!request
     && SIZE_EDITABLE_STATUSES.includes(request.status);
+
+  // Quality edits are intentionally MORE restrictive than size edits:
+  // the quality of an item identifies what is actually being produced,
+  // so once a coordinator has approved the request the quality must
+  // not change. Past pending_approval, this affordance disappears
+  // entirely — the RPC (migration 1017) also enforces the same gate
+  // server-side as a defence in depth.
+  const canEditItemQuality = isCoordinator
+    && !!request
+    && request.status === 'pending_approval';
 
   // Role-aware back navigation
   const backDestination = profile?.role === 'requester' ? '/requests' : '/';
@@ -151,6 +162,52 @@ export default function RequestDetail() {
   const [editingSizeValue,  setEditingSizeValue]  = useState('');
   const [editingSizeCustom, setEditingSizeCustom] = useState(''); // when "Other"
   const [editingSizeReason, setEditingSizeReason] = useState('');
+
+  // Coordinator quality-edit state. Intentionally simpler than the size
+  // editor — quality edits don't take a reason, so we only track the
+  // active row id and the in-flight string. Inline (no modal): the
+  // input replaces the quality cell while editingQualityItemId is set.
+  const [editingQualityItemId, setEditingQualityItemId] = useState<string | null>(null);
+  const [editingQualityValue,  setEditingQualityValue]  = useState('');
+
+  const handleStartEditItemQuality = (item: RequestItemDB) => {
+    setEditingQualityItemId(item.id);
+    setEditingQualityValue(item.quality || '');
+  };
+
+  const handleCancelEditItemQuality = () => {
+    setEditingQualityItemId(null);
+    setEditingQualityValue('');
+  };
+
+  const handleSaveItemQuality = async (item: RequestItemDB) => {
+    // Apply the same title-case normalisation used by the requester's
+    // submission path so coordinator edits stay visually consistent
+    // with auto-formatted requester inputs.
+    const resolvedQuality = titleCaseQuality(editingQualityValue);
+
+    if (!resolvedQuality) {
+      toast.error('Please enter a quality name.');
+      return;
+    }
+    if (resolvedQuality === (item.quality || '')) {
+      // No-op — just close the editor.
+      handleCancelEditItemQuality();
+      return;
+    }
+
+    try {
+      await editItemQuality.mutateAsync({
+        itemId: item.id,
+        newQuality: resolvedQuality,
+        requestId: request?.id,
+      });
+      toast.success('Quality updated.');
+      handleCancelEditItemQuality();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update quality.');
+    }
+  };
 
   const handleStartEditItemSize = (item: RequestItemDB) => {
     const cat = item.product_type as RequestCategory;
@@ -588,6 +645,102 @@ export default function RequestDetail() {
   };
 
   // =============================================
+  // QUALITY CELL — display, "(Edited)" badge with original tooltip,
+  // inline editor (coordinator + pending_approval only), pencil icon.
+  // Used by both the desktop tables and the mobile ProductCard so the
+  // editing surface stays identical across viewports.
+  // =============================================
+  const QualityCell = ({
+    item,
+    className = '',
+  }: {
+    item: RequestItemDB;
+    /** Optional outer styling for the static text. */
+    className?: string;
+  }) => {
+    const isEditing = editingQualityItemId === item.id;
+    const wasEdited = !!item.original_quality;
+
+    if (isEditing) {
+      return (
+        <span className="inline-flex items-center gap-1.5 flex-wrap">
+          <input
+            type="text"
+            value={editingQualityValue}
+            onChange={(e) => setEditingQualityValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSaveItemQuality(item);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancelEditItemQuality();
+              }
+            }}
+            disabled={editItemQuality.isPending}
+            autoFocus
+            className="h-7 px-2 text-sm font-medium text-slate-900 bg-white border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-300 min-w-[140px]"
+            aria-label="Edit quality"
+          />
+          <button
+            type="button"
+            onClick={() => handleSaveItemQuality(item)}
+            disabled={editItemQuality.isPending}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+            aria-label="Save quality"
+            title="Save"
+          >
+            {editItemQuality.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={handleCancelEditItemQuality}
+            disabled={editItemQuality.isPending}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-50 disabled:opacity-50"
+            aria-label="Cancel quality edit"
+            title="Cancel"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </span>
+      );
+    }
+
+    return (
+      <span className={`inline-flex items-center gap-1 flex-wrap ${className}`}>
+        <span>{item.quality}</span>
+        {wasEdited && (
+          <>
+            <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">
+              Edited
+            </span>
+            <EditedInfoTooltip
+              label="Original quality"
+              reason={item.original_quality || ''}
+              ariaLabel="View original quality"
+            />
+          </>
+        )}
+        {canEditItemQuality && (
+          <button
+            type="button"
+            onClick={() => handleStartEditItemQuality(item)}
+            className="ml-0.5 p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+            aria-label="Edit item quality"
+            title="Edit quality"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+      </span>
+    );
+  };
+
+  // =============================================
   // MOBILE PRODUCT CARD
   // =============================================
   const ProductCard = ({ item, index }: { item: RequestItemDB; index: number }) => {
@@ -725,7 +878,9 @@ export default function RequestDetail() {
               {index}
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900 truncate">{item.quality}</p>
+              <div className="text-sm font-semibold text-slate-900">
+                <QualityCell item={item} />
+              </div>
               <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1 flex-wrap">
                 {/* Thickness removed in 2026-06 refactor — mobile spec line shows size + finish. */}
                 <span>{[item.sample_size, showFinish && item.finish ? item.finish : null].filter(Boolean).join(' · ')}</span>
@@ -1238,7 +1393,9 @@ export default function RequestDetail() {
                                   {group.items.map((item, i) => (
                                     <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-50">
                                       <TableCell className="text-sm font-medium text-slate-400">{groupStartIndex + i + 1}</TableCell>
-                                      <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
+                                      <TableCell className="text-sm text-slate-900 font-medium">
+                                        <QualityCell item={item} />
+                                      </TableCell>
                                       <TableCell className="text-sm text-slate-600">
                                         <span className="inline-flex items-center gap-1 flex-wrap">
                                           <span>{item.sample_size}</span>
@@ -1285,7 +1442,9 @@ export default function RequestDetail() {
                             sortedItems.map((item, index) => (
                               <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-50">
                                 <TableCell className="text-sm font-medium text-slate-400">{index + 1}</TableCell>
-                                <TableCell className="text-sm text-slate-900 font-medium">{item.quality}</TableCell>
+                                <TableCell className="text-sm text-slate-900 font-medium">
+                                  <QualityCell item={item} />
+                                </TableCell>
                                 <TableCell className="text-sm text-slate-600">
                                   <span className="inline-flex items-center gap-1 flex-wrap">
                                     <span>{item.sample_size}</span>
