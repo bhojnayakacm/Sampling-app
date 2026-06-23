@@ -31,8 +31,18 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
   const handleStatusUpdate = async (newStatus: string) => {
     // Deadline compliance: block overdue requests for makers, but only
     // for transitions that aren't already terminal physical-work states.
+    //
+    // Belt-and-suspenders requester guard: this toast text is targeted at
+    // makers ("contact the Coordinator..."). RequestDetail's render gate
+    // (`isMaker && assigned_to === profile.id`) should already prevent
+    // this component from mounting for a requester, but if a future
+    // regression loosens that gate — or if a profile with role
+    // 'requester' is somehow assigned to the request — we must not fire
+    // a maker-targeted deadline block at the requester. Requesters
+    // confirming receipt should NEVER be blocked here.
+    const isRequesterCaller = userRole === 'requester';
     const bypassDeadline = DEADLINE_BYPASS_STATUSES.has(newStatus);
-    if (!bypassDeadline && request.required_by && new Date() > new Date(request.required_by)) {
+    if (!isRequesterCaller && !bypassDeadline && request.required_by && new Date() > new Date(request.required_by)) {
       if (!isCoordinator) {
         toast.error(
           <div className="flex items-start gap-2">
