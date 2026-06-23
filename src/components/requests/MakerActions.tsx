@@ -22,9 +22,17 @@ export default function MakerActions({ request, userRole, userId }: MakerActions
   // 2. OR user is a coordinator (manager override for any request)
   const canPerformActions = isAssignedUser || isCoordinator;
 
+  // Statuses where the physical work is already done (or being confirmed
+  // as done). The deadline gate is skipped for these to unblock makers
+  // who finish a sample late — better to record it as 'ready' than force
+  // a coordinator round-trip just to nudge the deadline.
+  const DEADLINE_BYPASS_STATUSES = new Set(['ready', 'dispatched', 'received']);
+
   const handleStatusUpdate = async (newStatus: string) => {
-    // Deadline compliance: block overdue requests for makers
-    if (request.required_by && new Date() > new Date(request.required_by)) {
+    // Deadline compliance: block overdue requests for makers, but only
+    // for transitions that aren't already terminal physical-work states.
+    const bypassDeadline = DEADLINE_BYPASS_STATUSES.has(newStatus);
+    if (!bypassDeadline && request.required_by && new Date() > new Date(request.required_by)) {
       if (!isCoordinator) {
         toast.error(
           <div className="flex items-start gap-2">

@@ -199,12 +199,24 @@ export default function RequestActions({ request, userRole, isCompact = false, o
 
   const handleDispatchClick = () => {
     if (!coordinatorDispatchMode) return;
-    if (!checkDeadlineCompliance()) return;
+    if (!checkDeadlineCompliance('dispatched')) return;
     setDispatchOpen(true);
   };
 
-  // Deadline compliance: check if overdue before any forward status change
-  const checkDeadlineCompliance = (): boolean => {
+  // Statuses where the physical work is already done (or being confirmed
+  // as done) — the deadline gate would create a useless bottleneck here,
+  // so we always allow these transitions through, even when overdue.
+  //   - 'ready'      : maker finished production; sample is physically ready
+  //   - 'dispatched' : sample has left the building / is in courier hands
+  //   - 'received'   : requester is confirming delivery — already unblocked
+  //                    in ReceiverActions, listed here for completeness
+  const DEADLINE_BYPASS_STATUSES = new Set(['ready', 'dispatched', 'received']);
+
+  // Deadline compliance: check if overdue before any forward status change.
+  // Accepts the target status so we can skip the check entirely for
+  // late-lifecycle transitions (see DEADLINE_BYPASS_STATUSES above).
+  const checkDeadlineCompliance = (newStatus?: string): boolean => {
+    if (newStatus && DEADLINE_BYPASS_STATUSES.has(newStatus)) return true;
     if (!request.required_by) return true;
     if (new Date() <= new Date(request.required_by)) return true;
 
@@ -224,7 +236,7 @@ export default function RequestActions({ request, userRole, isCompact = false, o
 
   // Coordinator override: directly update status (Start Production / Mark Ready)
   const handleStatusUpdate = async (newStatus: string) => {
-    if (!checkDeadlineCompliance()) return;
+    if (!checkDeadlineCompliance(newStatus)) return;
 
     try {
       await updateStatus.mutateAsync({ requestId: request.id, status: newStatus });
