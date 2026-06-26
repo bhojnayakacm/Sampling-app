@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput, RequiredByHistoryEntry } from '@/types';
+import { Request, RequestStatus, Priority, UserRole, RequestStatusHistory, RequestItemDB, CreateRequestItemInput, RequiredByHistoryEntry, DispatchMetadata } from '@/types';
 
 // ============================================================
 // VALID COLUMNS — Only these fields exist on the requests table.
@@ -1524,6 +1524,68 @@ export function useSetDispatcherMessage() {
       queryClient.invalidateQueries({ queryKey: ['request', requestId] });
       queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+    },
+  });
+}
+
+// ============================================================
+// Reassign field boy on a dispatched request (migration 1021)
+// ============================================================
+// The field boy is stored as a "Name - Phone" string in
+// requests.dispatch_metadata.field_boy. Reassignment is a read-merge-
+// write of that JSONB so the rest of the dispatch payload (images,
+// dispatched_by, etc.) is preserved. RLS only permits this while the
+// request is `dispatched` + field_boy (see migration 1021), so the
+// window is "after dispatch, until received".
+export function useReassignFieldBoy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ requestId, fieldBoy }: { requestId: string; fieldBoy: string }) => {
+      const next = fieldBoy.trim();
+      if (!next) {
+        throw new Error('Pick a field boy.');
+      }
+
+      // Read the current metadata so we merge rather than clobber.
+      const { data: current, error: fetchError } = await supabase
+        .from('requests')
+        .select('dispatch_metadata')
+        .eq('id', requestId)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (!current) {
+        throw new Error('Request not found or you do not have permission to access it.');
+      }
+
+      const existing = (current.dispatch_metadata ?? {}) as DispatchMetadata;
+      const merged: DispatchMetadata = { ...existing, field_boy: next };
+
+      const { data, error } = await supabase
+        .from('requests')
+        .update({ dispatch_metadata: merged })
+        .eq('id', requestId)
+        .select();
+
+      if (error) throw error;
+
+      // Empty result = RLS silently blocked the UPDATE (e.g. the request
+      // was already marked received, closing the reassignment window).
+      if (!data || data.length === 0) {
+        throw new Error(
+          'This delivery can no longer be reassigned — it may have already been received.'
+        );
+      }
+
+      return { data: data[0], requestId };
+    },
+    onSuccess: (result) => {
+      const requestId = result.requestId;
+      queryClient.invalidateQueries({ queryKey: ['request', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dispatcher-history'] });
     },
   });
 }

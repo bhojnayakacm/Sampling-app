@@ -31,6 +31,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { Request, DispatchMode, DispatchMetadata } from '@/types';
+import { FIELD_BOYS } from '@/lib/dispatch';
 
 // ============================================================
 // Hardcoded lists (per spec)
@@ -42,14 +43,6 @@ const COURIER_SERVICES = [
   'Trackon',
   'Blue dart',
   'Other',
-] as const;
-
-const FIELD_BOYS = [
-  'Vinay Gupta - +91 99582 08103',
-  'Kailash - +91 92129 17601',
-  'Deendayal - +91 98997 08047',
-  'Khem Chand - +91 85954 66228',
-  'Manoj Gupta - +91 82995 61600',
 ] as const;
 
 const MAX_IMAGES   = 8;

@@ -37,6 +37,7 @@ import MakerActions from '@/components/requests/MakerActions';
 import ReceiverActions from '@/components/requests/ReceiverActions';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 import EditRequiredByModal from '@/components/requests/EditRequiredByModal';
+import ReassignFieldBoyDialog from '@/components/requests/ReassignFieldBoyDialog';
 import RequiredByHistory from '@/components/requests/RequiredByHistory';
 import EditedInfoTooltip from '@/components/requests/EditedInfoTooltip';
 // Kit feature deprecated — UnpackKitDialog no longer rendered. Import
@@ -66,6 +67,7 @@ import {
   AlertTriangle,
   Copy,
   RotateCcw,
+  UserCog,
 } from 'lucide-react';
 import type { RequestItemDB, SubCategory, OptionsKey, RequestCategory } from '@/types';
 import { SUB_CATEGORY_LABELS, PRODUCT_SIZE_OPTIONS, getOptionsKey } from '@/types';
@@ -85,6 +87,7 @@ export default function RequestDetail() {
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
   const isRequester = profile?.role === 'requester' && profile?.id === request?.created_by;
+  const isDispatcher = profile?.role === 'dispatcher';
   const hideClientContact = ['maker', 'dispatcher'].includes(profile?.role || '');
 
   // Size edits are only permitted while the sample is still in early-stage
@@ -146,6 +149,9 @@ export default function RequestDetail() {
 
   // Edit Required By modal state
   const [isEditRequiredByOpen, setIsEditRequiredByOpen] = useState(false);
+
+  // Dispatcher field-boy reassignment dialog (dispatched → received window)
+  const [reassignOpen, setReassignOpen] = useState(false);
 
   // Copy qualities state
   const [qualitiesCopied, setQualitiesCopied] = useState(false);
@@ -1187,10 +1193,23 @@ export default function RequestDetail() {
                       </p>
                     )}
                     {request.dispatch_metadata.type === 'field_boy' && (
-                      <p className="text-[11px] text-emerald-700">
-                        <span className="font-semibold">Field boy:</span>{' '}
-                        {request.dispatch_metadata.field_boy}
-                      </p>
+                      <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+                        <p className="text-[11px] text-emerald-700">
+                          <span className="font-semibold">Field boy:</span>{' '}
+                          {request.dispatch_metadata.field_boy}
+                        </p>
+                        {/* Reassign — dispatchers only, while still in flight */}
+                        {isDispatcher && request.status === 'dispatched' && (
+                          <button
+                            type="button"
+                            onClick={() => setReassignOpen(true)}
+                            className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
+                          >
+                            <UserCog className="h-3 w-3" />
+                            Reassign
+                          </button>
+                        )}
+                      </div>
                     )}
                     {request.dispatch_metadata.images && request.dispatch_metadata.images.length > 0 && (
                       <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 pt-1">
@@ -2150,6 +2169,15 @@ export default function RequestDetail() {
         open={isEditRequiredByOpen}
         onOpenChange={setIsEditRequiredByOpen}
       />
+
+      {/* Reassign Field Boy (dispatcher, while dispatched) */}
+      {isDispatcher && (
+        <ReassignFieldBoyDialog
+          request={request}
+          open={reassignOpen}
+          onOpenChange={setReassignOpen}
+        />
+      )}
 
       {/* Kit feature deprecated — UnpackKitDialog import was commented out,
           so this block is reduced to a noop that swallows the unpackKitItem
