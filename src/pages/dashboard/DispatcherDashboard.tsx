@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/requests';
 import TrackingDialog from '@/components/requests/TrackingDialog';
 import DispatchDialog from '@/components/requests/DispatchDialog';
+import DispatcherMessageDialog from '@/components/requests/DispatcherMessageDialog';
 import { toast } from 'sonner';
 import {
   Package,
@@ -26,6 +27,8 @@ import {
   Clock,
   PackageCheck,
   Eye,
+  MessageSquare,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { formatDateTime, formatDate } from '@/lib/utils';
 import type { Request } from '@/types';
@@ -69,6 +72,10 @@ export default function DispatcherDashboard() {
   // pick a field boy from the hardcoded roster.
   const [dispatchTarget, setDispatchTarget] = useState<Request | null>(null);
 
+  // Pre-dispatch message dialog — lets the dispatcher leave a note that
+  // notifies the requester + coordinator (migration 1019).
+  const [messageTarget, setMessageTarget] = useState<Request | null>(null);
+
   // Refreshing state
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -92,6 +99,11 @@ export default function DispatcherDashboard() {
   const handleDispatchClick = (request: Request, e: React.MouseEvent) => {
     e.stopPropagation();
     setDispatchTarget(request);
+  };
+
+  const handleMessageClick = (request: Request, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMessageTarget(request);
   };
 
   const handleCardClick = (requestId: string) => {
@@ -233,7 +245,7 @@ export default function DispatcherDashboard() {
       {/* HEADER */}
       {/* ============================================ */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3">
+        <div className="max-w-2xl lg:max-w-6xl mx-auto px-4 lg:px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-lg bg-teal-600 flex items-center justify-center">
@@ -272,7 +284,7 @@ export default function DispatcherDashboard() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-4 pb-8">
+      <main className="max-w-2xl lg:max-w-6xl mx-auto px-4 lg:px-6 py-4 lg:py-6 pb-8">
         {/* ============================================ */}
         {/* INTERACTIVE TAB CARDS */}
         {/* ============================================ */}
@@ -298,21 +310,26 @@ export default function DispatcherDashboard() {
                     }
                   `}
                 >
-                  <div className="p-2.5 sm:p-3 text-center">
+                  {/* Compact centered tab on mobile; horizontal KPI pill
+                      on desktop so the wide container doesn't leave the
+                      stat blocks looking oversized and empty. */}
+                  <div className="p-2.5 sm:p-3 lg:p-5 flex flex-col lg:flex-row lg:items-center gap-1.5 lg:gap-4 text-center lg:text-left">
                     <div
                       className={`
-                        h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center mx-auto mb-1.5 sm:mb-2
+                        h-7 w-7 sm:h-8 sm:w-8 lg:h-12 lg:w-12 rounded-lg flex items-center justify-center mx-auto lg:mx-0 shrink-0
                         ${isActive ? tab.activeIconBg : tab.iconBg}
                       `}
                     >
-                      <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isActive ? tab.activeIconColor : tab.iconColor}`} />
+                      <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-6 lg:w-6 ${isActive ? tab.activeIconColor : tab.iconColor}`} />
                     </div>
-                    <p className={`text-xl sm:text-2xl font-bold ${isActive ? 'text-white' : 'text-slate-900'}`}>
-                      {tab.value}
-                    </p>
-                    <p className={`text-[9px] sm:text-[10px] font-medium uppercase tracking-wide mt-0.5 ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
-                      {tab.label}
-                    </p>
+                    <div className="min-w-0">
+                      <p className={`text-xl sm:text-2xl lg:text-3xl font-bold leading-none ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                        {tab.value}
+                      </p>
+                      <p className={`text-[9px] sm:text-[10px] lg:text-xs font-medium uppercase tracking-wide mt-0.5 lg:mt-1.5 ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
+                        {tab.label}
+                      </p>
+                    </div>
                   </div>
                   {/* Active indicator dot */}
                   {isActive && (
@@ -329,7 +346,7 @@ export default function DispatcherDashboard() {
         {/* ============================================ */}
         {activeTab === 'total' && (
           <div className="mb-4">
-            <div className="relative">
+            <div className="relative lg:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 type="text"
@@ -397,20 +414,23 @@ export default function DispatcherDashboard() {
         {/* REQUEST CARDS */}
         {/* ============================================ */}
         {!isLoading && currentList.length > 0 && (
-          <div className="space-y-3">
+          // Single column on mobile (unchanged feel); a deliberate 2-up
+          // grid on desktop so cards stop stretching to the full width.
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 items-stretch">
             {currentList.map((request) => {
               const deadlineInfo = getDeadlineInfo(request.required_by);
               const itemCount = request.items?.length || 1;
               const displayAddress = request.delivery_address || 'No address provided';
               const dispatchedAt = (request as any)._dispatchedByMeAt;
+              const hasRequesterMessage = !!request.requester_message?.trim();
 
               return (
                 <Card
                   key={request.id}
                   onClick={() => handleCardClick(request.id)}
-                  className="bg-white border border-slate-200 shadow-sm overflow-hidden cursor-pointer hover:border-slate-300 hover:shadow-md transition-all active:scale-[0.99]"
+                  className="bg-white border border-slate-200 shadow-sm overflow-hidden cursor-pointer hover:border-slate-300 hover:shadow-md transition-all active:scale-[0.99] h-full"
                 >
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 flex flex-col h-full">
                     {/* Top Row: Request Number + Track + Status/Deadline */}
                     <div className="flex items-center justify-between px-4 pt-3 pb-2">
                       <div className="flex items-center gap-2">
@@ -445,6 +465,17 @@ export default function DispatcherDashboard() {
                         </div>
                       </div>
                     </div>
+
+                    {/* "Message inside" indicator — at-a-glance flag that the
+                        requester left a note (visible on every tab). */}
+                    {hasRequesterMessage && (
+                      <div className="px-4 pb-2">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200 text-[11px] font-semibold">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Message from Requester
+                        </span>
+                      </div>
+                    )}
 
                     {/* Address — PRIMARY (most prominent element) */}
                     <div className="px-4 pb-3">
@@ -505,34 +536,61 @@ export default function DispatcherDashboard() {
                       )}
                     </div>
 
-                    {/* Action Button — Only for Ready tab.
-                        The opening flow goes through DispatchDialog now, so
-                        any disabled-while-pending state is owned by the
-                        dialog itself; the trigger button just opens it. */}
-                    {!isHistoryTab && (
-                      <div className="px-4 pb-4">
-                        <Button
-                          onClick={(e) => handleDispatchClick(request, e)}
-                          className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold gap-2 rounded-lg"
-                        >
-                          <Truck className="h-4 w-4" />
-                          Mark as Dispatched
-                        </Button>
-                      </div>
-                    )}
+                    {/* Bottom group — mt-auto keeps the actions aligned to the
+                        card's bottom edge so a desktop grid row reads evenly. */}
+                    <div className="mt-auto">
+                      {/* Ready tab: pre-dispatch note + actions */}
+                      {!isHistoryTab && (
+                        <>
+                          {request.dispatcher_message?.trim() && (
+                            <div className="px-4 pb-2">
+                              <div className="flex items-start gap-2 p-2.5 bg-teal-50 rounded-lg border border-teal-100">
+                                <MessageSquarePlus className="h-3.5 w-3.5 text-teal-600 mt-0.5 shrink-0" />
+                                <p className="text-xs text-teal-800 leading-relaxed">
+                                  <span className="font-semibold">Your note:</span> {request.dispatcher_message}
+                                </p>
+                              </div>
+                            </div>
+                          )}
 
-                    {/* Received indicator for history */}
-                    {isHistoryTab && request.status === 'received' && (
-                      <div className="px-4 pb-3">
-                        <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
-                          <PackageCheck className="h-4 w-4 text-green-600" />
-                          <span className="text-xs font-medium text-green-700">
-                            Delivered & Received
-                            {request.received_by && ` by ${request.received_by}`}
-                          </span>
+                          <div className="px-4 pb-4 pt-1 flex items-center gap-2">
+                            {/* Pre-dispatch message — notifies requester + coordinator */}
+                            <Button
+                              variant="outline"
+                              onClick={(e) => handleMessageClick(request, e)}
+                              className="h-12 px-3 border-teal-200 text-teal-700 hover:bg-teal-50 hover:text-teal-800 gap-1.5 shrink-0"
+                            >
+                              <MessageSquarePlus className="h-4 w-4" />
+                              <span className="hidden sm:inline">
+                                {request.dispatcher_message?.trim() ? 'Edit' : 'Message'}
+                              </span>
+                            </Button>
+                            {/* The dispatch flow goes through DispatchDialog; the
+                                trigger button just opens it. */}
+                            <Button
+                              onClick={(e) => handleDispatchClick(request, e)}
+                              className="flex-1 h-12 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold gap-2 rounded-lg"
+                            >
+                              <Truck className="h-4 w-4" />
+                              Mark as Dispatched
+                            </Button>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Received indicator for history */}
+                      {isHistoryTab && request.status === 'received' && (
+                        <div className="px-4 pb-3">
+                          <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                            <PackageCheck className="h-4 w-4 text-green-600" />
+                            <span className="text-xs font-medium text-green-700">
+                              Delivered & Received
+                              {request.received_by && ` by ${request.received_by}`}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -558,6 +616,22 @@ export default function DispatcherDashboard() {
             void refetchReady();
             void refetchToday();
             void refetchAll();
+          }}
+        />
+      )}
+
+      {/* ============================================ */}
+      {/* PRE-DISPATCH MESSAGE DIALOG */}
+      {/* ============================================ */}
+      {/* Lets the dispatcher leave a note before dispatching; on send it
+          pushes a notification to the requester + coordinator. */}
+      {messageTarget && (
+        <DispatcherMessageDialog
+          request={messageTarget}
+          open={!!messageTarget}
+          onOpenChange={(o) => { if (!o) setMessageTarget(null); }}
+          onSent={() => {
+            void refetchReady();
           }}
         />
       )}

@@ -54,9 +54,12 @@ const TITLE_BY_STATUS: Record<string, string> = {
 // unset and continue to derive their title from TITLE_BY_STATUS.
 // Migration 1017 adds event_type='quality_change' for silent
 // coordinator typo fixes on request_items.quality.
+// Migration 1019 adds event_type='dispatcher_message' for the
+// pre-dispatch note a dispatcher leaves for the requester.
 const TITLE_BY_EVENT: Record<string, string> = {
   required_by_change: 'Deadline Updated',
   quality_change:     'Quality Updated',
+  dispatcher_message: 'Message from Dispatcher',
 }
 
 interface RequesterPushBody {

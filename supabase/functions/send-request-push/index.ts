@@ -42,6 +42,13 @@ interface PushPayloadBody {
   request_number?: string
   category?: string
   client_name?: string | null
+  // Optional overrides. The new-request trigger (migration 1010) sends
+  // neither and keeps the default "New <Category> Request" copy. Other
+  // events that fan out to the same coordinator audience — e.g. the
+  // dispatcher pre-dispatch message (migration 1019) — pass these to
+  // re-title the notification without standing up a second function.
+  title?: string
+  body?: string
 }
 
 interface SubscriptionRow {
@@ -88,7 +95,7 @@ serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const { request_id, request_number, category, client_name } = body
+  const { request_id, request_number, category, client_name, title, body: bodyOverride } = body
   if (!request_id || !request_number || !category) {
     return json({ error: 'Missing request_id, request_number, or category' }, 400)
   }
@@ -133,13 +140,15 @@ serve(async (req) => {
   }
 
   // ── Build the notification payload ─────────────────────────
-  // Title matches the in-app toast format: "New <Category> Request: <SMP-ID>".
+  // Default copy matches the in-app toast format: "New <Category>
+  // Request: <SMP-ID>". Callers (e.g. the dispatcher-message trigger)
+  // may override title/body to re-purpose the same coordinator fan-out.
   const label = category === 'magro' ? 'Magro' : 'Marble'
   const payload = JSON.stringify({
-    title: `New ${label} Request: ${request_number}`,
-    body: client_name
+    title: title ?? `New ${label} Request: ${request_number}`,
+    body: bodyOverride ?? (client_name
       ? `Client: ${client_name}`
-      : 'A new sample request is awaiting your review.',
+      : 'A new sample request is awaiting your review.'),
     url: `/requests/${request_id}`,
     tag: `request-${request_id}`,
   })

@@ -1082,7 +1082,7 @@ export default function RequestDetail() {
             <div className="flex items-start gap-2">
               <MessageSquare className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
               <div className="min-w-0">
-                <AlertTitle className="text-sm font-medium text-violet-900">Special Instructions</AlertTitle>
+                <AlertTitle className="text-sm font-medium text-violet-900">Message from Requester</AlertTitle>
                 <AlertDescription className="text-sm text-violet-700 mt-0.5">{request.requester_message}</AlertDescription>
               </div>
             </div>
@@ -1110,6 +1110,22 @@ export default function RequestDetail() {
               <div className="min-w-0 flex-1">
                 <AlertTitle className="text-sm font-medium text-slate-900">Coordinator Message</AlertTitle>
                 <AlertDescription className="text-sm text-slate-600 mt-0.5">{request.coordinator_message}</AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
+        {/* Pre-dispatch note left by the dispatcher (migration 1019).
+            Visible to everyone who can see the request — most importantly
+            the requester + coordinator, who are also pushed a notification
+            when it's written. */}
+        {request.dispatcher_message?.trim() && (
+          <Alert className="mb-3 border border-teal-200 bg-teal-50 rounded-xl">
+            <div className="flex items-start gap-2">
+              <MessageSquare className="h-4 w-4 text-teal-500 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <AlertTitle className="text-sm font-medium text-teal-900">Message from Dispatcher</AlertTitle>
+                <AlertDescription className="text-sm text-teal-700 mt-0.5">{request.dispatcher_message}</AlertDescription>
               </div>
             </div>
           </Alert>

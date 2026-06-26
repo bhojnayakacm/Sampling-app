@@ -20,6 +20,7 @@ const VALID_REQUEST_COLUMNS = new Set([
   'project_type', 'project_placeholder',
   'purpose', 'packing_details',
   'requester_message', 'coordinator_message', 'dispatch_notes',
+  'dispatcher_message',
   'dispatch_metadata',
   'delivery_poc_name', 'delivery_poc_contacts',
   'item_count', 'received_by',
@@ -1470,6 +1471,56 @@ export function useDismissScheduleWarning() {
       if (error) throw error;
     },
     onSuccess: (_data, requestId) => {
+      queryClient.invalidateQueries({ queryKey: ['request', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
+      queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });
+    },
+  });
+}
+
+// ============================================================
+// Dispatcher pre-dispatch message (migration 1019)
+// ============================================================
+// Lets a dispatcher attach/edit a free-text note while a field_boy
+// request is still `ready` (before they dispatch it). The write fires
+// the trg_notify_dispatcher_message trigger, which pushes the note to
+// the requester + the category coordinators.
+//
+// RLS only permits this when the caller is a dispatcher AND the row is
+// ready + field_boy (see migration 1019). We surface a clear error if
+// the UPDATE is silently blocked (zero rows returned).
+export function useSetDispatcherMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ requestId, message }: { requestId: string; message: string }) => {
+      const trimmed = message.trim();
+      if (!trimmed) {
+        throw new Error('Message cannot be empty.');
+      }
+
+      const { data, error } = await supabase
+        .from('requests')
+        .update({ dispatcher_message: trimmed })
+        .eq('id', requestId)
+        .select();
+
+      if (error) throw error;
+
+      // Empty result = RLS silently blocked the UPDATE (e.g. the request
+      // already left the ready window, so it's no longer the dispatcher's
+      // to annotate).
+      if (!data || data.length === 0) {
+        throw new Error(
+          'This request can no longer be messaged — it may have already been dispatched.'
+        );
+      }
+
+      return { data: data[0], requestId };
+    },
+    onSuccess: (result) => {
+      const requestId = result.requestId;
+      queryClient.invalidateQueries({ queryKey: ['field-boy-ready-requests'] });
       queryClient.invalidateQueries({ queryKey: ['request', requestId] });
       queryClient.invalidateQueries({ queryKey: ['request-with-items', requestId] });
       queryClient.invalidateQueries({ queryKey: ['paginated-requests'] });

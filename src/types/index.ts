@@ -263,6 +263,13 @@ export interface Request {
   // Coordinator message (for approval/rejection notes)
   coordinator_message: string | null;
 
+  // Dispatcher message — free-text note a dispatcher leaves BEFORE
+  // dispatching (while the request is still `ready`). Notifies the
+  // requester + coordinators on write (migration 1019). Distinct from
+  // dispatch_notes / dispatch_metadata.note which are captured at the
+  // moment of dispatch.
+  dispatcher_message: string | null;
+
   // Dispatch notes (for courier/tracking info — legacy denormalised label).
   // The structured payload now lives on dispatch_metadata; dispatch_notes is
   // still written for any UI that surfaces a one-line dispatch summary.
