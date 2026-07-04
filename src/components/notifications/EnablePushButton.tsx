@@ -1,21 +1,23 @@
 import { Bell, BellOff, Loader2, Share } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface EnablePushButtonProps {
   /**
-   * When true, render in header-row mode: drop `w-full`/`mb-3`, suppress
-   * the multi-line "permission denied" hint (return null instead). Default
-   * (false) is the original sidebar-footer layout used by DashboardLayout.
+   * When true, render in header-row mode (mobile dashboard headers):
+   * a compact icon button whose label collapses on small screens.
+   * Default (false) is the roomy sidebar-footer layout used by
+   * DashboardLayout, which can afford multi-line explanatory hints.
    */
   inline?: boolean;
 }
 
 /**
  * Detects iOS — covers iPhone / iPod / iPad including iPadOS that reports
- * itself as MacIntel with touchpoints. Used to surface the Add-to-Home-
- * Screen hint when Web Push isn't yet supported (which is iOS Safari's
- * tab mode — iOS 16.4+ only enables Web Push for *installed* PWAs).
+ * itself as MacIntel with touchpoints. Used to tailor the "unsupported"
+ * guidance: on iOS, Web Push needs an *installed* PWA (iOS 16.4+), so the
+ * fix is Add-to-Home-Screen rather than "switch browser".
  */
 function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -28,38 +30,76 @@ function isIOS(): boolean {
 /**
  * Opt-in control for PWA system push notifications.
  *
- * Branching on browser capability:
- *   1. `supported && permission === 'denied'`  → permission blocked hint
- *      (sidebar) or null (inline).
- *   2. `supported`                              → the actual Bell button.
- *   3. `!supported && isIOS()`                  → "Add to Home Screen"
- *      hint. This is the most common case on iPhone: Web Push only works
- *      in iOS 16.4+ installed PWAs, not Safari tabs, so the previous
- *      `return null` left dispatchers/makers wondering why the button
- *      wasn't there. We now tell them how to get it.
- *   4. `!supported && !isIOS()`                 → null (genuinely
- *      unsupported browser; no actionable guidance we could offer).
+ * INLINE MODE (mobile dashboard headers) NEVER renders null — the bell is
+ * always visible so the affordance can't vanish on a phone:
+ *   1. supported + grantable → active bell, toggles subscribe/unsubscribe.
+ *   2. permission denied      → muted BellOff; tap explains how to unblock.
+ *   3. unsupported            → muted bell; tap explains (in-app webview →
+ *      open in Chrome/Safari; iOS Safari tab → Add to Home Screen).
+ *
+ * NON-INLINE MODE (sidebar footer) keeps roomy, text-forward hints and may
+ * render null only on a genuinely unsupported non-iOS desktop browser,
+ * where there is nothing actionable to show in a sidebar.
  */
 export default function EnablePushButton({ inline = false }: EnablePushButtonProps = {}) {
   const { supported, permission, isSubscribed, isBusy, enable, disable } =
     usePushNotifications();
 
-  if (!supported) {
+  // ============================================================
+  // INLINE special states — always a visible, tappable bell (never null).
+  // ============================================================
+  const mutedClasses =
+    'gap-2 min-h-[44px] border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-500';
+
+  // Unsupported: no Push API (in-app webview like WhatsApp/Instagram, or an
+  // iOS Safari tab where Push requires an installed PWA).
+  if (inline && !supported) {
+    const message = isIOS()
+      ? 'To get alerts on iPhone: tap the Share icon, choose "Add to Home Screen", then open SampleHub from the home-screen icon.'
+      : 'Push notifications are not supported in this browser. Try opening the app in Chrome or Safari.';
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => toast.info(message)}
+        aria-label="Push notifications unavailable"
+        title="Push notifications unavailable"
+        className={mutedClasses}
+      >
+        <Bell className="h-4 w-4" />
+        <span className="hidden sm:inline">Alerts</span>
+      </Button>
+    );
+  }
+
+  // Denied: the user (or OS) blocked notifications — only browser settings
+  // can undo it. Slashed, muted bell; tap says how.
+  if (inline && permission === 'denied') {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          toast.error('Notifications are blocked. Please enable them in your browser settings.')
+        }
+        aria-label="Push notifications blocked"
+        title="Push notifications blocked"
+        className={mutedClasses}
+      >
+        <BellOff className="h-4 w-4" />
+        <span className="hidden sm:inline">Blocked</span>
+      </Button>
+    );
+  }
+
+  // ============================================================
+  // NON-INLINE special states — roomy hints (unchanged behaviour).
+  // ============================================================
+  if (!inline && !supported) {
     // iOS Safari tab: no Push API. Tell the user how to install instead.
     if (isIOS()) {
-      // Same compact-vs-roomy split as the permission-denied hint below.
-      if (inline) {
-        return (
-          <span
-            role="note"
-            aria-label="Enable notifications by adding to Home Screen"
-            className="hidden sm:inline-flex items-center gap-1.5 text-[11px] leading-tight text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 max-w-[220px]"
-          >
-            <Share className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="truncate">Tap Share → Add to Home Screen for alerts</span>
-          </span>
-        );
-      }
       return (
         <div
           role="note"
@@ -81,9 +121,7 @@ export default function EnablePushButton({ inline = false }: EnablePushButtonPro
     return null;
   }
 
-  // The user blocked notifications — only browser settings can undo this.
-  if (permission === 'denied') {
-    if (inline) return null; // header row has no space for a hint paragraph
+  if (!inline && permission === 'denied') {
     return (
       <p className="text-[11px] leading-tight text-slate-400 px-1 mb-3">
         Push notifications are blocked. Enable them in your browser site
@@ -92,7 +130,9 @@ export default function EnablePushButton({ inline = false }: EnablePushButtonPro
     );
   }
 
-  // Layout classes differ between sidebar footer and inline header row.
+  // ============================================================
+  // Shared normal state (supported + grantable), inline or sidebar.
+  // ============================================================
   const layoutClasses = inline
     ? 'gap-2 min-h-[44px] border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
     : 'w-full gap-2 min-h-[44px] mb-3 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900';
@@ -103,6 +143,7 @@ export default function EnablePushButton({ inline = false }: EnablePushButtonPro
       size="sm"
       onClick={isSubscribed ? disable : enable}
       disabled={isBusy}
+      aria-label={isSubscribed ? 'Disable push alerts' : 'Enable push alerts'}
       className={layoutClasses}
     >
       {isBusy ? (

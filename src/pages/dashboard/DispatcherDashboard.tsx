@@ -246,17 +246,17 @@ export default function DispatcherDashboard() {
       {/* ============================================ */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-2xl lg:max-w-6xl mx-auto px-4 lg:px-6 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-teal-600 flex items-center justify-center">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-lg bg-teal-600 flex items-center justify-center shrink-0">
                 <Truck className="h-5 w-5 text-white" />
               </div>
-              <div>
-                <h1 className="text-base font-bold text-slate-900">Dispatch</h1>
-                <p className="text-xs text-slate-500">{profile?.full_name}</p>
+              <div className="min-w-0">
+                <h1 className="text-base font-bold text-slate-900 truncate">Dispatch</h1>
+                <p className="text-xs text-slate-500 truncate">{profile?.full_name}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* Opt-in PWA push alerts for ready-for-dispatch notifications.
                   Inline mode keeps the header compact on phones (icon-only)
                   while staying tappable. */}

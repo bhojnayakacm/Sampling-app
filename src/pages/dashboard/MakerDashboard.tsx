@@ -66,17 +66,17 @@ export default function MakerDashboard() {
       {/* Clean White Header */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
                 <LayoutDashboard className="h-5 w-5 text-white" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">My Tasks</h1>
-                <p className="text-sm text-slate-500">{profile?.full_name}</p>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-slate-900 truncate">My Tasks</h1>
+                <p className="text-sm text-slate-500 truncate">{profile?.full_name}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* Opt-in PWA push alerts for new-assignment notifications.
                   Hides itself on unsupported browsers; in inline mode it
                   collapses the label on small screens. */}
