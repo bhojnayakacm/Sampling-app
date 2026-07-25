@@ -4,6 +4,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { hasOpenOverlay } from '@/lib/overlayStack';
+import { compressImage } from '@/lib/imageCompression';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useRequestWithItems,
@@ -119,6 +120,31 @@ function generateId(): string {
 function getFriendlyErrorMessage(error: any): { title: string; description: string } {
   const message = error?.message?.toLowerCase() || '';
   const code = error?.code || '';
+
+  // HTTP status can arrive as `status` (number) or `statusCode` (string) on
+  // Supabase StorageApiError, or nested on a wrapped fetch error.
+  const rawStatus = error?.statusCode ?? error?.status ?? error?.originalError?.status;
+  const status = typeof rawStatus === 'string' ? parseInt(rawStatus, 10) : rawStatus;
+
+  // Payload / image size too large (HTTP 413 or a storage size-limit reject).
+  // MUST come before the generic network/storage branches below: a Supabase
+  // Storage size rejection is a clean 413 with a "maximum allowed size"
+  // message that would otherwise be miscaught as a plain upload failure.
+  if (
+    status === 413 ||
+    message.includes('payload too large') ||
+    message.includes('entity too large') ||
+    message.includes('maximum allowed size') ||
+    message.includes('exceeded the maximum') ||
+    message.includes('body exceeded') ||
+    message.includes('file too large') ||
+    message.includes('too large')
+  ) {
+    return {
+      title: 'Images Too Large',
+      description: 'Total image size is too large. Please remove some images or try again.',
+    };
+  }
 
   // Check constraint violations
   if (message.includes('valid_product_type') || message.includes('product_type')) {
@@ -250,7 +276,13 @@ async function uploadSampleImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
-// Upload all images in parallel and return a map of index -> url
+// Compress-then-upload every image in parallel, returning index -> url.
+//
+// Compression is the single most important step for reliability on mobile:
+// a request with several high-res camera photos can otherwise exceed the
+// upload size limit (HTTP 413) and fail as an opaque "Connection Error".
+// compressImage() is fail-open — a failed/unnecessary compression yields the
+// original File — so this can never make an upload worse than before.
 async function uploadAllImages(
   products: ProductItem[]
 ): Promise<Map<number, string>> {
@@ -259,7 +291,9 @@ async function uploadAllImages(
   products.forEach((product, index) => {
     if (product.image_file) {
       uploadPromises.push(
-        uploadSampleImage(product.image_file).then((url) => ({ index, url }))
+        compressImage(product.image_file)
+          .then((optimized) => uploadSampleImage(optimized))
+          .then((url) => ({ index, url }))
       );
     }
   });

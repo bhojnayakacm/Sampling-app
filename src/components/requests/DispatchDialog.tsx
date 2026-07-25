@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
+import { compressImage } from '@/lib/imageCompression';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -294,18 +295,24 @@ export default function DispatchDialog({
     try {
       const results = await Promise.all(
         staged.map(async (s, idx) => {
-          const ext = s.file.name.split('.').pop() || 'jpg';
+          // Compress before upload so high-res dispatch photos can't trip the
+          // storage size limit (HTTP 413). Fail-open: returns the original
+          // File if compression is unnecessary or fails. Deriving ext +
+          // contentType from the (possibly re-encoded) file keeps the stored
+          // object's extension consistent with its actual bytes.
+          const file = await compressImage(s.file);
+          const ext = file.name.split('.').pop() || 'jpg';
           const path = `${request.id}/${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
           const { error: uploadError } = await supabase.storage
             .from('dispatch-images')
-            .upload(path, s.file, {
+            .upload(path, file, {
               cacheControl: '3600',
               upsert: false,
-              contentType: s.file.type || undefined,
+              contentType: file.type || undefined,
             });
 
-          if (uploadError) throw new Error(`Upload failed for ${s.file.name}: ${uploadError.message}`);
+          if (uploadError) throw new Error(`Upload failed for ${file.name}: ${uploadError.message}`);
 
           uploadedPaths.push(path);
 
