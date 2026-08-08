@@ -68,10 +68,51 @@ import {
   Copy,
   RotateCcw,
   UserCog,
+  FileText,
 } from 'lucide-react';
 import type { RequestItemDB, SubCategory, OptionsKey, RequestCategory } from '@/types';
 import { SUB_CATEGORY_LABELS, PRODUCT_SIZE_OPTIONS, getOptionsKey } from '@/types';
 import { RequestDetailSkeleton } from '@/components/skeletons';
+
+/**
+ * Every reference image on an item. Since migration 1022 an item can carry
+ * several: `image_urls` holds the full ordered list and `image_url` mirrors
+ * the first. Rows written before 1022 only have `image_url`.
+ */
+function itemImageUrls(item: RequestItemDB): string[] {
+  if (item.image_urls && item.image_urls.length > 0) return item.image_urls;
+  return item.image_url ? [item.image_url] : [];
+}
+
+/** Compact strip of an item's reference thumbnails; click to preview. */
+function ItemImageThumbs({
+  item,
+  onPreview,
+  emptyDash = false,
+}: {
+  item: RequestItemDB;
+  onPreview: (url: string) => void;
+  emptyDash?: boolean;
+}) {
+  const urls = itemImageUrls(item);
+  if (urls.length === 0) return emptyDash ? <span className="text-slate-300">—</span> : null;
+
+  return (
+    <div className="flex items-center gap-1">
+      {urls.map((url, i) => (
+        <button
+          key={url}
+          type="button"
+          onClick={() => onPreview(url)}
+          aria-label={`View reference image ${i + 1} of ${urls.length}`}
+          className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors shrink-0"
+        >
+          <img src={url} alt={`Ref ${i + 1}`} className="h-full w-full object-cover" />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function RequestDetail() {
   const { profile, signOut } = useAuth();
@@ -925,14 +966,7 @@ export default function RequestDetail() {
                 <Pencil className="h-3.5 w-3.5" />
               </button>
             )}
-            {item.image_url && (
-              <button
-                onClick={() => setPreviewImage(item.image_url)}
-                className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors"
-              >
-                <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
-              </button>
-            )}
+            <ItemImageThumbs item={item} onPreview={setPreviewImage} />
           </div>
         </div>
       </div>
@@ -1083,13 +1117,28 @@ export default function RequestDetail() {
       <main className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5">
         {/* ======== ALERTS ======== */}
 
-        {request.requester_message && (
+        {(request.requester_message || request.coordinator_document_url) && (
           <Alert className="mb-3 border border-violet-200 bg-violet-50 rounded-xl">
             <div className="flex items-start gap-2">
               <MessageSquare className="h-4 w-4 text-violet-500 mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <AlertTitle className="text-sm font-medium text-violet-900">Message from Requester</AlertTitle>
-                <AlertDescription className="text-sm text-violet-700 mt-0.5">{request.requester_message}</AlertDescription>
+                {request.requester_message && (
+                  <AlertDescription className="text-sm text-violet-700 mt-0.5">{request.requester_message}</AlertDescription>
+                )}
+                {request.coordinator_document_url && (
+                  <a
+                    href={request.coordinator_document_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-2 max-w-full rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-sm text-violet-800 hover:bg-violet-100 transition-colors"
+                  >
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {request.coordinator_document_name || 'Attached document'}
+                    </span>
+                  </a>
+                )}
               </div>
             </div>
           </Alert>
@@ -1462,11 +1511,7 @@ export default function RequestDetail() {
                                       <TableCell className="text-sm text-slate-600">{itemHasFinish(item) && item.finish ? item.finish : '—'}</TableCell>
                                       <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
                                       <TableCell>
-                                        {item.image_url ? (
-                                          <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors">
-                                            <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                          </button>
-                                        ) : <span className="text-slate-300">—</span>}
+                                        <ItemImageThumbs item={item} onPreview={setPreviewImage} emptyDash />
                                       </TableCell>
                                     </TableRow>
                                   ))}
@@ -1511,11 +1556,7 @@ export default function RequestDetail() {
                                 <TableCell className="text-sm text-slate-600">{item.finish || '—'}</TableCell>
                                 <TableCell className="text-sm text-slate-900 font-medium text-right">{item.quantity}</TableCell>
                                 <TableCell>
-                                  {item.image_url ? (
-                                    <button onClick={() => setPreviewImage(item.image_url)} className="h-8 w-8 rounded-md border border-slate-200 overflow-hidden hover:border-indigo-400 transition-colors">
-                                      <img src={item.image_url} alt="Ref" className="h-full w-full object-cover" />
-                                    </button>
-                                  ) : <span className="text-slate-300">—</span>}
+                                  <ItemImageThumbs item={item} onPreview={setPreviewImage} emptyDash />
                                 </TableCell>
                               </TableRow>
                             ))

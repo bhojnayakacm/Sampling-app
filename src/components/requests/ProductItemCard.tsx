@@ -4,10 +4,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox';
-import { Trash2, Upload, X, Package, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Trash2, Upload, X, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import type { ProductItem, RequestCategory, SubCategory } from '@/types';
+import type { ProductImage, ProductItem, RequestCategory, SubCategory } from '@/types';
+import {
+  MAX_IMAGES_PER_SLOT,
+  MAX_IMAGE_BYTES,
+  cardImages,
+  newImageId,
+  previewSrc,
+  qualityImages,
+} from '@/lib/productImages';
 import {
   PRODUCT_SIZE_OPTIONS,
   PRODUCT_FINISH_OPTIONS,
@@ -23,11 +31,70 @@ import {
   type ProductTypeKey,
 } from '@/lib/productData';
 
+/**
+ * Horizontal strip of attached-image thumbnails with per-image remove.
+ * Shared by the single dropzone and every per-quality slot so both modes
+ * look and behave identically.
+ */
+function ThumbnailRow({
+  images,
+  altPrefix,
+  onRemove,
+  compact = false,
+}: {
+  images: ProductImage[];
+  altPrefix: string;
+  onRemove: (imageId: string) => void;
+  compact?: boolean;
+}) {
+  const size = compact ? 'h-14 w-14' : 'h-20 w-20';
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {images.map((image, i) => {
+        const src = previewSrc(image);
+        return (
+          <div key={image.id} className="relative shrink-0">
+            {src ? (
+              <img
+                src={src}
+                alt={`${altPrefix} ${i + 1}`}
+                className={`${size} object-cover rounded-md border border-slate-200 bg-white`}
+              />
+            ) : (
+              // Preview unavailable (FileReader failed) — the file is still
+              // attached and will upload, so show a neutral placeholder.
+              <div
+                className={`${size} rounded-md border border-slate-200 bg-slate-100 flex items-center justify-center`}
+              >
+                <Upload className="h-4 w-4 text-slate-400" />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onRemove(image.id)}
+              aria-label={`Remove ${altPrefix} ${i + 1}`}
+              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 shadow-md"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface ProductItemCardProps {
   item: ProductItem;
   index: number;
   canDelete: boolean;
-  onUpdate: (index: number, updates: Partial<ProductItem>) => void;
+  // Accepts a plain patch, or an updater receiving the current item — the
+  // async image handlers use the latter so a slow FileReader can't clobber a
+  // concurrent pick in another slot.
+  onUpdate: (
+    index: number,
+    updates: Partial<ProductItem> | ((prev: ProductItem) => Partial<ProductItem>),
+  ) => void;
   onRemove: (index: number) => void;
 }
 
@@ -68,24 +135,127 @@ export default function ProductItemCard({
   const isBatch = item.selected_qualities.length > 1;
   const customCount = item.selected_qualities.filter((q) => !qualityOptionsSet.has(q)).length;
 
+  // Deduped, ordered list of selected qualities — drives the per-quality image
+  // slots. 2+ qualities = "multi" mode (one slot each); 0–1 = the single
+  // dropzone. Deduped so a stray duplicate can't render two slots / two keys.
+  const selectedQualities = useMemo(
+    () => [...new Set(item.selected_qualities)],
+    [item.selected_qualities],
+  );
+  const isMultiQuality = selectedQualities.length > 1;
+
   // ── Image handling ──────────────────────────────────────────
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Image size must be less than 10MB');
-        return;
+  // Both the single dropzone and each per-quality slot accept MULTIPLE files
+  // and store an ordered ProductImage[]. Reading the files is async
+  // (FileReader), so we resolve them all before one single state update —
+  // updating per-file would drop images, since each onUpdate would be built
+  // from the same stale `item`.
+  const readFilesAsImages = async (files: File[]): Promise<ProductImage[]> =>
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise<ProductImage>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve({
+                id: newImageId(),
+                file,
+                preview: reader.result as string,
+                url: null,
+              });
+            // A preview failure must not block attaching the file itself.
+            reader.onerror = () =>
+              resolve({ id: newImageId(), file, preview: null, url: null });
+            reader.readAsDataURL(file);
+          }),
+      ),
+    );
+
+  /**
+   * Validate a picked FileList against the per-file size cap and the
+   * remaining room in the slot. Returns the files to actually add.
+   */
+  const acceptFiles = (fileList: FileList | null, existingCount: number): File[] => {
+    const picked = Array.from(fileList ?? []);
+    if (picked.length === 0) return [];
+
+    const withinSize = picked.filter((f) => {
+      if (f.size > MAX_IMAGE_BYTES) {
+        toast.error(`"${f.name}" is larger than 10MB and was skipped.`);
+        return false;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        onUpdate(index, { image_file: file, image_preview: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      return true;
+    });
+
+    const room = MAX_IMAGES_PER_SLOT - existingCount;
+    if (room <= 0) {
+      toast.error(`You can attach up to ${MAX_IMAGES_PER_SLOT} images here.`);
+      return [];
     }
+    if (withinSize.length > room) {
+      toast.error(`Only ${room} more image${room > 1 ? 's' : ''} can be added here.`);
+      return withinSize.slice(0, room);
+    }
+    return withinSize;
   };
 
-  const removeImage = () => {
-    onUpdate(index, { image_file: null, image_preview: null, image_url: null });
+  // Single / zero-quality card
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const current = cardImages(item);
+    const files = acceptFiles(e.target.files, current.length);
+    // Reset the input so re-picking the same file still fires onChange.
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    const added = await readFilesAsImages(files);
+    // Re-read from the CURRENT card (not the captured one) so a concurrent
+    // pick elsewhere isn't lost. Migrating off the legacy single fields:
+    // clear them as we adopt `images`.
+    onUpdate(index, (prev) => ({
+      images: [...cardImages(prev), ...added].slice(0, MAX_IMAGES_PER_SLOT),
+      image_file: null,
+      image_preview: null,
+      image_url: null,
+    }));
+  };
+
+  const removeImage = (imageId: string) => {
+    onUpdate(index, {
+      images: cardImages(item).filter((img) => img.id !== imageId),
+      image_file: null,
+      image_preview: null,
+      image_url: null,
+    });
+  };
+
+  // ── Per-quality image handling (batch items with 2+ qualities) ──────
+  const handleQualityImageChange = async (
+    quality: string,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const current = qualityImages(item, quality);
+    const files = acceptFiles(e.target.files, current.length);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    const added = await readFilesAsImages(files);
+    onUpdate(index, (prev) => ({
+      quality_images: {
+        ...(prev.quality_images || {}),
+        [quality]: [...qualityImages(prev, quality), ...added].slice(0, MAX_IMAGES_PER_SLOT),
+      },
+    }));
+  };
+
+  const removeQualityImage = (quality: string, imageId: string) => {
+    const next: Record<string, ProductImage[]> = { ...(item.quality_images || {}) };
+    const remaining = qualityImages(item, quality).filter((img) => img.id !== imageId);
+    if (remaining.length > 0) {
+      next[quality] = remaining;
+    } else {
+      delete next[quality];
+    }
+    onUpdate(index, { quality_images: next });
   };
 
   // Helper: auto-select when only one option exists (excluding "Other")
@@ -101,6 +271,7 @@ export default function ProductItemCard({
       sub_category: '',
       selected_qualities: [],
       quality: '',
+      quality_images: {},
       sample_size: '',
       sample_size_custom: '',
       finish: '',
@@ -123,6 +294,7 @@ export default function ProductItemCard({
       sub_category: newSubCategory,
       selected_qualities: [],
       quality: '',
+      quality_images: {},
       sample_size: autoSize || '',
       sample_size_custom: '',
       finish: autoFinish || (hasFinish ? newFinishOptions[0] ?? '' : ''),
@@ -130,12 +302,63 @@ export default function ProductItemCard({
     });
   };
 
-  // Handle quality changes from multi-select combobox
+  // Handle quality changes from the multi-select combobox.
+  //
+  // Beyond updating the selection, this keeps the per-quality image map in
+  // sync across the single↔batch boundary so a photo is never silently
+  // stranded or uploaded for a deselected quality:
+  //   • → batch (2+): drop images for deselected qualities; and when growing
+  //     from a single card that had images, migrate that whole set into the
+  //     slot for the quality they belonged to.
+  //   • → single/zero: promote the surviving quality's images back onto the
+  //     single dropzone, then clear the map.
   const handleQualitiesChange = (qualities: string[]) => {
-    onUpdate(index, {
+    const prevQualities = [...new Set(item.selected_qualities)];
+    const wasSingle = prevQualities.length <= 1;
+    const existing: Record<string, ProductImage[]> = item.quality_images || {};
+    const single = cardImages(item);
+
+    const updates: Partial<ProductItem> = {
       selected_qualities: qualities,
       quality: qualities[0] || '',
-    });
+    };
+
+    if (qualities.length > 1) {
+      // Keep only images whose quality is still selected.
+      const kept: Record<string, ProductImage[]> = {};
+      for (const q of qualities) {
+        if (existing[q]?.length) kept[q] = existing[q];
+      }
+      // Growing single→batch: don't strand the single dropzone images — move
+      // them into the slot for the quality they were attached to (the old sole
+      // quality if still selected, else the first).
+      if (wasSingle && single.length > 0) {
+        const target =
+          prevQualities[0] && qualities.includes(prevQualities[0])
+            ? prevQualities[0]
+            : qualities[0];
+        if (!kept[target]) kept[target] = single;
+        updates.images = [];
+        updates.image_file = null;
+        updates.image_preview = null;
+        updates.image_url = null;
+      }
+      updates.quality_images = kept;
+    } else {
+      // Collapsing to single/zero: the single dropzone owns the images again.
+      // Promote the surviving quality's images if the dropzone is empty.
+      const sole = qualities[0];
+      const surviving = sole ? existing[sole] : undefined;
+      if (surviving?.length && single.length === 0) {
+        updates.images = surviving;
+        updates.image_file = null;
+        updates.image_preview = null;
+        updates.image_url = null;
+      }
+      updates.quality_images = {};
+    }
+
+    onUpdate(index, updates);
   };
 
   // ── Header label ────────────────────────────────────────────
@@ -161,7 +384,7 @@ export default function ProductItemCard({
   };
 
   const qualitySummary = getQualitySummary();
-  const imagePreview   = item.image_preview || item.image_url;
+  const singleImages   = cardImages(item);
 
   return (
     <Card className="border-slate-200 shadow-sm overflow-hidden">
@@ -407,49 +630,107 @@ export default function ProductItemCard({
               />
             </div>
 
-            {/* ── Reference Image ───────────────────────────────────────── */}
+            {/* ── Reference Image(s) ────────────────────────────────────── */}
+            {/* 0–1 quality → one multi-file dropzone. 2+ qualities → a compact
+                multi-file slot per quality, each with its own thumbnail row. */}
             <div className="md:col-span-2">
-              <Label>Reference Image (Optional)</Label>
-              {!imagePreview ? (
-                <div className="mt-2 border-2 border-dashed border-slate-200 rounded-lg p-4 text-center hover:border-slate-300 transition-colors">
-                  <input
-                    id={`image-${item.id}`}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  <label htmlFor={`image-${item.id}`} className="cursor-pointer">
-                    <Upload className="mx-auto h-8 w-8 text-slate-400" />
-                    <p className="mt-1 text-sm text-slate-600">Click to upload</p>
-                    <p className="text-xs text-slate-400">PNG, JPG up to 10MB</p>
-                  </label>
-                </div>
-              ) : (
-                <div className="mt-2 relative inline-block">
-                  <img
-                    src={imagePreview}
-                    alt="Sample reference"
-                    className="max-w-full h-32 object-contain rounded-lg border"
-                  />
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              )}
-
-              {isBatch && (
-                <div className="flex items-start gap-2 mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
-                  <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-700 leading-relaxed">
-                    <span className="font-semibold">Note:</span> This image will be attached to the first item only.
-                    To add specific images for other items, please use the "Add Another Item" button below.
+              {!isMultiQuality ? (
+                <>
+                  <Label>Reference Images (Optional)</Label>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Attach up to {MAX_IMAGES_PER_SLOT} photos for this sample.
                   </p>
-                </div>
+                  {singleImages.length > 0 && (
+                    <ThumbnailRow
+                      images={singleImages}
+                      altPrefix="Sample reference"
+                      onRemove={removeImage}
+                    />
+                  )}
+                  {singleImages.length < MAX_IMAGES_PER_SLOT && (
+                    <div className="mt-2 border-2 border-dashed border-slate-200 rounded-lg p-4 text-center hover:border-slate-300 transition-colors">
+                      <input
+                        id={`image-${item.id}`}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                      <label htmlFor={`image-${item.id}`} className="cursor-pointer">
+                        <Upload className="mx-auto h-8 w-8 text-slate-400" />
+                        <p className="mt-1 text-sm text-slate-600">
+                          {singleImages.length > 0 ? 'Add more images' : 'Click to upload'}
+                        </p>
+                        <p className="text-xs text-slate-400">PNG, JPG up to 10MB each</p>
+                      </label>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Label className="flex items-center gap-2 flex-wrap">
+                    Reference Images (Optional)
+                    <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-normal">
+                      per quality
+                    </span>
+                  </Label>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Attach photos to any of these {selectedQualities.length} qualities
+                    (up to {MAX_IMAGES_PER_SLOT} each). Leave a slot empty to send that
+                    item without a reference.
+                  </p>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedQualities.map((q, qIdx) => {
+                      const slotImages = qualityImages(item, q);
+                      const isCustom = !qualityOptionsSet.has(q);
+                      const slotId = `image-${item.id}-${qIdx}`;
+                      return (
+                        <div key={q} className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+                          <p className="text-xs text-slate-600 mb-2 truncate" title={q}>
+                            Reference for{' '}
+                            <span className="font-semibold text-slate-800">{q}</span>
+                            {isCustom && <span className="text-amber-600"> (custom)</span>}
+                            {slotImages.length > 0 && (
+                              <span className="text-slate-400"> · {slotImages.length}</span>
+                            )}
+                          </p>
+
+                          {slotImages.length > 0 && (
+                            <ThumbnailRow
+                              images={slotImages}
+                              altPrefix={`Reference for ${q}`}
+                              onRemove={(imageId) => removeQualityImage(q, imageId)}
+                              compact
+                            />
+                          )}
+
+                          {slotImages.length < MAX_IMAGES_PER_SLOT && (
+                            <>
+                              <input
+                                id={slotId}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={(e) => handleQualityImageChange(q, e)}
+                                className="hidden"
+                              />
+                              <label
+                                htmlFor={slotId}
+                                className="mt-2 flex flex-col items-center justify-center gap-1 cursor-pointer border-2 border-dashed border-slate-200 rounded-md py-3 bg-white hover:border-slate-300 transition-colors"
+                              >
+                                <Upload className="h-5 w-5 text-slate-400" />
+                                <span className="text-xs text-slate-500">
+                                  {slotImages.length > 0 ? 'Add more' : 'Click to upload'}
+                                </span>
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </div>

@@ -139,21 +139,39 @@ serve(async (req) => {
   }
 
   // ── 1. Reference photos (sample-images) ────────────────────
-  // Collect every image_url on request_items for this request,
+  // Collect every reference image on request_items for this request,
   // parse out the storage path, and remove. We do this first so a
   // failure on the dispatch-images side doesn't leak references.
+  //
+  // Since migration 1022 an item can hold SEVERAL images: image_url
+  // is the first one and image_urls is the full JSONB array. We union
+  // both so images 2..N are never orphaned in storage, and so rows
+  // written before 1022 (image_url only) still get cleaned.
   try {
     const { data: items, error: itemsError } = await admin
       .from('request_items')
-      .select('id, image_url')
+      .select('id, image_url, image_urls')
       .eq('request_id', request_id)
-      .not('image_url', 'is', null)
+      .or('image_url.not.is.null,image_urls.not.is.null')
 
     if (itemsError) {
       summary.errors.push(`Load request_items: ${itemsError.message}`)
     } else {
-      summary.sample_paths = (items ?? [])
-        .map((row: { image_url: string | null }) => pathFromPublicUrl(row.image_url, SAMPLE_BUCKET))
+      const allUrls = (items ?? []).flatMap(
+        (row: { image_url: string | null; image_urls: unknown }) => {
+          const urls: string[] = []
+          if (typeof row.image_url === 'string' && row.image_url) urls.push(row.image_url)
+          if (Array.isArray(row.image_urls)) {
+            for (const u of row.image_urls) {
+              if (typeof u === 'string' && u) urls.push(u)
+            }
+          }
+          return urls
+        },
+      )
+
+      summary.sample_paths = [...new Set(allUrls)]
+        .map((url) => pathFromPublicUrl(url, SAMPLE_BUCKET))
         .filter((p): p is string => !!p)
 
       if (summary.sample_paths.length > 0) {
@@ -232,20 +250,21 @@ serve(async (req) => {
     summary.errors.push(`Prefix sweep threw: ${(e as Error).message}`)
   }
 
-  // ── 4. NULL out image_url on request_items ─────────────────
+  // ── 4. NULL out image_url + image_urls on request_items ────
   // Done after the storage removes so we don't lose the path
   // mapping if the storage side fails. UI will stop rendering
-  // broken images immediately.
+  // broken images immediately. Both columns are cleared together
+  // (migration 1022) so no dangling URLs survive in either.
   try {
     const { data: updated, error: nullError } = await admin
       .from('request_items')
-      .update({ image_url: null })
+      .update({ image_url: null, image_urls: null })
       .eq('request_id', request_id)
-      .not('image_url', 'is', null)
+      .or('image_url.not.is.null,image_urls.not.is.null')
       .select('id')
 
     if (nullError) {
-      summary.errors.push(`NULL request_items.image_url: ${nullError.message}`)
+      summary.errors.push(`NULL request_items images: ${nullError.message}`)
     } else {
       summary.rows_nulled = updated?.length ?? 0
     }

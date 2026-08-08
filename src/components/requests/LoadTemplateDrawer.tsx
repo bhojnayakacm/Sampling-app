@@ -48,9 +48,15 @@ function hydrateTemplateItems(items: ProductTemplate['items']): ProductItem[] {
     sample_size_custom: item.sample_size_custom || '',
     finish_custom: item.finish_custom || '',
     is_kit: item.is_kit || false,
+    // Templates carry specs only, never images. `...item` can spread stale
+    // `images` / `quality_images` from a template saved off a card that had
+    // photos attached — File objects don't survive JSON, so those entries
+    // would hydrate as phantom thumbnails with nothing to upload. Clear them.
     image_file: null,
     image_preview: null,
     image_url: null,
+    images: [],
+    quality_images: {},
   }));
 }
 

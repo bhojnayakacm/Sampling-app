@@ -111,6 +111,22 @@ export function getOptionsKey(
 // MULTI-PRODUCT TYPES
 // ============================================================
 
+// One reference image attached to a product card (or to one quality inside a
+// batch card). Cards and quality slots both hold ARRAYS of these, so a
+// requester can attach several photos to a single sample.
+//   • id      — stable client-side key for React lists + individual removal.
+//   • file    — a freshly-picked File awaiting compression + upload.
+//   • url     — an already-uploaded image (edit mode), reused when no new
+//               file is picked so the existing photo isn't dropped.
+//   • preview — whatever should render in the thumbnail right now (a FileReader
+//               data URL for a fresh pick, or `url` for an existing image).
+export interface ProductImage {
+  id: string;
+  file?: File | null;
+  preview?: string | null;
+  url?: string | null;
+}
+
 // Form state for product items (used in UI)
 export interface ProductItem {
   id: string; // Unique identifier for React keys (client-side only)
@@ -131,9 +147,26 @@ export interface ProductItem {
   finish: string;
   finish_custom?: string;      // UI-only: custom text when finish select = "Other"
   quantity: number;
+
+  // DEPRECATED single-image fields. Superseded by `images` below, but kept so
+  // legacy state builders (e.g. LoadTemplateDrawer) still typecheck. The
+  // pipeline normalises them into `images` via cardImages() in
+  // src/lib/productImages.ts — never read them directly.
   image_file?: File | null;
   image_preview?: string | null;
   image_url?: string | null; // For existing images when editing
+
+  // Reference images for a SINGLE / zero-quality card. Multiple images per
+  // sample are supported; the first one is mirrored into request_items.image_url
+  // for backward compatibility, the full list goes to request_items.image_urls.
+  images?: ProductImage[];
+
+  // Per-quality reference images for BATCH items (2+ selected qualities).
+  // Keyed by the exact quality string in `selected_qualities`, this lets a
+  // requester attach several distinct photos to each quality within a single
+  // card instead of splitting into separate item blocks. Authoring-only state:
+  // never persisted as-is, and drafts always reload as single-quality items.
+  quality_images?: Record<string, ProductImage[]>;
 
   // Kit support — TRUE for kit placeholder items
   is_kit?: boolean;
@@ -151,7 +184,12 @@ export interface RequestItemDB {
   thickness: string | null;  // Deprecated — column now nullable; legacy reads only
   finish: string | null;
   quantity: number;
+  // First reference image. Retained as the canonical single-image field for
+  // every legacy reader; always equals image_urls[0] when image_urls is set.
   image_url: string | null;
+  // Full ordered list of reference images (migration 1022, JSONB array of
+  // public URLs). NULL on rows created before the multi-image feature.
+  image_urls: string[] | null;
   created_at: string;
   updated_at: string;
 
@@ -184,7 +222,8 @@ export interface CreateRequestItemInput {
   thickness?: string | null;        // Deprecated — kept optional so kit RPCs still typecheck
   finish?: string | null;
   quantity: number;
-  image_url?: string | null;
+  image_url?: string | null;        // first image — kept for legacy readers
+  image_urls?: string[] | null;     // full list (migration 1022)
 
   // Kit support
   is_kit?: boolean;
@@ -259,6 +298,13 @@ export interface Request {
 
   // Requester message (special instructions from requester)
   requester_message: string | null;
+
+  // Optional document the requester attaches alongside their message to the
+  // coordinator (PDF / Word / Excel). Stored in the `request-documents`
+  // bucket; *_name preserves the original filename for display, since the
+  // storage path is prefixed with a UUID (migration 1022).
+  coordinator_document_url: string | null;
+  coordinator_document_name: string | null;
 
   // Coordinator message (for approval/rejection notes)
   coordinator_message: string | null;

@@ -5,6 +5,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { hasOpenOverlay } from '@/lib/overlayStack';
 import { compressImage } from '@/lib/imageCompression';
+import { cardImages, isBatchCard, qualityImages } from '@/lib/productImages';
+import {
+  DOCUMENT_ACCEPT,
+  uploadCoordinatorDocument,
+  validateDocument,
+} from '@/lib/documents';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useRequestWithItems,
@@ -49,6 +55,7 @@ import type {
   Purpose,
   PackingType,
   ProductItem,
+  ProductImage,
   CreateRequestItemInput,
   RequestCategory,
 } from '@/types';
@@ -228,6 +235,8 @@ function createEmptyProduct(): ProductItem {
     finish: '',
     finish_custom: '',
     quantity: 1,
+    images: [],
+    quality_images: {},
     image_file: null,
     image_preview: null,
     image_url: null,
@@ -276,36 +285,88 @@ async function uploadSampleImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
-// Compress-then-upload every image in parallel, returning index -> url.
+// Composite key for the uploaded-image map. Single / zero-quality cards key
+// by product index alone; batch cards key by (index, quality) so every
+// selected quality can carry its own reference image.
+function imgKey(index: number, quality?: string): string {
+  return quality === undefined ? `${index}` : `${index}::${quality}`;
+}
+
+// Compress-then-upload one slot's images, preserving order. A slot is either
+// a whole single-quality card or one quality of a batch card, and may hold
+// several images. Entries that already carry a `url` (edit mode) are passed
+// through untouched instead of being re-uploaded.
 //
 // Compression is the single most important step for reliability on mobile:
 // a request with several high-res camera photos can otherwise exceed the
 // upload size limit (HTTP 413) and fail as an opaque "Connection Error".
-// compressImage() is fail-open — a failed/unnecessary compression yields the
-// original File — so this can never make an upload worse than before.
+// EVERY File — single or per-quality — is routed through compressImage()
+// (fail-open), so nothing escapes the size-limit protection.
+async function uploadImageSet(images: ProductImage[]): Promise<string[]> {
+  const urls = await Promise.all(
+    images.map(async (image) => {
+      if (image.file) {
+        const optimized = await compressImage(image.file);
+        return uploadSampleImage(optimized);
+      }
+      return image.url ?? null;
+    }),
+  );
+  return urls.filter((u): u is string => !!u);
+}
+
+// Upload every reference image across every card in parallel, returning a map
+// of imgKey() -> ordered public URLs. Two shapes feed in:
+//   • Single / zero-quality card → cardImages(product), keyed imgKey(i).
+//   • Batch card (2+ qualities)   → quality_images[quality], keyed imgKey(i, q).
 async function uploadAllImages(
   products: ProductItem[]
-): Promise<Map<number, string>> {
-  const uploadPromises: Promise<{ index: number; url: string }>[] = [];
+): Promise<Map<string, string[]>> {
+  const jobs: Promise<{ key: string; urls: string[] }>[] = [];
 
   products.forEach((product, index) => {
-    if (product.image_file) {
-      uploadPromises.push(
-        compressImage(product.image_file)
-          .then((optimized) => uploadSampleImage(optimized))
-          .then((url) => ({ index, url }))
-      );
+    if (product.is_kit) return;
+
+    if (isBatchCard(product)) {
+      [...new Set(product.selected_qualities)].forEach((quality) => {
+        const images = qualityImages(product, quality);
+        if (images.length > 0) {
+          jobs.push(
+            uploadImageSet(images).then((urls) => ({ key: imgKey(index, quality), urls })),
+          );
+        }
+      });
+    } else {
+      const images = cardImages(product);
+      if (images.length > 0) {
+        jobs.push(uploadImageSet(images).then((urls) => ({ key: imgKey(index), urls })));
+      }
     }
   });
 
-  const results = await Promise.all(uploadPromises);
-  const urlMap = new Map<number, string>();
-
-  results.forEach(({ index, url }) => {
-    urlMap.set(index, url);
-  });
-
+  const results = await Promise.all(jobs);
+  const urlMap = new Map<string, string[]>();
+  results.forEach(({ key, urls }) => urlMap.set(key, urls));
   return urlMap;
+}
+
+// Resolve the final ordered image URLs for one exploded (product, quality) row.
+//   • Batch item  → that quality's own images.
+//   • Single item → the card's images, on the first exploded row only.
+// Existing (already-uploaded) URLs are folded in by uploadImageSet, so there
+// is no separate edit-mode fallback to apply here.
+// `originalIndex` is the row's position within the full `products` array.
+function resolveUploadedImageUrls(
+  urlMap: Map<string, string[]>,
+  product: ProductItem,
+  originalIndex: number,
+  quality: string,
+  isFirstFromCard: boolean,
+): string[] {
+  if (isBatchCard(product)) {
+    return urlMap.get(imgKey(originalIndex, quality)) ?? [];
+  }
+  return isFirstFromCard ? (urlMap.get(imgKey(originalIndex)) ?? []) : [];
 }
 
 // Convert ProductItem to CreateRequestItemInput (without request_id)
@@ -313,7 +374,7 @@ async function uploadAllImages(
 // Hybrid Write: when select = "Other", store the custom text directly in the primary column
 function productToItemInput(
   product: ProductItem,
-  imageUrl: string | null,
+  imageUrls: string[],
   qualityOverride?: string, // Used when exploding batch entries
 ): Omit<CreateRequestItemInput, 'request_id'> {
   // Kit items: only pass category, size, quantity, and is_kit flag
@@ -332,6 +393,7 @@ function productToItemInput(
       finish: null,
       quantity: product.quantity,
       image_url: null,
+      image_urls: null,
       is_kit: true,
     };
   }
@@ -385,7 +447,11 @@ function productToItemInput(
     thickness: null, // Field removed from UI; column is now nullable in DB.
     finish: resolvedFinish,
     quantity: product.quantity,
-    image_url: imageUrl,
+    // image_url keeps the FIRST image so every legacy reader (request detail,
+    // exports, the cleanup edge function) keeps working unchanged; image_urls
+    // carries the full ordered list.
+    image_url: imageUrls[0] ?? null,
+    image_urls: imageUrls.length > 0 ? imageUrls : null,
     is_kit: false,
   };
 }
@@ -416,6 +482,14 @@ function consolidateItems(items: ItemPayload[]): ItemPayload[] {
     const existing = map.get(key);
     if (existing) {
       existing.quantity += item.quantity;
+      // Union the reference images of both entries (deduped, order-preserving)
+      // so consolidating identical specs never silently drops a photo.
+      const merged = [
+        ...(existing.image_urls ?? []),
+        ...(item.image_urls ?? []),
+      ];
+      const deduped = [...new Set(merged)];
+      existing.image_urls = deduped.length > 0 ? deduped : null;
       // Keep the image from whichever entry had one
       if (!existing.image_url && item.image_url) {
         existing.image_url = item.image_url;
@@ -515,6 +589,15 @@ export default function NewRequest() {
   // Multi-product state
   const [products, setProducts] = useState<ProductItem[]>([]);
 
+  // Optional document attached to the "Message to Coordinator" section.
+  // `file` is a fresh pick awaiting upload; `url` is an already-uploaded
+  // document restored when editing a draft. Never both.
+  const [coordinatorDoc, setCoordinatorDoc] = useState<{
+    file?: File | null;
+    name: string;
+    url?: string | null;
+  } | null>(null);
+
   // Use the new hook that fetches request with items
   const { data: existingDraft, isLoading: isDraftLoading } = useRequestWithItems(draftId);
   const isEditMode = !!draftId && (existingDraft?.status === 'draft' || existingDraft?.status === 'rejected');
@@ -541,6 +624,36 @@ export default function NewRequest() {
 
   // POC contacts multi-input state
   const [pocContactInput, setPocContactInput] = useState('');
+
+  // ── Coordinator document handlers ────────────────────────────
+  const handleCoordinatorDocChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+
+    const error = validateDocument(file);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setCoordinatorDoc({ file, name: file.name, url: null });
+  };
+
+  const removeCoordinatorDoc = () => setCoordinatorDoc(null);
+
+  /**
+   * Resolve the document URL to persist. Uploads a freshly-picked file, or
+   * reuses the existing URL when editing a draft without changing the file.
+   *
+   * NOTE: documents deliberately DO NOT pass through compressImage() — that
+   * utility is a Canvas raster-image compressor and would be meaningless (or
+   * destructive) for a PDF/DOCX/XLSX. See src/lib/documents.ts.
+   */
+  const resolveCoordinatorDocUrl = async (): Promise<string | null> => {
+    if (!coordinatorDoc) return null;
+    if (coordinatorDoc.file) return uploadCoordinatorDocument(coordinatorDoc.file);
+    return coordinatorDoc.url ?? null;
+  };
 
   // Load draft data when editing — use reset() for atomic form population
   useEffect(() => {
@@ -602,6 +715,16 @@ export default function NewRequest() {
         requester_message: existingDraft.requester_message || '',
       });
 
+      // Restore a previously attached coordinator document (not a form field —
+      // it lives in component state because it is a File/URL, not text).
+      if (existingDraft.coordinator_document_url) {
+        setCoordinatorDoc({
+          file: null,
+          name: existingDraft.coordinator_document_name || 'Attached document',
+          url: existingDraft.coordinator_document_url,
+        });
+      }
+
       // Load items from request_items table (new structure)
       if (existingDraft.items && existingDraft.items.length > 0) {
         // Kit feature deprecated — strip any legacy kit placeholder rows
@@ -642,8 +765,18 @@ export default function NewRequest() {
             finish:             isCustomFinish ? 'Other' : (hasFinish ? (item.finish || 'Polish') : ''),
             finish_custom:      isCustomFinish ? item.finish! : '',
             quantity:           item.quantity,
-            image_url:          item.image_url,
-            image_preview:      item.image_url,
+            // Rebuild the multi-image array from image_urls, falling back to
+            // the single image_url for rows saved before migration 1022.
+            images: (
+              item.image_urls && item.image_urls.length > 0
+                ? item.image_urls
+                : (item.image_url ? [item.image_url] : [])
+            ).map((url, i): ProductImage => ({
+              id: `saved-${item.id}-${i}`,
+              file: null,
+              preview: url,
+              url,
+            })),
             is_kit:             item.is_kit || false,
           };
         });
@@ -736,8 +869,22 @@ export default function NewRequest() {
     setProducts(products.filter((_, i) => i !== index));
   };
 
-  const updateProduct = (index: number, updates: Partial<ProductItem>) => {
-    setProducts(products.map((p, i) => (i === index ? { ...p, ...updates } : p)));
+  /**
+   * Update one product card. `updates` may be a plain patch or an updater
+   * function receiving the CURRENT card — the latter matters for the image
+   * handlers, whose FileReader step is async: by the time they resolve, a
+   * patch computed from the captured `item` could clobber a concurrent pick
+   * in another slot. Functional form + functional setState closes that race.
+   */
+  const updateProduct = (
+    index: number,
+    updates: Partial<ProductItem> | ((prev: ProductItem) => Partial<ProductItem>),
+  ) => {
+    setProducts((prev) =>
+      prev.map((p, i) =>
+        i === index ? { ...p, ...(typeof updates === 'function' ? updates(p) : updates) } : p,
+      ),
+    );
   };
 
   // Load products from a saved template
@@ -912,8 +1059,12 @@ export default function NewRequest() {
     try {
       const formValues = watch();
 
-      // Step 1: Upload all images in parallel
-      const imageUrlMap = await uploadAllImages(products);
+      // Step 1: Upload all images in parallel (+ the coordinator document,
+      // which bypasses image compression — see resolveCoordinatorDocUrl).
+      const [imageUrlMap, coordinatorDocUrl] = await Promise.all([
+        uploadAllImages(products),
+        resolveCoordinatorDocUrl(),
+      ]);
 
       // Step 2: Explode batch entries into individual items
       const explodedItems = explodeProducts(products);
@@ -964,19 +1115,26 @@ export default function NewRequest() {
           ? (formValues.packing_details_custom || null)
           : (formValues.packing_details || null),
 
-        // Requester message (optional)
+        // Requester message (optional) + its optional document attachment
         requester_message: formValues.requester_message || null,
+        coordinator_document_url: coordinatorDocUrl,
+        coordinator_document_name: coordinatorDocUrl ? (coordinatorDoc?.name ?? null) : null,
       };
 
       // Step 5: Prepare items data from exploded entries
-      // IMAGE RULE: Only the FIRST item from each batch card gets the image
+      // IMAGE RULE: batch cards map a distinct photo per quality; single cards
+      // use the one dropzone image. See resolveUploadedImageUrl().
       const rawItems = explodedItems.map((explodedItem) => {
-        const imageUrl = explodedItem.isFirstFromCard
-          ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
-          : null;
+        const imageUrls = resolveUploadedImageUrls(
+          imageUrlMap,
+          explodedItem.product,
+          explodedItem.originalIndex,
+          explodedItem.quality,
+          explodedItem.isFirstFromCard,
+        );
         return productToItemInput(
           explodedItem.product,
-          imageUrl,
+          imageUrls,
           explodedItem.quality,
         );
       });
@@ -1084,8 +1242,12 @@ export default function NewRequest() {
     })));
 
     try {
-      // Step 1: Upload all images in parallel
-      const imageUrlMap = await uploadAllImages(products);
+      // Step 1: Upload all images in parallel (+ the coordinator document,
+      // which bypasses image compression — see resolveCoordinatorDocUrl).
+      const [imageUrlMap, coordinatorDocUrl] = await Promise.all([
+        uploadAllImages(products),
+        resolveCoordinatorDocUrl(),
+      ]);
 
       // Step 2: Detect mixed-category submission
       const marbleProducts = products.filter(p => p.category === 'marble');
@@ -1138,8 +1300,10 @@ export default function NewRequest() {
           ? (data.packing_details_custom || data.packing_details)
           : data.packing_details,
 
-        // Requester message (optional)
+        // Requester message (optional) + its optional document attachment
         requester_message: data.requester_message || null,
+        coordinator_document_url: coordinatorDocUrl,
+        coordinator_document_name: coordinatorDocUrl ? (coordinatorDoc?.name ?? null) : null,
       };
 
       // Helper: build consolidated items list for a given subset of product cards
@@ -1149,10 +1313,14 @@ export default function NewRequest() {
         const rawItems = exploded.map((explodedItem) => {
           // Find original index in the full products array for image URL lookup
           const originalIndex = products.indexOf(explodedItem.product);
-          const imageUrl = explodedItem.isFirstFromCard
-            ? (imageUrlMap.get(originalIndex) || explodedItem.product.image_url || null)
-            : null;
-          return productToItemInput(explodedItem.product, imageUrl, explodedItem.quality);
+          const imageUrls = resolveUploadedImageUrls(
+            imageUrlMap,
+            explodedItem.product,
+            originalIndex,
+            explodedItem.quality,
+            explodedItem.isFirstFromCard,
+          );
+          return productToItemInput(explodedItem.product, imageUrls, explodedItem.quality);
         });
         return consolidateItems(rawItems);
       };
@@ -1193,10 +1361,14 @@ export default function NewRequest() {
         console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
 
         const rawItems = explodedItems.map((explodedItem) => {
-          const imageUrl = explodedItem.isFirstFromCard
-            ? (imageUrlMap.get(explodedItem.originalIndex) || explodedItem.product.image_url || null)
-            : null;
-          return productToItemInput(explodedItem.product, imageUrl, explodedItem.quality);
+          const imageUrls = resolveUploadedImageUrls(
+            imageUrlMap,
+            explodedItem.product,
+            explodedItem.originalIndex,
+            explodedItem.quality,
+            explodedItem.isFirstFromCard,
+          );
+          return productToItemInput(explodedItem.product, imageUrls, explodedItem.quality);
         });
         const itemsData = consolidateItems(rawItems);
         const category = (marbleProducts.length > 0 ? 'marble' : 'magro') as RequestCategory;
@@ -2070,6 +2242,58 @@ export default function NewRequest() {
             rows={3}
             className="border-slate-200 focus:ring-indigo-500 resize-none"
           />
+
+          {/* Optional document attachment (PDF / Word / Excel / CSV).
+              Uploaded as-is — never through the image compressor. */}
+          <div className="mt-3">
+            <Label htmlFor="coordinator_document" className="text-sm font-medium text-slate-700">
+              Attach a document (optional)
+            </Label>
+            <p className="text-xs text-slate-500 mt-0.5">
+              PDF, Word, Excel or CSV — up to 10MB
+            </p>
+
+            {!coordinatorDoc ? (
+              <>
+                <input
+                  id="coordinator_document"
+                  type="file"
+                  accept={DOCUMENT_ACCEPT}
+                  onChange={handleCoordinatorDocChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="coordinator_document"
+                  className="mt-2 flex items-center justify-center gap-2 cursor-pointer border-2 border-dashed border-slate-200 rounded-lg py-3 px-4 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  <FileText className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-600">Click to attach a document</span>
+                </label>
+              </>
+            ) : (
+              <div className="mt-2 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+                <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-800 truncate" title={coordinatorDoc.name}>
+                    {coordinatorDoc.name}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {coordinatorDoc.file
+                      ? `${(coordinatorDoc.file.size / (1024 * 1024)).toFixed(2)} MB · ready to upload`
+                      : 'Already attached'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeCoordinatorDoc}
+                  aria-label="Remove attached document"
+                  className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-white hover:text-red-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Mixed-category warning — placed above action buttons so it's impossible to miss */}
