@@ -28,6 +28,7 @@ const KIT_DEPRECATION_NOTICE_KEY = 'kitDeprecationNoticeDismissed';
 import { formatDate } from '@/lib/utils';
 import { RequesterStatsSkeleton } from '@/components/skeletons';
 import EnablePushButton from '@/components/notifications/EnablePushButton';
+import WhatsNewDialog from '@/components/announcements/WhatsNewDialog';
 
 // Compact stat card configuration
 interface StatConfig {
@@ -156,6 +157,10 @@ export default function RequesterDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* One-time "What's New" popup. Self-gating: renders nothing unless the
+          signed-in user has an undismissed announcement for their role. */}
+      <WhatsNewDialog />
+
       {/* Clean White Header */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
