@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText, Phone, User, X, AlertTriangle } from 'lucide-react';
 import { PRODUCT_QUALITIES_BY_KEY, type ProductTypeKey } from '@/lib/productData';
-import { titleCaseQuality } from '@/lib/utils';
+import { formatPhoneNumberInput, titleCaseQuality } from '@/lib/utils';
 import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
@@ -616,6 +616,10 @@ export default function NewRequest() {
       priority: 'normal',
     },
   });
+
+  // Registered separately so the JSX can wrap its onChange with the phone
+  // sanitiser while still forwarding to react-hook-form's own handler.
+  const clientPhoneField = register('client_phone');
 
   // Watch fields for conditional logic
   const pickupResponsibility = watch('pickup_responsibility');
@@ -1782,7 +1786,9 @@ export default function NewRequest() {
                         <div className="flex gap-2">
                           <Input
                             value={pocContactInput}
-                            onChange={(e) => setPocContactInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                            // Sanitiser replaces the old first-10 slice; no
+                            // maxLength so a pasted "+91 …" reaches it intact.
+                            onChange={(e) => setPocContactInput(formatPhoneNumberInput(e.target.value))}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
@@ -1797,7 +1803,6 @@ export default function NewRequest() {
                             }}
                             placeholder="Enter 10-digit number"
                             inputMode="numeric"
-                            maxLength={10}
                             className="h-12 border-slate-200 bg-white flex-1"
                           />
                           <Button
@@ -1954,13 +1959,22 @@ export default function NewRequest() {
                   <Label htmlFor="client_phone" className="text-slate-700 font-semibold">Mobile</Label>
                   <Input
                     id="client_phone"
-                    {...register('client_phone')}
+                    {...clientPhoneField}
+                    // Rewrite the value before react-hook-form records it, so
+                    // the stored value is always the clean 10 digits. No
+                    // maxLength — the browser would clip a pasted "+91 …"
+                    // before the sanitiser could strip it.
+                    onChange={(e) => {
+                      e.target.value = formatPhoneNumberInput(e.target.value);
+                      void clientPhoneField.onChange(e);
+                    }}
                     placeholder="Enter 10-digit mobile number (optional)"
                     inputMode="numeric"
-                    maxLength={10}
                     className="mt-1.5 h-12 border-slate-200 focus:ring-indigo-500"
                   />
-                  <p className="text-xs text-slate-400 mt-1">Please enter 10 digits only (no country code).</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Paste any format — country codes and spacing are removed automatically.
+                  </p>
                 </div>
 
                 {/* Email */}

@@ -23,6 +23,30 @@ export function formatDateTime(date: string | Date): string {
   })
 }
 
+// Sanitises anything a user types OR pastes into a 10-digit mobile field.
+//
+// THE BUG THIS FIXES: the inputs used to combine `maxLength={10}` with a
+// first-10 slice. Pasting "+91 9876543210" was truncated by the browser to
+// "+91 987654" BEFORE onChange even fired, and what survived the strip was
+// "987654" — six digits of a ten-digit number. Even without maxLength, taking
+// the FIRST 10 of "919876543210" yields "9198765432", a wrong number that
+// still passes a /^\d{10}$/ check. Silent corruption either way.
+//
+// Rules:
+//   • Drop every non-digit — spaces, dashes, parentheses, dots, "+".
+//   • 10 digits or fewer: return as-is (partial input while typing is fine;
+//     the submit-time /^\d{10}$/ validation still has the final say).
+//   • More than 10: keep the LAST 10. Country codes and trunk prefixes are
+//     leading, so "919876543210", "0919876543210" and "09876543210" all
+//     collapse to "9876543210" without needing a parsing library.
+//
+// Callers must NOT also set maxLength on the input, or the browser clips the
+// pasted text before this ever sees it.
+export function formatPhoneNumberInput(raw: string): string {
+  const digits = (raw ?? '').replace(/\D/g, '')
+  return digits.length > 10 ? digits.slice(-10) : digits
+}
+
 // Normalises a custom user-typed string (currently used for custom product
 // qualities) to a consistent visual form so "abc", "ABC", and "Abc" don't all
 // coexist as separate qualities. Rules:

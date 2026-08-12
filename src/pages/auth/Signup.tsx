@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { formatPhoneNumberInput } from '@/lib/utils';
 import { Eye, EyeOff, LayoutDashboard } from 'lucide-react';
 
 export default function Signup() {
@@ -24,9 +25,18 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Phone gets the shared sanitiser so a pasted "+91 98765 43210" lands as
+    // a clean 10-digit number instead of being truncated mid-string. This
+    // value becomes profiles.phone, which is copied into requests.mobile_no
+    // on every submission — a mangled number here corrupts every request.
+    const value =
+      e.target.name === 'phone'
+        ? formatPhoneNumberInput(e.target.value)
+        : e.target.value;
+
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: value,
     });
   };
 
@@ -168,7 +178,7 @@ export default function Signup() {
                 onChange={handleChange}
                 required
                 autoComplete="tel"
-                maxLength={10}
+                inputMode="numeric"
                 className="h-11 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500"
               />
               <p className="text-xs text-slate-500">Enter 10-digit mobile number without country code</p>

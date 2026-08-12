@@ -48,7 +48,7 @@ import {
   Building2,
   AlertTriangle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatPhoneNumberInput } from '@/lib/utils';
 import { UserManagementSkeleton } from '@/components/skeletons';
 
 // ============================================================
@@ -1069,8 +1069,12 @@ export default function UserManagement() {
                 type="tel"
                 placeholder="10-digit number (optional)"
                 value={createForm.phone}
-                onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                maxLength={10}
+                // Sanitised so a pasted "+91 …" isn't clipped; no maxLength,
+                // which would truncate the paste before onChange fires.
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, phone: formatPhoneNumberInput(e.target.value) })
+                }
+                inputMode="numeric"
                 className="h-11"
               />
             </div>
