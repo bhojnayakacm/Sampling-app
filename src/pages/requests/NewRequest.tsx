@@ -36,9 +36,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText, Phone, User, X, AlertTriangle } from 'lucide-react';
+import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText, Phone, User, X, AlertTriangle, Clock } from 'lucide-react';
 import { PRODUCT_QUALITIES_BY_KEY, type ProductTypeKey } from '@/lib/productData';
 import { formatPhoneNumberInput, titleCaseQuality } from '@/lib/utils';
+import { formatCountdown, isGraceEditableStatus } from '@/lib/editGracePeriod';
+import { useGraceCountdown } from '@/hooks/useGraceCountdown';
 import { FormSkeleton } from '@/components/skeletons';
 import { toast } from 'sonner';
 import ProductItemCard from '@/components/requests/ProductItemCard';
@@ -197,6 +199,18 @@ function getFriendlyErrorMessage(error: any): { title: string; description: stri
     return {
       title: 'Connection Error',
       description: 'Unable to connect to the server. Please check your internet connection.',
+    };
+  }
+
+  // Grace-period expiry. When the 10-minute window closes mid-edit, the RLS
+  // policy (migration 1023) stops matching the row: the UPDATE returns zero
+  // rows and .single() surfaces PGRST116 ("no rows"). Without this branch it
+  // reads as a generic failure and the user retries forever.
+  if (code === 'PGRST116' || message.includes('0 rows') || message.includes('no rows')) {
+    return {
+      title: 'Edit Window Closed',
+      description:
+        'The 10-minute edit period has ended, so this request can no longer be changed. Please contact the coordinator.',
     };
   }
 
@@ -600,8 +614,21 @@ export default function NewRequest() {
 
   // Use the new hook that fetches request with items
   const { data: existingDraft, isLoading: isDraftLoading } = useRequestWithItems(draftId);
-  const isEditMode = !!draftId && (existingDraft?.status === 'draft' || existingDraft?.status === 'rejected');
+  // Editing an already-submitted request inside the 10-minute grace window.
+  //
+  // Deliberately NOT time-gated: if `isEditMode` flipped to false mid-edit the
+  // submit path would silently switch from "update this request" to "create a
+  // new one". The window is enforced where it belongs — in RLS (migration
+  // 1023) — while the banner below counts the user down and a late save fails
+  // with a clear message.
+  const isGraceEditMode = !!draftId && isGraceEditableStatus(existingDraft?.status);
+  const isEditMode =
+    !!draftId &&
+    (existingDraft?.status === 'draft' || existingDraft?.status === 'rejected' || isGraceEditMode);
   const isResubmitMode = !!draftId && existingDraft?.status === 'rejected';
+
+  // Live countdown for the grace-edit banner.
+  const graceRemainingMs = useGraceCountdown(existingDraft?.created_at, isGraceEditMode);
 
   const {
     register,
@@ -1258,6 +1285,25 @@ export default function NewRequest() {
       const magroProducts  = products.filter(p => p.category === 'magro');
       const isMixed = marbleProducts.length > 0 && magroProducts.length > 0;
 
+      // The split path DELETEs the original request and creates two new ones.
+      // A requester may only delete their own drafts, so on an already-
+      // submitted request that delete is silently refused by RLS and we'd
+      // leave the original behind alongside two duplicates. Block it here
+      // with an actionable message instead.
+      if (isMixed && isGraceEditMode) {
+        toast.error(
+          <div>
+            <p className="font-semibold">Can't split a submitted request</p>
+            <p className="text-sm mt-1">
+              Keep every item in one category (Marble or Magro) while editing.
+              To order the other category, submit a separate request.
+            </p>
+          </div>,
+          { duration: 6000 }
+        );
+        return;
+      }
+
       // Step 3: Prepare shared request data (same for both split requests)
       // Hybrid Write: when select = "other", store the custom text directly in the primary column
       const resolvedClientType = data.client_type === 'other'
@@ -1387,9 +1433,17 @@ export default function NewRequest() {
           }
           console.log(`[NewRequest] ${submissionId} - Updating ${isResubmitMode ? 'rejected' : 'draft'} request ${draftId}`);
           await updateRequestWithItems(draftId, singleRequestData, itemsData);
-          toast.success(isResubmitMode
-            ? 'Request resubmitted successfully!'
-            : 'Draft submitted successfully'
+          toast.success(
+            isResubmitMode
+              ? 'Request resubmitted successfully!'
+              : isGraceEditMode
+              ? existingDraft?.status === 'approved'
+                // The DB trigger already forced this back to pending_approval;
+                // say so plainly rather than letting the coordinator's approval
+                // silently vanish from under the requester.
+                ? 'Changes saved. Your request was sent back for approval.'
+                : 'Changes saved successfully'
+              : 'Draft submitted successfully'
           );
         } else {
           console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
@@ -1567,7 +1621,13 @@ export default function NewRequest() {
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
-                {isResubmitMode ? 'Edit & Resubmit' : isEditMode ? 'Edit Draft' : 'New Request'}
+                {isResubmitMode
+                  ? 'Edit & Resubmit'
+                  : isGraceEditMode
+                  ? 'Edit Request'
+                  : isEditMode
+                  ? 'Edit Draft'
+                  : 'New Request'}
               </h1>
               <p className="text-sm text-slate-500 hidden sm:block">
                 {profile.full_name} | {profile.department}
@@ -2331,6 +2391,45 @@ export default function NewRequest() {
           );
         })()}
 
+        {/* Grace-period status — only while editing an already-submitted
+            request. Turns red once the window closes so the user knows the
+            save will be refused before they spend time on it. */}
+        {isGraceEditMode && (
+          <div
+            className={`mt-4 flex items-start gap-3 p-4 rounded-xl border-2 text-sm ${
+              graceRemainingMs > 0
+                ? 'bg-amber-50 border-amber-300'
+                : 'bg-red-50 border-red-300'
+            }`}
+          >
+            <Clock
+              className={`h-5 w-5 shrink-0 mt-0.5 ${
+                graceRemainingMs > 0 ? 'text-amber-600' : 'text-red-600'
+              }`}
+            />
+            {graceRemainingMs > 0 ? (
+              <div>
+                <p className="font-bold text-amber-800">
+                  Editable for {formatCountdown(graceRemainingMs)}
+                </p>
+                <p className="text-amber-700 mt-0.5">
+                  Save your changes before the timer runs out.
+                  {existingDraft?.status === 'approved' &&
+                    ' This request is already approved — saving will send it back to the coordinator for re-approval.'}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="font-bold text-red-800">Edit window closed</p>
+                <p className="text-red-700 mt-0.5">
+                  The 10-minute edit period for this request has ended. Please contact
+                  the coordinator to make further changes.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Form Actions - Clean Card at bottom */}
         <div className="mt-4 bg-white border border-slate-200 rounded-xl shadow-sm p-5">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:justify-end">
@@ -2345,8 +2444,11 @@ export default function NewRequest() {
               Cancel
             </Button>
 
-            {/* Save Draft Button — hidden in resubmit mode */}
-            {!isResubmitMode && (
+            {/* Save Draft Button — hidden in resubmit mode, and during a
+                grace-period edit where saving as 'draft' would pull an
+                already-submitted request back out of the workflow (RLS also
+                refuses it: the policy pins the outgoing status). */}
+            {!isResubmitMode && !isGraceEditMode && (
               <Button
                 type="button"
                 variant="outline"

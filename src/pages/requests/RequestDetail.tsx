@@ -73,6 +73,8 @@ import {
 import type { RequestItemDB, SubCategory, OptionsKey, RequestCategory } from '@/types';
 import { SUB_CATEGORY_LABELS, PRODUCT_SIZE_OPTIONS, getOptionsKey } from '@/types';
 import { RequestDetailSkeleton } from '@/components/skeletons';
+import { formatCountdown, isGraceEditableStatus } from '@/lib/editGracePeriod';
+import { useGraceCountdown } from '@/hooks/useGraceCountdown';
 
 /**
  * Every reference image on an item. Since migration 1022 an item can carry
@@ -128,6 +130,13 @@ export default function RequestDetail() {
   const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(profile?.role || '');
   const isMaker = profile?.role === 'maker';
   const isRequester = profile?.role === 'requester' && profile?.id === request?.created_by;
+
+  // ── 10-minute edit grace period ─────────────────────────────
+  // Declared here, above every early return, so the hook order stays
+  // stable across the loading / error / loaded renders.
+  const graceCountdownEnabled = isRequester && isGraceEditableStatus(request?.status);
+  const graceRemainingMs = useGraceCountdown(request?.created_at, graceCountdownEnabled);
+  const canEditDuringGrace = graceCountdownEnabled && graceRemainingMs > 0;
   const isDispatcher = profile?.role === 'dispatcher';
   const hideClientContact = ['maker', 'dispatcher'].includes(profile?.role || '');
 
@@ -1116,6 +1125,38 @@ export default function RequestDetail() {
 
       <main className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5">
         {/* ======== ALERTS ======== */}
+
+        {/* 10-minute edit grace period — requester only. Disappears the
+            moment the countdown hits zero or a coordinator advances the
+            request past `approved`. */}
+        {canEditDuringGrace && (
+          <Alert className="mb-3 border border-amber-200 bg-amber-50 rounded-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-start gap-2 min-w-0 flex-1">
+                <Clock className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <AlertTitle className="text-sm font-medium text-amber-900">
+                    Editable for {formatCountdown(graceRemainingMs)}
+                  </AlertTitle>
+                  <AlertDescription className="text-sm text-amber-700 mt-0.5">
+                    You can still change this request.
+                    {request.status === 'approved'
+                      ? ' It has already been approved — editing will send it back for approval.'
+                      : ' After the timer runs out, contact the coordinator instead.'}
+                  </AlertDescription>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => navigate(`/requests/edit/${request.id}`)}
+                className="shrink-0 h-10 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit Request
+              </Button>
+            </div>
+          </Alert>
+        )}
 
         {(request.requester_message || request.coordinator_document_url) && (
           <Alert className="mb-3 border border-violet-200 bg-violet-50 rounded-xl">

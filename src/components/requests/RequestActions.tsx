@@ -24,9 +24,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Request, DispatchMode, RescheduleReason } from '@/types';
 import { RESCHEDULE_REASONS } from '@/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play } from 'lucide-react';
 import DispatchDialog from './DispatchDialog';
 import { formatDateTime } from '@/lib/utils';
+import { formatCountdown } from '@/lib/editGracePeriod';
+import { useGraceCountdown } from '@/hooks/useGraceCountdown';
 
 interface RequestActionsProps {
   request: Request;
@@ -44,6 +56,8 @@ export default function RequestActions({ request, userRole, isCompact = false, o
 
   // Dialog states
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  // Warning shown when approving a request the requester can still edit.
+  const [graceWarningOpen, setGraceWarningOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -112,7 +126,29 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   // pending-approval requests with leftover packed kit rows would now skip
   // straight to the approve dialog; the coordinator can still approve them
   // because the unpacked-requirement is dropped intentionally.
+  // Live countdown on the requester's 10-minute edit window. Only ticks while
+  // the request is still awaiting approval — the only state this warning
+  // applies to.
+  const graceRemainingMs = useGraceCountdown(
+    request.created_at,
+    request.status === 'pending_approval',
+  );
+  const isWithinGraceWindow = graceRemainingMs > 0;
+
   const handleApproveClick = () => {
+    // Intercept: approving now can be undone by the requester's own edit,
+    // which reverts the request to pending_approval (migration 1023 trigger).
+    // Make the coordinator aware before they spend the review.
+    if (isWithinGraceWindow) {
+      setGraceWarningOpen(true);
+      return;
+    }
+    setApproveDialogOpen(true);
+  };
+
+  // Confirmed through the warning — continue into the normal approve dialog.
+  const handleGraceWarningConfirm = () => {
+    setGraceWarningOpen(false);
     setApproveDialogOpen(true);
   };
 
@@ -686,6 +722,34 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             onOpenChange={setDispatchOpen}
           />
         )}
+
+        {/* Grace-period warning — gates the approve flow while the requester
+            can still edit. Confirming falls through to the approve dialog. */}
+        <AlertDialog open={graceWarningOpen} onOpenChange={setGraceWarningOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Approve a request that can still change?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This request was submitted recently. The requester can still edit it
+                for another{' '}
+                <span className="font-semibold text-slate-700">
+                  {formatCountdown(graceRemainingMs)}
+                </span>
+                . If edited, it will revert to Pending status. Do you want to approve
+                it anyway?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Wait for the timer</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleGraceWarningConfirm}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                Approve anyway
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </>
     );
   }
