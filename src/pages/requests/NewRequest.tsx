@@ -2,10 +2,19 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { hasOpenOverlay } from '@/lib/overlayStack';
-import { compressImage } from '@/lib/imageCompression';
-import { cardImages, isBatchCard, qualityImages } from '@/lib/productImages';
+import { stripImagePreviews } from '@/lib/productImages';
+import {
+  consolidateItems,
+  explodeProducts,
+  productToItemInput,
+  resolveUploadedImageUrls,
+  runSubmission,
+  uploadAllImages,
+  type SubmissionPlan,
+} from '@/lib/submitRequest';
+import { isNetworkError } from '@/lib/networkErrors';
+import { enqueueSubmission } from '@/lib/outbox';
 import {
   DOCUMENT_ACCEPT,
   uploadCoordinatorDocument,
@@ -37,8 +46,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, ChevronLeft, Save, SendHorizontal, Plus, Package, Check, Sparkles, MessageSquare, XCircle, RotateCcw, LogOut, FileText, Phone, User, X, AlertTriangle, Clock } from 'lucide-react';
-import { PRODUCT_QUALITIES_BY_KEY, type ProductTypeKey } from '@/lib/productData';
-import { formatPhoneNumberInput, titleCaseQuality } from '@/lib/utils';
+import { formatPhoneNumberInput } from '@/lib/utils';
 import { formatCountdown, isGraceEditableStatus } from '@/lib/editGracePeriod';
 import { useGraceCountdown } from '@/hooks/useGraceCountdown';
 import { FormSkeleton } from '@/components/skeletons';
@@ -58,7 +66,6 @@ import type {
   PackingType,
   ProductItem,
   ProductImage,
-  CreateRequestItemInput,
   RequestCategory,
 } from '@/types';
 import {
@@ -129,6 +136,17 @@ function generateId(): string {
 function getFriendlyErrorMessage(error: any): { title: string; description: string } {
   const message = error?.message?.toLowerCase() || '';
   const code = error?.code || '';
+
+  // Document rejected by the storage bucket (over 10MB, or a MIME type the
+  // bucket refuses). Already decoded into a user-ready sentence by
+  // decodeDocumentUploadError — surface it verbatim instead of letting the
+  // masked CORS failure fall through to the generic "Connection Error".
+  if (error?.isDocumentUploadError) {
+    return {
+      title: 'Document Rejected',
+      description: error.message,
+    };
+  }
 
   // HTTP status can arrive as `status` (number) or `statusCode` (string) on
   // Supabase StorageApiError, or nested on a wrapped fetch error.
@@ -280,302 +298,6 @@ function createEmptyProduct(): ProductItem {
 //     is_kit: true,
 //   };
 // }
-
-async function uploadSampleImage(file: File): Promise<string> {
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${Math.random()}.${fileExt}`;
-  const filePath = `${fileName}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from('sample-images')
-    .upload(filePath, file);
-
-  if (uploadError) throw uploadError;
-
-  const { data } = supabase.storage
-    .from('sample-images')
-    .getPublicUrl(filePath);
-
-  return data.publicUrl;
-}
-
-// Composite key for the uploaded-image map. Single / zero-quality cards key
-// by product index alone; batch cards key by (index, quality) so every
-// selected quality can carry its own reference image.
-function imgKey(index: number, quality?: string): string {
-  return quality === undefined ? `${index}` : `${index}::${quality}`;
-}
-
-// Compress-then-upload one slot's images, preserving order. A slot is either
-// a whole single-quality card or one quality of a batch card, and may hold
-// several images. Entries that already carry a `url` (edit mode) are passed
-// through untouched instead of being re-uploaded.
-//
-// Compression is the single most important step for reliability on mobile:
-// a request with several high-res camera photos can otherwise exceed the
-// upload size limit (HTTP 413) and fail as an opaque "Connection Error".
-// EVERY File — single or per-quality — is routed through compressImage()
-// (fail-open), so nothing escapes the size-limit protection.
-async function uploadImageSet(images: ProductImage[]): Promise<string[]> {
-  const urls = await Promise.all(
-    images.map(async (image) => {
-      if (image.file) {
-        const optimized = await compressImage(image.file);
-        return uploadSampleImage(optimized);
-      }
-      return image.url ?? null;
-    }),
-  );
-  return urls.filter((u): u is string => !!u);
-}
-
-// Upload every reference image across every card in parallel, returning a map
-// of imgKey() -> ordered public URLs. Two shapes feed in:
-//   • Single / zero-quality card → cardImages(product), keyed imgKey(i).
-//   • Batch card (2+ qualities)   → quality_images[quality], keyed imgKey(i, q).
-async function uploadAllImages(
-  products: ProductItem[]
-): Promise<Map<string, string[]>> {
-  const jobs: Promise<{ key: string; urls: string[] }>[] = [];
-
-  products.forEach((product, index) => {
-    if (product.is_kit) return;
-
-    if (isBatchCard(product)) {
-      [...new Set(product.selected_qualities)].forEach((quality) => {
-        const images = qualityImages(product, quality);
-        if (images.length > 0) {
-          jobs.push(
-            uploadImageSet(images).then((urls) => ({ key: imgKey(index, quality), urls })),
-          );
-        }
-      });
-    } else {
-      const images = cardImages(product);
-      if (images.length > 0) {
-        jobs.push(uploadImageSet(images).then((urls) => ({ key: imgKey(index), urls })));
-      }
-    }
-  });
-
-  const results = await Promise.all(jobs);
-  const urlMap = new Map<string, string[]>();
-  results.forEach(({ key, urls }) => urlMap.set(key, urls));
-  return urlMap;
-}
-
-// Resolve the final ordered image URLs for one exploded (product, quality) row.
-//   • Batch item  → that quality's own images.
-//   • Single item → the card's images, on the first exploded row only.
-// Existing (already-uploaded) URLs are folded in by uploadImageSet, so there
-// is no separate edit-mode fallback to apply here.
-// `originalIndex` is the row's position within the full `products` array.
-function resolveUploadedImageUrls(
-  urlMap: Map<string, string[]>,
-  product: ProductItem,
-  originalIndex: number,
-  quality: string,
-  isFirstFromCard: boolean,
-): string[] {
-  if (isBatchCard(product)) {
-    return urlMap.get(imgKey(originalIndex, quality)) ?? [];
-  }
-  return isFirstFromCard ? (urlMap.get(imgKey(originalIndex)) ?? []) : [];
-}
-
-// Convert ProductItem to CreateRequestItemInput (without request_id)
-// This is called AFTER exploding batch entries, so each item has exactly one quality
-// Hybrid Write: when select = "Other", store the custom text directly in the primary column
-function productToItemInput(
-  product: ProductItem,
-  imageUrls: string[],
-  qualityOverride?: string, // Used when exploding batch entries
-): Omit<CreateRequestItemInput, 'request_id'> {
-  // Kit items: only pass category, size, quantity, and is_kit flag
-  if (product.is_kit) {
-    const resolvedSize = product.sample_size === 'Other'
-      ? (product.sample_size_custom || '')
-      : product.sample_size;
-
-    return {
-      item_index: 0,
-      product_type: product.category as RequestCategory,
-      sub_category: null,
-      quality: null,
-      sample_size: resolvedSize,
-      thickness: null,
-      finish: null,
-      quantity: product.quantity,
-      image_url: null,
-      image_urls: null,
-      is_kit: true,
-    };
-  }
-
-  const optionsKey = getOptionsKey(product.category, product.sub_category);
-  const hasFinish = optionsKey !== null && PRODUCT_FINISH_OPTIONS[optionsKey] !== null;
-
-  // Determine the quality value
-  let qualityValue: string;
-  if (qualityOverride) {
-    qualityValue = qualityOverride;
-  } else if (product.selected_qualities.length > 0) {
-    qualityValue = product.selected_qualities[0];
-  } else {
-    qualityValue = product.quality;
-  }
-
-  // Custom-quality normalisation (added 2026-06): if the resolved
-  // quality is NOT one of the curated catalog entries, run it through
-  // titleCaseQuality so requester-typed strings like "abc", "ABC", and
-  // "Abc" all converge to "Abc". Catalog entries are intentionally
-  // skipped because their casing is authoritative — e.g. the marble
-  // catalog stores 'ARBESCATO VIOLA' and 'Forest  gold' in literal form
-  // to match the SKU register, and reformatting them would diverge from
-  // the spreadsheet source of truth.
-  if (qualityValue) {
-    const catalog = optionsKey ? PRODUCT_QUALITIES_BY_KEY[optionsKey as ProductTypeKey] : null;
-    const isCatalogEntry = !!catalog && catalog.includes(qualityValue);
-    if (!isCatalogEntry) {
-      qualityValue = titleCaseQuality(qualityValue);
-    }
-  }
-
-  // Hybrid Write: resolve "Other" selections to their custom text
-  const resolvedSize = product.sample_size === 'Other'
-    ? (product.sample_size_custom || '')
-    : product.sample_size;
-
-  const resolvedFinish = hasFinish
-    ? (product.finish === 'Other'
-      ? (product.finish_custom || '')
-      : product.finish)
-    : null;
-
-  return {
-    item_index: 0, // Will be set by the API function
-    product_type: product.category as RequestCategory,
-    sub_category: product.category === 'magro' ? (product.sub_category as any) || null : null,
-    quality: qualityValue,
-    sample_size: resolvedSize,
-    thickness: null, // Field removed from UI; column is now nullable in DB.
-    finish: resolvedFinish,
-    quantity: product.quantity,
-    // image_url keeps the FIRST image so every legacy reader (request detail,
-    // exports, the cleanup edge function) keeps working unchanged; image_urls
-    // carries the full ordered list.
-    image_url: imageUrls[0] ?? null,
-    image_urls: imageUrls.length > 0 ? imageUrls : null,
-    is_kit: false,
-  };
-}
-
-// ============================================================
-// SMART CONSOLIDATION: Merge duplicate items and sum quantities
-// ============================================================
-
-type ItemPayload = Omit<CreateRequestItemInput, 'request_id'>;
-
-function consolidateItems(items: ItemPayload[]): ItemPayload[] {
-  // Kit items are never consolidated — each kit is a distinct placeholder
-  const kitItems = items.filter(item => item.is_kit);
-  const regularItems = items.filter(item => !item.is_kit);
-
-  const map = new Map<string, ItemPayload>();
-
-  for (const item of regularItems) {
-    const key = [
-      item.product_type,
-      (item as any).sub_category ?? '',
-      item.quality,
-      item.sample_size,
-      // thickness intentionally omitted — field removed in 2026-06 refactor
-      item.finish ?? '',
-    ].join('||');
-
-    const existing = map.get(key);
-    if (existing) {
-      existing.quantity += item.quantity;
-      // Union the reference images of both entries (deduped, order-preserving)
-      // so consolidating identical specs never silently drops a photo.
-      const merged = [
-        ...(existing.image_urls ?? []),
-        ...(item.image_urls ?? []),
-      ];
-      const deduped = [...new Set(merged)];
-      existing.image_urls = deduped.length > 0 ? deduped : null;
-      // Keep the image from whichever entry had one
-      if (!existing.image_url && item.image_url) {
-        existing.image_url = item.image_url;
-      }
-    } else {
-      map.set(key, { ...item });
-    }
-  }
-
-  // Re-index all items sequentially: consolidated regular items, then kits
-  return [...Array.from(map.values()), ...kitItems].map((item, i) => ({
-    ...item,
-    item_index: i,
-  }));
-}
-
-// ============================================================
-// BATCH ENTRY: Explode products with multiple qualities into individual items
-// ============================================================
-//
-// Example: User selects verified ["Statuario", "Michel Angelo"] + custom "MyStone"
-// Result: 3 separate items with identical specs but different qualities
-// Custom detection: checks if quality exists in the DB list for that product type
-//
-interface ExplodedItem {
-  product: ProductItem;
-  quality: string;
-  originalIndex: number; // Track which original product this came from (for image URL mapping)
-  isFirstFromCard: boolean; // True for only the first item exploded from each card
-}
-
-function explodeProducts(products: ProductItem[]): ExplodedItem[] {
-  const exploded: ExplodedItem[] = [];
-
-  products.forEach((product, originalIndex) => {
-    // Kit items pass through directly — no quality explosion
-    if (product.is_kit) {
-      exploded.push({
-        product,
-        quality: '',
-        originalIndex,
-        isFirstFromCard: true,
-      });
-      return;
-    }
-
-    // Deduplicate selected_qualities (safety net against UI bugs)
-    const uniqueQualities = [...new Set(product.selected_qualities)];
-
-    if (uniqueQualities.length > 0) {
-      // Unified mode: each selected quality becomes a separate item
-      uniqueQualities.forEach((quality, qualityIndex) => {
-        exploded.push({
-          product,
-          quality,
-          originalIndex,
-          isFirstFromCard: qualityIndex === 0,
-        });
-      });
-    } else if (product.quality) {
-      // Legacy fallback: single quality from old format
-      exploded.push({
-        product,
-        quality: product.quality,
-        originalIndex,
-        isFirstFromCard: true,
-      });
-    }
-  });
-
-  return exploded;
-}
 
 // ============================================================
 // MAIN COMPONENT
@@ -1090,12 +812,12 @@ export default function NewRequest() {
     try {
       const formValues = watch();
 
-      // Step 1: Upload all images in parallel (+ the coordinator document,
-      // which bypasses image compression — see resolveCoordinatorDocUrl).
-      const [imageUrlMap, coordinatorDocUrl] = await Promise.all([
-        uploadAllImages(products),
-        resolveCoordinatorDocUrl(),
-      ]);
+      // Step 1: Upload images through the bounded pool, THEN the document.
+      // Sequential rather than Promise.all so total in-flight requests stay at
+      // UPLOAD_CONCURRENCY — racing them re-introduced the connection-limit
+      // stalls that surfaced as generic "Connection Error" toasts.
+      const imageUrlMap = await uploadAllImages(products);
+      const coordinatorDocUrl = await resolveCoordinatorDocUrl();
 
       // Step 2: Explode batch entries into individual items
       const explodedItems = explodeProducts(products);
@@ -1272,25 +994,18 @@ export default function NewRequest() {
       quantity: p.quantity, // This should be a NUMBER, not causing multiple requests
     })));
 
+    // Held outside the try so the catch can hand the very same plan to the
+    // Outbox when the failure turns out to be a dead network.
+    let submissionPlan: SubmissionPlan | null = null;
+
     try {
-      // Step 1: Upload all images in parallel (+ the coordinator document,
-      // which bypasses image compression — see resolveCoordinatorDocUrl).
-      const [imageUrlMap, coordinatorDocUrl] = await Promise.all([
-        uploadAllImages(products),
-        resolveCoordinatorDocUrl(),
-      ]);
-
-      // Step 2: Detect mixed-category submission
-      const marbleProducts = products.filter(p => p.category === 'marble');
-      const magroProducts  = products.filter(p => p.category === 'magro');
-      const isMixed = marbleProducts.length > 0 && magroProducts.length > 0;
-
-      // The split path DELETEs the original request and creates two new ones.
-      // A requester may only delete their own drafts, so on an already-
-      // submitted request that delete is silently refused by RLS and we'd
-      // leave the original behind alongside two duplicates. Block it here
-      // with an actionable message instead.
-      if (isMixed && isGraceEditMode) {
+      // Pre-flight: the split path DELETEs the original request and creates
+      // two new ones. A requester may only delete their own drafts, so on an
+      // already-submitted request that delete is silently refused by RLS and
+      // we would leave the original behind alongside two duplicates.
+      const hasMarble = products.some((p) => p.category === 'marble');
+      const hasMagro = products.some((p) => p.category === 'magro');
+      if (hasMarble && hasMagro && isGraceEditMode) {
         toast.error(
           <div>
             <p className="font-semibold">Can't split a submitted request</p>
@@ -1304,8 +1019,8 @@ export default function NewRequest() {
         return;
       }
 
-      // Step 3: Prepare shared request data (same for both split requests)
-      // Hybrid Write: when select = "other", store the custom text directly in the primary column
+      // Hybrid Write: when select = "other", store the custom text directly
+      // in the primary column.
       const resolvedClientType = data.client_type === 'other'
         ? (data.client_type_custom || data.client_type)
         : data.client_type;
@@ -1350,120 +1065,74 @@ export default function NewRequest() {
           ? (data.packing_details_custom || data.packing_details)
           : data.packing_details,
 
-        // Requester message (optional) + its optional document attachment
+        // Requester message (optional). The document columns are filled in by
+        // runSubmission once the file has actually uploaded.
         requester_message: data.requester_message || null,
-        coordinator_document_url: coordinatorDocUrl,
-        coordinator_document_name: coordinatorDocUrl ? (coordinatorDoc?.name ?? null) : null,
       };
 
-      // Helper: build consolidated items list for a given subset of product cards
-      const buildItemsForProducts = (subset: ProductItem[]) => {
-        // Map original indices from the full `products` array for image URL lookup
-        const exploded = explodeProducts(subset);
-        const rawItems = exploded.map((explodedItem) => {
-          // Find original index in the full products array for image URL lookup
-          const originalIndex = products.indexOf(explodedItem.product);
-          const imageUrls = resolveUploadedImageUrls(
-            imageUrlMap,
-            explodedItem.product,
-            originalIndex,
-            explodedItem.quality,
-            explodedItem.isFirstFromCard,
-          );
-          return productToItemInput(explodedItem.product, imageUrls, explodedItem.quality);
-        });
-        return consolidateItems(rawItems);
+      // The plan is a complete, self-contained description of this submission.
+      // The live path runs it immediately; if the network dies it is the exact
+      // object handed to the Outbox and replayed later by the same executor.
+      // Previews are stripped because they are multi-megabyte base64 strings
+      // that replay never reads.
+      submissionPlan = {
+        version: 1,
+        createdAt: Date.now(),
+        userId: profile.id,
+        products: stripImagePreviews(products),
+        requestData,
+        document: coordinatorDoc
+          ? {
+              file: coordinatorDoc.file ?? null,
+              name: coordinatorDoc.name,
+              url: coordinatorDoc.url ?? null,
+            }
+          : null,
+        mode: isEditMode && draftId ? 'update' : 'create',
+        requestId: draftId ?? null,
+        clearCoordinatorMessage: isResubmitMode,
+        allowSplit: !isGraceEditMode,
+        label: `${products.length} product card${products.length > 1 ? 's' : ''}`,
       };
 
-      if (isMixed) {
-        // ── SPLIT PATH: Create 2 requests atomically via RPC ──────────────
-        console.log(`[NewRequest] ${submissionId} - Mixed categories detected. Splitting into 2 requests.`);
+      const result = await runSubmission(submissionPlan);
+      console.log(`[NewRequest] ${submissionId} - Submission complete:`, result.kind);
 
-        // If editing an existing draft, delete it first (split replaces one draft with two new requests)
-        if (isEditMode && draftId) {
-          const { error: deleteError } = await supabase.from('requests').delete().eq('id', draftId);
-          if (deleteError) throw deleteError;
-        }
-
-        const marbleItems = buildItemsForProducts(marbleProducts);
-        const magroItems  = buildItemsForProducts(magroProducts);
-
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('create_split_requests', {
-          p_request_data: requestData,
-          p_marble_items: marbleItems,
-          p_magro_items:  magroItems,
-        });
-        if (rpcError) throw rpcError;
-
+      if (result.kind === 'split') {
         toast.success(
           <div>
             <p className="font-semibold">Split into 2 requests!</p>
             <p className="text-sm mt-0.5">
-              {rpcResult.marble_number} ({marbleItems.length} Marble item{marbleItems.length > 1 ? 's' : ''})
+              {result.marbleNumber} ({result.marbleCount} Marble item{result.marbleCount > 1 ? 's' : ''})
               {' + '}
-              {rpcResult.magro_number} ({magroItems.length} Magro item{magroItems.length > 1 ? 's' : ''})
+              {result.magroNumber} ({result.magroCount} Magro item{result.magroCount > 1 ? 's' : ''})
             </p>
           </div>
         );
+      } else if (result.kind === 'updated') {
+        toast.success(
+          isResubmitMode
+            ? 'Request resubmitted successfully!'
+            : isGraceEditMode
+            ? existingDraft?.status === 'approved'
+              // The DB trigger already forced this back to pending_approval;
+              // say so plainly rather than letting the coordinator's approval
+              // silently vanish from under the requester.
+              ? 'Changes saved. Your request was sent back for approval.'
+              : 'Changes saved successfully'
+            : 'Draft submitted successfully'
+        );
       } else {
-        // ── SINGLE PATH: One category, one request ────────────────────────
-        const explodedItems = explodeProducts(products);
-        console.log(`[NewRequest] ${submissionId} - Exploded ${products.length} product cards into ${explodedItems.length} items`);
-
-        const rawItems = explodedItems.map((explodedItem) => {
-          const imageUrls = resolveUploadedImageUrls(
-            imageUrlMap,
-            explodedItem.product,
-            explodedItem.originalIndex,
-            explodedItem.quality,
-            explodedItem.isFirstFromCard,
-          );
-          return productToItemInput(explodedItem.product, imageUrls, explodedItem.quality);
-        });
-        const itemsData = consolidateItems(rawItems);
-        const category = (marbleProducts.length > 0 ? 'marble' : 'magro') as RequestCategory;
-        const singleRequestData = { ...requestData, category };
-
-        console.log(`[NewRequest] ${submissionId} - Exploded: ${rawItems.length}, Consolidated: ${itemsData.length} items`);
-
-        if (isEditMode && draftId) {
-          // For resubmission, clear the old coordinator message
-          if (isResubmitMode) {
-            (singleRequestData as any).coordinator_message = null;
-          }
-          console.log(`[NewRequest] ${submissionId} - Updating ${isResubmitMode ? 'rejected' : 'draft'} request ${draftId}`);
-          await updateRequestWithItems(draftId, singleRequestData, itemsData);
-          toast.success(
-            isResubmitMode
-              ? 'Request resubmitted successfully!'
-              : isGraceEditMode
-              ? existingDraft?.status === 'approved'
-                // The DB trigger already forced this back to pending_approval;
-                // say so plainly rather than letting the coordinator's approval
-                // silently vanish from under the requester.
-                ? 'Changes saved. Your request was sent back for approval.'
-                : 'Changes saved successfully'
-              : 'Draft submitted successfully'
-          );
-        } else {
-          console.log(`[NewRequest] ${submissionId} - Creating new request (single insert)`);
-          const result = await createRequestWithItems(singleRequestData, itemsData);
-          console.log(`[NewRequest] ${submissionId} - Created request: ${result.request.request_number}`);
-
-          const itemCount = itemsData.length;
-          const cardCount = products.length;
-          const isBatch = itemCount > cardCount;
-
-          toast.success(
-            <div>
-              <p className="font-semibold">Request submitted successfully!</p>
-              <p className="text-sm">
-                Request #{result.request.request_number} with {itemCount} item{itemCount > 1 ? 's' : ''}
-                {isBatch && ` (from ${cardCount} product card${cardCount > 1 ? 's' : ''})`}
-              </p>
-            </div>
-          );
-        }
+        const isBatch = result.itemCount > result.cardCount;
+        toast.success(
+          <div>
+            <p className="font-semibold">Request submitted successfully!</p>
+            <p className="text-sm">
+              Request #{result.requestNumber} with {result.itemCount} item{result.itemCount > 1 ? 's' : ''}
+              {isBatch && ` (from ${result.cardCount} product card${result.cardCount > 1 ? 's' : ''})`}
+            </p>
+          </div>
+        );
       }
 
       // Invalidate cached data so re-opening this request shows fresh values
@@ -1481,6 +1150,31 @@ export default function NewRequest() {
       navigate('/requests');
     } catch (error: any) {
       console.error('Error submitting request:', error);
+
+      // A genuine transport failure must not lose the user's work: queue the
+      // plan and let the Outbox replay it when connectivity returns. Server
+      // rejections (413, RLS, validation) are NOT queued — retrying those
+      // forever would just hide a real problem. See isNetworkError().
+      if (submissionPlan && isNetworkError(error)) {
+        const queued = await enqueueSubmission(submissionPlan);
+        if (queued) {
+          allowExitRef.current = true;
+          toast.success(
+            <div>
+              <p className="font-semibold">Saved to Outbox</p>
+              <p className="text-sm mt-1">
+                Your request will automatically submit when your connection improves.
+              </p>
+            </div>,
+            { duration: 7000 }
+          );
+          navigate('/requests');
+          return;
+        }
+        // Queueing failed (no IndexedDB, or quota) — fall through and report
+        // the original error rather than claiming a save that did not happen.
+      }
+
       const friendly = getFriendlyErrorMessage(error);
       toast.error(
         <div>

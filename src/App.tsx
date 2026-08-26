@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Toaster } from 'sonner';
+import OutboxIndicator from '@/components/outbox/OutboxIndicator';
 import { useExitPrompt } from '@/hooks/useExitPrompt';
 import { FullPageSkeleton } from '@/components/skeletons';
 import {
@@ -291,6 +292,12 @@ function App() {
       </BrowserRouter>
 
       <Toaster position="top-right" richColors />
+
+      {/* Offline Outbox. Mounted at the app root (inside the auth + query
+          providers from main.tsx) so the retry loop keeps running across route
+          changes. Renders nothing unless something is queued — see
+          src/components/outbox/OutboxIndicator.tsx. */}
+      <OutboxIndicator />
 
       {/* Compulsory PWA-update overlay. Sits at the app root, outside
           the router, so it can render in any auth/loading state and

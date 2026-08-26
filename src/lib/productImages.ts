@@ -61,3 +61,30 @@ export function qualityImages(product: ProductItem, quality: string): ProductIma
 export function previewSrc(image: ProductImage): string | null {
   return image.preview || image.url || null;
 }
+
+/**
+ * Copy of the cards with every base64 `preview` dropped.
+ *
+ * Previews are FileReader data URLs — roughly 1.4x the compressed image size
+ * EACH. Persisting them into the offline Outbox would multiply an already
+ * multi-megabyte queued submission for no benefit: replaying a submission
+ * only ever reads `file` and `url`, never `preview`. The original File
+ * objects are kept intact (they structured-clone into IndexedDB natively).
+ */
+export function stripImagePreviews(products: ProductItem[]): ProductItem[] {
+  const strip = (images: ProductImage[]): ProductImage[] =>
+    images.map(({ preview: _preview, ...rest }) => ({ ...rest }));
+
+  return products.map((product) => {
+    const next: ProductItem = { ...product, image_preview: null };
+    if (product.images?.length) next.images = strip(product.images);
+    if (product.quality_images) {
+      const qi: Record<string, ProductImage[]> = {};
+      for (const [quality, images] of Object.entries(product.quality_images)) {
+        qi[quality] = strip(images);
+      }
+      next.quality_images = qi;
+    }
+    return next;
+  });
+}
