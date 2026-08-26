@@ -3,7 +3,16 @@ import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { hasOpenOverlay } from '@/lib/overlayStack';
-import { stripImagePreviews } from '@/lib/productImages';
+import { hasAnyImages, stripImagePreviews } from '@/lib/productImages';
+import {
+  AUTO_SAVE_DEBOUNCE_MS,
+  clearAutoSavedDraft,
+  isRestorableDraft,
+  loadAutoSavedDraft,
+  rehydratePreviews,
+  saveAutoSavedDraft,
+} from '@/lib/formAutoSave';
+import { usePreventNavigation } from '@/hooks/usePreventNavigation';
 import {
   consolidateItems,
   explodeProducts,
@@ -542,11 +551,19 @@ export default function NewRequest() {
   // DIRTY FORM PROTECTION — Intercept browser back button
   // ============================================================
 
-  // Check if user has entered any meaningful data
+  // Check if user has entered any meaningful data. Attachments count: photos
+  // or a document added before a category is picked are still real work, and
+  // are exactly what the guard exists to protect.
   const hasProductData = products.some(
     (p) => p.category || p.selected_qualities.length > 0 || p.quality
   );
-  const isFormDirty = isDirty || hasProductData;
+  const hasAttachments = products.some(hasAnyImages) || !!coordinatorDoc;
+  const isFormDirty = isDirty || hasProductData || hasAttachments;
+
+  // Tier 1 — native "Leave site?" prompt for reload / tab close / URL change.
+  // Suppressed while submitting so the confirmation dialog cannot appear on
+  // top of a save that is already in flight.
+  usePreventNavigation(isFormDirty && !isSubmitting);
 
   /** Navigate away — always works regardless of history stack depth */
   const leaveForm = useCallback(() => {
@@ -596,6 +613,117 @@ export default function NewRequest() {
     setShowExitWarning(false);
     leaveForm();
   }, [leaveForm]);
+
+  // ============================================================
+  // TIER 2 — LOCAL AUTO-SAVE BACKUP (IndexedDB)
+  // ============================================================
+  // Scoped to NEW requests only. In edit mode the draft-load effect resets the
+  // form once the server row arrives, so a restore would race it — and worse,
+  // could overwrite good server data with a stale local copy on submit. An
+  // existing draft already has a server-side backup; a brand-new request has
+  // nothing anywhere else, which is where the whole risk sits.
+  const isAutoSaveScope = !draftId;
+
+  // Blocks the auto-save writer until the restore pass has finished, so an
+  // empty first render cannot overwrite the very backup we are about to read.
+  const hasRestoredRef = useRef(false);
+  const objectUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (!isAutoSaveScope || !profile?.id) return;
+    let cancelled = false;
+
+    (async () => {
+      const draft = await loadAutoSavedDraft(profile.id);
+      if (cancelled) {
+        hasRestoredRef.current = true;
+        return;
+      }
+
+      if (isRestorableDraft(draft)) {
+        // Files come back from IndexedDB as real File objects; only the
+        // thumbnail previews need rebuilding (see rehydratePreviews).
+        const { products: restored, objectUrls } = rehydratePreviews(draft.products);
+        objectUrlsRef.current = objectUrls;
+
+        reset(draft.formValues as Partial<RequestFormData>);
+        setProducts(restored);
+        setCoordinatorDoc(draft.coordinatorDoc);
+
+        toast.info(
+          <div>
+            <p className="font-semibold">Restored your unsaved request</p>
+            <p className="text-sm mt-0.5">We recovered what you had typed before you left.</p>
+          </div>,
+          {
+            duration: 8000,
+            action: {
+              label: 'Discard',
+              onClick: () => {
+                void clearAutoSavedDraft();
+                objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+                objectUrlsRef.current = [];
+                reset({ priority: 'normal' });
+                setProducts([createEmptyProduct()]);
+                setCoordinatorDoc(null);
+              },
+            },
+          },
+        );
+      }
+
+      hasRestoredRef.current = true;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Runs once per mount for a given user — reset/setters are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAutoSaveScope, profile?.id]);
+
+  // Release the object URLs minted during a restore so their blobs are not
+  // pinned in memory after the form closes.
+  useEffect(() => {
+    return () => {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      objectUrlsRef.current = [];
+    };
+  }, []);
+
+  // Debounced writer. watch() re-renders on every keystroke, so the timer is
+  // reset on each change and only the settled state is ever written.
+  const watchedValues = watch();
+  useEffect(() => {
+    if (!isAutoSaveScope || !profile?.id) return;
+    if (!hasRestoredRef.current) return;
+    if (!isFormDirty || isSubmitting) return;
+
+    const timer = setTimeout(() => {
+      void saveAutoSavedDraft({
+        userId: profile.id,
+        formValues: watchedValues as unknown as Record<string, unknown>,
+        products,
+        coordinatorDoc: coordinatorDoc
+          ? {
+              file: coordinatorDoc.file ?? null,
+              name: coordinatorDoc.name,
+              url: coordinatorDoc.url ?? null,
+            }
+          : null,
+      });
+    }, AUTO_SAVE_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [
+    isAutoSaveScope,
+    profile?.id,
+    isFormDirty,
+    isSubmitting,
+    watchedValues,
+    products,
+    coordinatorDoc,
+  ]);
 
   // handleSaveDraftAndExit — close dialog then trigger the real save (which navigates on success)
   const handleSaveDraftAndExit = useCallback(() => {
@@ -914,6 +1042,10 @@ export default function NewRequest() {
         queryClient.invalidateQueries({ queryKey: ['request-items', draftId] });
       }
 
+      // The work is on the server now — drop the local backup so the next new
+      // request starts from a blank form instead of resurrecting this one.
+      await clearAutoSavedDraft();
+
       allowExitRef.current = true;
       navigate('/requests');
     } catch (error: any) {
@@ -1146,6 +1278,10 @@ export default function NewRequest() {
         queryClient.invalidateQueries({ queryKey: ['request-items', draftId] });
       }
 
+      // The work is on the server now — drop the local backup so the next new
+      // request starts from a blank form instead of resurrecting this one.
+      await clearAutoSavedDraft();
+
       allowExitRef.current = true;
       navigate('/requests');
     } catch (error: any) {
@@ -1158,6 +1294,9 @@ export default function NewRequest() {
       if (submissionPlan && isNetworkError(error)) {
         const queued = await enqueueSubmission(submissionPlan);
         if (queued) {
+          // Safely queued — the Outbox owns it now. Clearing here prevents the
+          // next new request from restoring a copy that is already in flight.
+          await clearAutoSavedDraft();
           allowExitRef.current = true;
           toast.success(
             <div>

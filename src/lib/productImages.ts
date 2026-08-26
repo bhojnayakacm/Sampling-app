@@ -88,3 +88,16 @@ export function stripImagePreviews(products: ProductItem[]): ProductItem[] {
     return next;
   });
 }
+
+/**
+ * True when the card carries at least one reference image, in either the
+ * single-dropzone or per-quality shape.
+ *
+ * Used by the unsaved-changes guard: attaching photos without yet picking a
+ * category is real work, and losing it to a stray refresh is exactly the case
+ * the guard exists for.
+ */
+export function hasAnyImages(product: ProductItem): boolean {
+  if (cardImages(product).length > 0) return true;
+  return Object.values(product.quality_images ?? {}).some((images) => images.length > 0);
+}
