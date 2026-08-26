@@ -29,6 +29,7 @@ import { formatDate } from '@/lib/utils';
 import { RequesterStatsSkeleton } from '@/components/skeletons';
 import EnablePushButton from '@/components/notifications/EnablePushButton';
 import WhatsNewDialog from '@/components/announcements/WhatsNewDialog';
+import ContactSupportFab from '@/components/support/ContactSupportFab';
 
 // Compact stat card configuration
 interface StatConfig {
@@ -160,6 +161,10 @@ export default function RequesterDashboard() {
       {/* One-time "What's New" popup. Self-gating: renders nothing unless the
           signed-in user has an undismissed announcement for their role. */}
       <WhatsNewDialog />
+
+      {/* Floating "Contact Support" button (bottom-right; the offline Outbox
+          pill owns bottom-left). Self-gates on the requester role. */}
+      <ContactSupportFab />
 
       {/* Clean White Header */}
       <header className="bg-white border-b border-slate-200">
