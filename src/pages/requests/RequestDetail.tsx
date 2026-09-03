@@ -2154,7 +2154,7 @@ export default function RequestDetail() {
                     {request.status === 'approved' && 'Assign to maker'}
                     {request.status === 'assigned' && 'Start production'}
                     {request.status === 'in_production' && 'Mark as ready'}
-                    {request.status === 'ready' && request.pickup_responsibility === 'self_pickup' && 'Awaiting pickup by requester'}
+                    {request.status === 'ready' && request.pickup_responsibility === 'self_pickup' && 'Confirm collection when the requester picks up'}
                     {request.status === 'ready' && request.pickup_responsibility === 'field_boy' && 'Awaiting dispatcher pickup'}
                     {request.status === 'ready' && !['self_pickup', 'field_boy'].includes(request.pickup_responsibility) && 'Dispatch sample'}
                     {request.status === 'dispatched' && 'Awaiting requester confirmation'}

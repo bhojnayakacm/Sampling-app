@@ -34,8 +34,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Truck, UserPlus, Calendar, AlertCircle, Play, PackageCheck } from 'lucide-react';
 import DispatchDialog from './DispatchDialog';
+import ReceiveConfirmDialog from './ReceiveConfirmDialog';
 import { formatDateTime } from '@/lib/utils';
 import { formatCountdown } from '@/lib/editGracePeriod';
 import { useGraceCountdown } from '@/hooks/useGraceCountdown';
@@ -58,6 +59,8 @@ export default function RequestActions({ request, userRole, isCompact = false, o
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   // Warning shown when approving a request the requester can still edit.
   const [graceWarningOpen, setGraceWarningOpen] = useState(false);
+  // Coordinator-side receipt confirmation for self-pickup collections.
+  const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -302,12 +305,21 @@ export default function RequestActions({ request, userRole, isCompact = false, o
     return null;
   }
 
-  // 2026-06 refactor: the Mark Received button is now requester-only and
-  // lives in <ReceiverActions />. The coordinator never marks a request as
-  // received — not even for self-pickup, where the requester is physically
-  // collecting the sample and is the right person to confirm. That removed
-  // the old `canCoordinatorReceive` / `handleMarkReceivedClick` plumbing
-  // along with the inline ReceiveConfirmDialog mount below.
+  // Receipt confirmation, by role:
+  //   • dispatched                 → requester only, via <ReceiverActions />.
+  //     The sample is in transit; only the person who took delivery knows it
+  //     actually arrived.
+  //   • ready + self_pickup        → requester OR coordinator (both surfaces
+  //     render the action). The handover happens at the studio counter, so
+  //     whoever is standing there can close the loop — the coordinator no
+  //     longer has to wait for the requester to remember to tap it.
+  //
+  // The coordinator's confirmation goes through the same
+  // <ReceiveConfirmDialog /> the requester uses, so `received_by` records who
+  // physically collected the sample (the requester, or a named third party)
+  // rather than silently attributing it to whoever clicked.
+  const canCoordinatorReceive =
+    request.status === 'ready' && request.pickup_responsibility === 'self_pickup';
 
   // Compact mode for sticky action bar
   if (isCompact) {
@@ -397,6 +409,21 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             >
               <Truck className="h-4 w-4" />
               Dispatch
+            </Button>
+          )}
+
+          {/* Self-pickup handover: the requester collects at the studio, so
+              the coordinator can confirm receipt on the spot. Mutually
+              exclusive with Dispatch above — coordinatorDispatchMode is null
+              for self_pickup, so the two never render together. */}
+          {canCoordinatorReceive && (
+            <Button
+              onClick={() => setReceiveDialogOpen(true)}
+              size="sm"
+              className="h-10 bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
+            >
+              <PackageCheck className="h-4 w-4" />
+              Mark as Received
             </Button>
           )}
 
@@ -750,6 +777,15 @@ export default function RequestActions({ request, userRole, isCompact = false, o
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Receipt confirmation for a self-pickup handover. Same dialog the
+            requester uses, so the captured `received_by` is consistent
+            regardless of which role closed the request. */}
+        <ReceiveConfirmDialog
+          request={request}
+          open={receiveDialogOpen}
+          onOpenChange={setReceiveDialogOpen}
+        />
       </>
     );
   }

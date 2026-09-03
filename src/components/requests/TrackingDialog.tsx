@@ -97,15 +97,18 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
   // Check if self pickup - skip dispatched step
   const isSelfPickup = request.pickup_responsibility === 'self_pickup';
 
-  // 2026-06 refactor: ONLY the requester may mark a request as received.
-  // The coordinator's Mark Received button was removed from both this
-  // timeline dialog AND from RequestActions; the primary surface is now
-  // the sticky <ReceiverActions /> bar on RequestDetail for requesters.
+  // Receipt confirmation, by role — kept in step with RequestActions so the
+  // action never appears on one coordinator surface but not the other:
+  //   • dispatched          → requester only (they took delivery).
+  //   • ready + self_pickup → requester OR coordinator, since the handover
+  //     happens at the studio counter and either party can close the loop.
   const isRequester = profile?.id === request.created_by;
-  const canMarkReceived = isRequester && (
-    request.status === 'dispatched' ||
-    (request.status === 'ready' && isSelfPickup)
+  const isCoordinator = ['coordinator', 'marble_coordinator', 'magro_coordinator'].includes(
+    profile?.role || '',
   );
+  const canMarkReceived =
+    (isRequester && request.status === 'dispatched') ||
+    ((isRequester || isCoordinator) && request.status === 'ready' && isSelfPickup);
 
   // Dynamic timeline steps - filter out "Dispatched" for self pickup
   const timelineSteps = isSelfPickup
@@ -129,9 +132,16 @@ export default function TrackingDialog({ request, trigger }: TrackingDialogProps
 
   const currentStepIndex = getCurrentStepIndex();
 
-  // Handle "Mark as Received" click — self-pickup auto-completes, others open modal
+  // Handle "Mark as Received" click.
+  //
+  // A requester confirming their OWN self-pickup auto-completes: they are
+  // unambiguously the receiver, so asking who collected it is noise. Every
+  // other path — including a coordinator confirming a counter handover —
+  // opens the modal, because the coordinator may be releasing the sample to
+  // the requester or to a named third party and `received_by` must record
+  // which.
   const handleMarkReceivedClick = async () => {
-    if (isSelfPickup) {
+    if (isSelfPickup && isRequester) {
       try {
         await markAsReceived.mutateAsync({
           requestId: request.id,
