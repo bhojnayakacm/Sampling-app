@@ -1021,7 +1021,10 @@ export default function CoordinatorDashboard({ category }: { category?: 'marble'
     }
 
     if (activeTab === 'reports') {
-      return <ReportsView />;
+      // Category-scoped coordinators (marble_/magro_coordinator) get their own
+      // category locked in, matching the rest of their dashboard; a general
+      // coordinator (category undefined) gets the Marble/Magro tabs.
+      return <ReportsView category={category} />;
     }
 
     return (
