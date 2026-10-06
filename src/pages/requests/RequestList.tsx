@@ -406,6 +406,23 @@ export default function RequestList() {
                 const summary = getItemSummary(request);
                 const hasActions = isRequesterUser || !isDraft;
 
+                // Requester card sub-header: where the sample is going.
+                // Self-pickup is checked FIRST — those requests have no delivery
+                // address by design, and one switched to self-pickup after
+                // submission can still carry a stale address that would wrongly
+                // imply a delivery. Otherwise: the delivery address, then the
+                // site location (e.g. a draft not yet filled in), then an
+                // explicit "none" so the line never silently disappears.
+                const deliveryAddress = request.delivery_address?.trim();
+                const siteLocation = request.site_location?.trim();
+                const isMissingAddress =
+                  request.pickup_responsibility !== 'self_pickup' && !deliveryAddress && !siteLocation;
+                const destination =
+                  request.pickup_responsibility === 'self_pickup'
+                    ? 'Self pickup'
+                    : deliveryAddress || siteLocation || 'No address provided';
+                const requesterSubHeader = [request.firm_name, destination].filter(Boolean).join(' · ');
+
                 return (
                   <Card
                     key={request.id}
@@ -438,11 +455,19 @@ export default function RequestList() {
                           <p className="text-base font-semibold text-slate-900 leading-snug truncate">
                             {request.client_contact_name || '—'}
                           </p>
-                          {(request.firm_name || request.site_location) && (
-                            <p className="text-sm text-slate-500 truncate mt-0.5">
-                              {[request.firm_name, request.site_location].filter(Boolean).join(' · ')}
-                            </p>
-                          )}
+                          {/* line-clamp-2 (not truncate): addresses are long, and
+                              one line shows mostly the plot/door number — the
+                              least identifying part. Two lines is enough to
+                              recognise the destination while capping card height.
+                              break-words stops an unbroken token overflowing. */}
+                          <p
+                            className={`text-sm text-slate-500 mt-0.5 line-clamp-2 break-words ${
+                              isMissingAddress ? 'italic' : ''
+                            }`}
+                            title={requesterSubHeader}
+                          >
+                            {requesterSubHeader}
+                          </p>
                         </div>
                       ) : (
                         /* Staff: requester identity is the hero */
